@@ -1,0 +1,11 @@
+# build
+bin/
+obj/
+*.user
+
+# artefatos do instalador
+installer/publish/
+installer/output/
+
+# logs locais
+*.log

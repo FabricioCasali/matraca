@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="utf-8"?>
+<assembly manifestVersion="1.0" xmlns="urn:schemas-microsoft-com:asm.v1">
+  <assemblyIdentity version="1.0.0.0" name="Matraca.app" />
+  <trustInfo xmlns="urn:schemas-microsoft-com:asm.v2">
+    <security>
+      <requestedPrivileges xmlns="urn:schemas-microsoft-com:asm.v3">
+        <!-- uiAccess=true: integridade MEDIA (microfone funciona), mas com privilegio
+             UIAccess que fura o UIPI — o hook captura teclas e injeta texto sobre janelas
+             ELEVADAS (ex.: terminal Admin). Requisitos do Windows p/ isso valer:
+               1) o .exe precisa ser ASSINADO (Authenticode) com cert confiavel na maquina;
+               2) o .exe precisa estar em pasta SEGURA (%ProgramFiles% ou System32).
+             Se algum requisito faltar, o Windows IGNORA o uiAccess (roda como asInvoker).
+             Use setup-uiaccess.ps1 p/ assinar e instalar em C:\Program Files\Matraca. -->
+        <requestedExecutionLevel level="asInvoker" uiAccess="true" />
+      </requestedPrivileges>
+    </security>
+  </trustInfo>
+  <application xmlns="urn:schemas-microsoft-com:asm.v3">
+    <windowsSettings>
+      <dpiAwareness xmlns="http://schemas.microsoft.com/SMI/2016/WindowsSettings">PerMonitorV2</dpiAwareness>
+    </windowsSettings>
+  </application>
+</assembly>
