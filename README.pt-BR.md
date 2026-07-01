@@ -72,7 +72,7 @@ O mesmo arquivo pode ser editado na mão (`appsettings.json`):
 |---|---|---|
 | `modelPath` | modelo do Vibe | Caminho do `.bin` ggml do Whisper. Aceita variáveis (`%LOCALAPPDATA%`). |
 | `language` | `pt` | Idioma do áudio. `pt` lida bem com termos em inglês embutidos. |
-| `hotkey` | `discover` | Tecla de atalho: `F13`–`F24`, media keys (`MediaPlayPause`, etc.), número (`0xB6`) ou `discover`. |
+| `hotkey` | `discover` | Tecla de atalho: `F13`–`F24`, media keys (`MediaPlayPause`, etc.), número (`0xB6`) ou `discover`. **Somente tecla única** — combinações como `Ctrl+Alt+X` não são suportadas; a tecla configurada é reservada pro ditado (deixa de chegar aos outros apps). |
 | `mode` | `toggle` | `toggle` (aperta liga / aperta desliga), `hold` (segura pra falar), `live`/`push` (ver abaixo). |
 | `autoEnter` | `false` | Se `true`, pressiona Enter depois de colar (envia na hora). |
 | `beep` | `true` | Sons de início (subindo) / fim (descendo) de gravação. |
