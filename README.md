@@ -1,36 +1,42 @@
-# Matraca — ditado por voz (speech-to-text) pra prompts
+**English** | [Português (Brasil)](README.pt-BR.md)
 
-App de bandeja (tray) em C#/.NET 8 que transcreve sua voz e **cola o texto na janela em foco**.
-Pensado pra ditar prompts no Claude Code (terminal), mas funciona em qualquer lugar com cursor de
-texto: navegador, Word, chat, etc.
+# Matraca — voice dictation (speech-to-text) for prompts
 
-Motor de transcrição: **Whisper** via [Whisper.net](https://github.com/sandrohanea/whisper.net)
-(binding do whisper.cpp), rodando na **GPU via Vulkan**. Reaproveita o modelo `ggml-large-v3-turbo.bin`
-já baixado pelo app Vibe — **não precisa do Vibe rodando**.
+Windows tray app in C#/.NET 8 that transcribes your voice and **pastes the text into the focused
+window**. Built for dictating prompts into Claude Code (terminal), but works anywhere there's a text
+cursor: browser, Word, chat, etc.
 
-## Como funciona
+Transcription engine: **Whisper** via [Whisper.net](https://github.com/sandrohanea/whisper.net)
+(whisper.cpp binding), running on the **GPU via Vulkan**. It can reuse the `ggml-large-v3-turbo.bin`
+model already downloaded by the Vibe app — **Vibe doesn't need to be running**.
 
-1. Você aperta sua tecla de atalho → começa a gravar (beep + ícone muda).
-2. Fala o prompt.
-3. Aperta a tecla de novo → para, transcreve (~0,3s na RTX 4070 Ti) e **cola no campo em foco**.
-4. Você revisa e dá Enter. (Não envia sozinho — config `autoEnter`.)
+*"Matraca" is Brazilian Portuguese for someone who never stops talking.*
 
-O texto vai pra **onde quer que o cursor esteja** — o app cola via clipboard + `Ctrl+V`, preservando
-o que você já tinha copiado.
+## How it works
 
-## Primeiro uso — descobrir sua tecla
+1. Press your hotkey → recording starts (beep + tray icon changes).
+2. Speak your prompt.
+3. Press the hotkey again → it stops, transcribes (~0.3s on an RTX 4070 Ti) and **pastes into the
+   focused field**.
+4. You review and hit Enter. (It never submits on its own — see the `autoEnter` setting.)
 
-O `appsettings.json` já vem com `"hotkey": "discover"`. Rode o app:
+The text goes **wherever the cursor is** — the app pastes via clipboard + `Ctrl+V`, preserving
+whatever you had copied before. While recording, a **colored border** highlights the window that
+will receive the text — if a pop-up steals focus, you see it before pasting.
+
+## First run — discover your key
+
+`appsettings.json` ships with `"hotkey": "discover"`. Run the app:
 
 ```powershell
-dotnet run --project .   # na pasta do projeto
-# ou rode o exe compilado:
+dotnet run --project .   # from the project folder
+# or run the compiled exe:
 # .\bin\Debug\net8.0-windows\Matraca.exe
 ```
 
-Um ícone aparece na bandeja em **MODO DESCOBERTA**. Aperte a tecla custom do seu teclado: um balão
-mostra o código e o nome sugerido (ex.: `F24`), e também grava no `matraca.log`. Coloque esse nome no
-`appsettings.json` e reinicie o app:
+A tray icon appears in **DISCOVER MODE**. Press the key you want to use: a balloon shows its code
+and suggested name (e.g. `F24`), also written to `matraca.log`. Put that name in `appsettings.json`
+and restart:
 
 ```json
 {
@@ -38,108 +44,100 @@ mostra o código e o nome sugerido (ex.: `F24`), e também grava no `matraca.log
 }
 ```
 
-Pronto — agora a tecla é o gatilho do ditado.
+Done — that key now triggers dictation. (Or use the settings window, below.)
 
-## Instalação (recomendado)
+## Installation (recommended)
 
-Baixe/gere o instalador e execute:
+Download/build the installer and run it:
 
 ```powershell
-# gerar o instalador (requer .NET 8 SDK e Inno Setup 6):
+# build the installer (requires the .NET 8 SDK and Inno Setup 6):
 installer\build-installer.ps1 -Version 1.0.0
-# saida: installer\output\matraca-setup-1.0.0.exe
+# output: installer\output\matraca-setup-1.0.0.exe
 ```
 
-O instalador é self-contained (não precisa de .NET instalado) e oferece duas opções:
+The installer is self-contained (no .NET runtime required) and offers two options:
 
-- **Iniciar com o Windows** — atalho na pasta de inicialização.
-- **Ditar em janelas elevadas (Admin)** — instala a variante com `uiAccess` e assina o exe com um
-  certificado local criado na hora (necessário pro Windows honrar o uiAccess). Sem essa opção o app
-  funciona normalmente, só não captura o atalho quando a janela em foco é elevada.
+- **Start with Windows** — shortcut in the startup folder.
+- **Dictate into elevated (Admin) windows** — installs the `uiAccess` variant and signs the exe with
+  a locally generated certificate (required by Windows to honor uiAccess). Without this option the
+  app works normally; it just can't capture the hotkey while an elevated window has focus.
 
-## Configuração
+## Configuration
 
-**Menu da bandeja → Configurações...** abre a tela de parametrização: tecla de atalho (clique em
-*Capturar* e pressione a tecla), modo de ditado, idioma, moldura de foco, VAD, GPU etc. Salva em
-`%LOCALAPPDATA%\Matraca\appsettings.json` e oferece reiniciar o app para aplicar.
+**Tray menu → Configurações...** opens the settings window: hotkey (click *Capture* and press the
+key), dictation mode, language, focus border, VAD, GPU, etc. It saves to
+`%LOCALAPPDATA%\Matraca\appsettings.json` and offers to restart the app to apply.
 
-O mesmo arquivo pode ser editado na mão (`appsettings.json`):
+The same file can be edited by hand (`appsettings.json`):
 
-| Campo | Default | O que faz |
+| Field | Default | What it does |
 |---|---|---|
-| `modelPath` | modelo do Vibe | Caminho do `.bin` ggml do Whisper. Aceita variáveis (`%LOCALAPPDATA%`). |
-| `language` | `pt` | Idioma do áudio. `pt` lida bem com termos em inglês embutidos. |
-| `hotkey` | `discover` | Tecla de atalho: `F13`–`F24`, media keys (`MediaPlayPause`, etc.), número (`0xB6`) ou `discover`. |
-| `mode` | `toggle` | `toggle` (aperta liga / aperta desliga), `hold` (segura pra falar) ou `live` (ver abaixo). |
-| `autoEnter` | `false` | Se `true`, pressiona Enter depois de colar (envia na hora). |
-| `beep` | `true` | Sons de início (subindo) / fim (descendo) de gravação. |
-| `silenceMs` | `700` | (modo live) duração da pausa que finaliza uma frase. |
-| `vadThreshold` | `0.012` | (modo live) energia mínima (RMS) p/ considerar que há fala. Aumente se pegar ruído; diminua se cortar fala baixa. |
-| `idleUnloadMinutes` | `5` | Descarrega o modelo (libera ~1,5 GB de VRAM) após N min sem uso. Recarrega sozinho no próximo ditado. `0` = nunca descarrega. |
-| `gpu` | `auto` | `auto` (GPU se houver, senão CPU), `vulkan` (força GPU) ou `cpu` (força CPU). |
-| `focusBorder` | `true` | Desenha uma moldura colorida na janela em foco enquanto grava — mostra **onde o texto vai ser colado** (útil quando um pop-up rouba o foco). A moldura segue o foco em tempo real e não interfere em cliques nem no foco. |
-| `focusBorderColor` | `#E81123` | Cor da moldura (hex HTML). |
-| `focusBorderThickness` | `4` | Espessura da moldura em pixels (1–40). |
-| `focusBorderOpacity` | `0.9` | Opacidade da moldura (0.1–1.0). |
+| `modelPath` | Vibe's model | Path to the Whisper ggml `.bin`. Environment variables allowed (`%LOCALAPPDATA%`). |
+| `language` | `pt` | Audio language. Use `en` for English; `pt` handles embedded English terms well. |
+| `hotkey` | `discover` | Hotkey: `F13`–`F24`, media keys (`MediaPlayPause`, etc.), a number (`0xB6`) or `discover`. |
+| `mode` | `toggle` | `toggle` (press on / press off), `hold` (hold to talk), `live`/`push` (see below). |
+| `autoEnter` | `false` | If `true`, presses Enter after pasting (submits immediately). |
+| `beep` | `true` | Start (rising) / stop (falling) recording sounds. |
+| `silenceMs` | `700` | (live mode) pause length that ends a sentence. |
+| `vadThreshold` | `0.012` | (live mode) minimum energy (RMS) to count as speech. Raise if it picks up noise; lower if it clips quiet speech. |
+| `idleUnloadMinutes` | `5` | Unloads the model (frees ~1.5 GB of VRAM) after N idle minutes. Reloads automatically on the next dictation. `0` = never unload. |
+| `gpu` | `auto` | `auto` (GPU if available, else CPU), `vulkan` (force GPU) or `cpu` (force CPU). |
+| `focusBorder` | `true` | Draws a colored border around the focused window while recording — shows **where the text will be pasted** (handy when a pop-up steals focus). Follows focus in real time and never interferes with clicks or focus. |
+| `focusBorderColor` | `#E81123` | Border color (HTML hex). |
+| `focusBorderThickness` | `4` | Border thickness in pixels (1–40). |
+| `focusBorderOpacity` | `0.9` | Border opacity (0.1–1.0). |
 
-### Concorrência de GPU (VRAM)
+### GPU concurrency (VRAM)
 
-Enquanto o modelo está carregado ele ocupa **~1,5–2 GB de VRAM**. Duas formas de lidar quando você
-precisa da GPU pra outra coisa:
+While loaded, the model takes **~1.5–2 GB of VRAM**. Two ways to handle needing the GPU for
+something else:
 
-- **`idleUnloadMinutes`** (automático): depois de ocioso, o app **libera a VRAM sozinho** e recarrega
-  (~2–8s) quando você voltar a ditar. É o comportamento padrão (5 min).
-- **`gpu: "cpu"`** (manual): roda **100% na CPU**, VRAM zero — porém a transcrição fica **lenta
-  (~13s por frase)** com o modelo large. Bom pra quando a GPU está totalmente ocupada. Trocar entre
-  `cpu`/`vulkan`/`auto` exige **reiniciar o app** (o runtime nativo é fixado por processo).
+- **`idleUnloadMinutes`** (automatic): after being idle, the app **frees the VRAM on its own** and
+  reloads (~2–8s) when you dictate again. This is the default (5 min).
+- **`gpu: "cpu"`** (manual): runs **100% on the CPU**, zero VRAM — but transcription becomes **slow
+  (~13s per sentence)** with the large model. Good for when the GPU is fully busy. Switching between
+  `cpu`/`vulkan`/`auto` requires **restarting the app** (the native runtime is fixed per process).
 
-> Durante a transcrição o uso de GPU é só uma **rajada de ~0,3s**; não é carga contínua.
+> During transcription the GPU load is just a **~0.3s burst**; it's not continuous.
 
-### Modo `live` (ditado por pausa / VAD)
+### `live` mode (pause-based dictation / VAD)
 
-Com `"mode": "live"`, aperta o atalho pra **iniciar a sessão** e aperta de novo pra **encerrar**.
-Durante a sessão, o app grava contínuo e, **a cada pausa** sua (>= `silenceMs`), transcreve aquela
-frase e cola — enquanto você continua falando a próxima. Dá a sensação de "ir escrevendo" conforme
-você fala, frase a frase (não letra a letra — isso é proposital, fica estável e cola limpo).
+With `"mode": "live"`, press the hotkey to **start a session** and again to **end it**. During the
+session the app records continuously and, **at each pause** (>= `silenceMs`), transcribes that
+sentence and pastes it — while you keep talking. It feels like the text "types itself" as you speak,
+sentence by sentence (not letter by letter — that's intentional; it stays stable and pastes clean).
 
-Dica: o texto é colado com um espaço ao final de cada frase, então as frases se encadeiam naturalmente.
+Tip: each sentence is pasted with a trailing space, so sentences chain naturally.
+`push` mode is the same, but only while the key is held down (push-to-talk).
 
-## Build / publicar
+## Build / publish
 
 ```powershell
 dotnet build . -c Release
-# exe portátil (usa o .NET 8 já instalado):
+# portable exe (uses an installed .NET 8 runtime):
 dotnet publish . -c Release -r win-x64 --self-contained false
 ```
 
-## Iniciar junto com o Windows (opcional)
+## Troubleshooting
 
-Crie um atalho pro `Matraca.exe` em:
-
-```
-shell:startup   (Win+R, cola isso)
-```
-
-## Diagnóstico
-
-- Log: `matraca.log` (na pasta do exe). Menu da bandeja → "Abrir matraca.log".
-- Testar a transcrição com um WAV (16 kHz mono) sem usar o mic:
+- Log: `%LOCALAPPDATA%\Matraca\matraca.log`. Tray menu → "Abrir matraca.log".
+- Test transcription with a WAV file (16 kHz mono) without using the mic:
   ```powershell
-  Matraca.exe --transcribe caminho\audio.wav
-  # resultado e backend (Vulkan/CPU) vão pro matraca.log
+  Matraca.exe --transcribe path\to\audio.wav
+  # result and backend (Vulkan/CPU) go to matraca.log
   ```
 
-## Notas
+## Notes
 
-- **Antivírus/Defender**: o app instala um *hook* global de teclado (necessário pra capturar a tecla
-  de atalho). É comportamento normal de apps de hotkey, mas pode gerar alerta heurístico.
-- **GPU**: usa Vulkan (só precisa do driver NVIDIA — sem CUDA Toolkit). Para máxima velocidade no
-  futuro, dá pra instalar o CUDA Toolkit 12.4+/13 e trocar o pacote `Whisper.net.Runtime.Vulkan` por
-  `Whisper.net.Runtime.Cuda` no `.csproj`.
-- A 1ª transcrição após abrir o app pode demorar alguns segundos (carga do modelo na VRAM); as
-  seguintes são quase instantâneas.
+- **Antivirus/Defender**: the app installs a global keyboard *hook* (required to capture the
+  hotkey). This is normal for hotkey apps, but may trigger a heuristic alert.
+- **GPU**: uses Vulkan (only the NVIDIA driver is needed — no CUDA Toolkit). For maximum speed you
+  can install CUDA Toolkit 12.4+/13 and swap the `Whisper.net.Runtime.Vulkan` package for
+  `Whisper.net.Runtime.Cuda` in the `.csproj`.
+- The first transcription after launching may take a few seconds (model load into VRAM); subsequent
+  ones are near-instant.
 
-## Licença
+## License
 
 [MIT](LICENSE).
-```
