@@ -138,4 +138,8 @@ shell:startup   (Win+R, cola isso)
   `Whisper.net.Runtime.Cuda` no `.csproj`.
 - A 1ª transcrição após abrir o app pode demorar alguns segundos (carga do modelo na VRAM); as
   seguintes são quase instantâneas.
+
+## Licença
+
+[MIT](LICENSE).
 ```
