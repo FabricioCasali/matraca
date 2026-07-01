@@ -55,4 +55,5 @@ Name: "{commonstartup}\{#MyAppName}"; Filename: "{app}\{#MyAppExeName}"; Tasks: 
 Filename: "powershell.exe"; \
   Parameters: "-NoProfile -ExecutionPolicy Bypass -File ""{app}\enable-uiaccess.ps1"" -ExePath ""{app}\{#MyAppExeName}"""; \
   Flags: runhidden waituntilterminated; StatusMsg: "Assinando o executavel (uiAccess)..."; Tasks: uiaccess
-Filename: "{app}\{#MyAppExeName}"; Description: "Abrir o {#MyAppName} agora"; Flags: nowait postinstall skipifsilent
+; shellexec obrigatorio: exe com uiAccess=true nao inicia via CreateProcess (erro 740)
+Filename: "{app}\{#MyAppExeName}"; Description: "Abrir o {#MyAppName} agora"; Flags: shellexec nowait postinstall skipifsilent
