@@ -13,6 +13,10 @@ internal sealed class Config
     public int HotkeyVk { get; init; }
     public string HotkeyName { get; init; } = "";
 
+    /// <summary>Tecla que fixa/solta a janela de destino do ditado. 0 = recurso desligado.</summary>
+    public int PinHotkeyVk { get; init; }
+    public string PinHotkeyName { get; init; } = "";
+
     public string Mode { get; init; } = "toggle"; // "toggle" | "hold" | "live" | "push"
     public bool AutoEnter { get; init; }
     public bool Beep { get; init; } = true;
@@ -32,12 +36,14 @@ internal sealed class Config
     public string FocusBorderColor { get; init; } = "#E81123";   // hex html (vermelho = gravando)
     public int FocusBorderThickness { get; init; } = 4;          // px
     public float FocusBorderOpacity { get; init; } = 0.9f;       // 0..1
+    public string PasteMethod { get; init; } = "unicode";        // "unicode" | "clipboard"
 
     internal sealed class RawConfig
     {
         public string? modelPath { get; set; }
         public string? language { get; set; }
         public string? hotkey { get; set; }
+        public string? pinHotkey { get; set; }
         public string? mode { get; set; }
         public bool? autoEnter { get; set; }
         public bool? beep { get; set; }
@@ -52,6 +58,7 @@ internal sealed class Config
         public string? focusBorderColor { get; set; }
         public int? focusBorderThickness { get; set; }
         public float? focusBorderOpacity { get; set; }
+        public string? pasteMethod { get; set; }
     }
 
     /// <summary>Caminho do appsettings.json do usuario (gravavel sem admin).</summary>
@@ -101,6 +108,7 @@ internal sealed class Config
         var hotkey = (raw.hotkey ?? "discover").Trim();
         var discover = hotkey.Equals("discover", StringComparison.OrdinalIgnoreCase);
         var (vk, name) = discover ? (0, "discover") : ResolveKey(hotkey);
+        var (pinVk, pinName) = ResolvePinKey(raw.pinHotkey, vk);
 
         return new Config
         {
@@ -109,6 +117,8 @@ internal sealed class Config
             DiscoverMode = discover,
             HotkeyVk = vk,
             HotkeyName = name,
+            PinHotkeyVk = pinVk,
+            PinHotkeyName = pinName,
             Mode = (raw.mode ?? "toggle").Trim().ToLowerInvariant(),
             AutoEnter = raw.autoEnter ?? false,
             Beep = raw.beep ?? true,
@@ -123,7 +133,35 @@ internal sealed class Config
             FocusBorderColor = string.IsNullOrWhiteSpace(raw.focusBorderColor) ? "#E81123" : raw.focusBorderColor!.Trim(),
             FocusBorderThickness = Math.Clamp(raw.focusBorderThickness ?? 4, 1, 40),
             FocusBorderOpacity = Math.Clamp(raw.focusBorderOpacity ?? 0.9f, 0.1f, 1f),
+            // qualquer coisa fora de "clipboard" cai no padrao — um valor invalido no JSON
+            // deixaria o combo da tela de config sem selecao e travaria o Salvar.
+            PasteMethod = (raw.pasteMethod ?? "").Trim().Equals("clipboard", StringComparison.OrdinalIgnoreCase)
+                ? "clipboard" : "unicode",
         };
+    }
+
+    /// <summary>
+    /// Resolve a tecla de fixar janela. Vazio/"none" desliga o recurso, e a tecla nao pode
+    /// colidir com a do ditado (o hook engole a tecla alvo, entao uma anularia a outra).
+    /// </summary>
+    private static (int vk, string name) ResolvePinKey(string? raw, int dictationVk)
+    {
+        var s = (raw ?? "").Trim();
+        if (s.Length == 0 || s.Equals("none", StringComparison.OrdinalIgnoreCase))
+            return (0, "");
+
+        var (vk, name) = ResolveKey(s);
+        if (vk == 0)
+        {
+            Logger.Warn($"pinHotkey '{s}' nao reconhecida; fixar janela ficou desligado.");
+            return (0, "");
+        }
+        if (vk == dictationVk)
+        {
+            Logger.Warn($"pinHotkey '{s}' e' a mesma tecla do ditado; fixar janela ficou desligado.");
+            return (0, "");
+        }
+        return (vk, name);
     }
 
     /// <summary>Traz o appsettings.json da instalacao antiga (Ditador) na primeira execucao.</summary>

@@ -162,6 +162,11 @@ internal sealed class TrayApp : ApplicationContext
     // moldura visual na janela em foco (mostra onde o texto vai ser colado)
     private readonly FocusBorder? _border;
 
+    // destino fixo do ditado: enquanto != 0, o texto vai SEMPRE p/ esta janela,
+    // independente de qual esta em foco na hora de falar.
+    private IntPtr _pinnedHwnd;
+    private string _pinnedTitle = "";
+
     // modo live (VAD)
     private LiveDictation? _live;
     private BlockingCollection<float[]>? _liveQueue;
@@ -214,7 +219,10 @@ internal sealed class TrayApp : ApplicationContext
         _hotkey = new HotkeyListener(_cfg);
         _hotkey.Triggered += OnTriggered;
         _hotkey.KeyDiscovered += OnKeyDiscovered;
+        _hotkey.PinToggled += OnPinToggled;
         _hotkey.Start();
+        if (_cfg.PinHotkeyVk != 0)
+            Logger.Info($"Fixar janela de destino: tecla {_cfg.PinHotkeyName}.");
 
         if (_cfg.DiscoverMode)
         {
@@ -363,10 +371,10 @@ internal sealed class TrayApp : ApplicationContext
             _live = new LiveDictation();
             _live.SegmentReady += seg => { try { _liveQueue?.Add(seg); } catch { } };
             _liveConsumer = Task.Run(ConsumeLiveSegments);
-            _live.Start(_cfg.VadThreshold, _cfg.SilenceMs);
+            // idem StartRecording: toca o bip e descarta a janela em que ele soa
+            _live.Start(_cfg.VadThreshold, _cfg.SilenceMs, MuteWindowMs(Beep(true)));
             Touch();
             SetRecording();
-            Beep(true);
             Logger.Info($"Live (VAD) iniciado. silenceMs={_cfg.SilenceMs} threshold={_cfg.VadThreshold}");
         }
         catch (Exception ex)
@@ -390,9 +398,10 @@ internal sealed class TrayApp : ApplicationContext
         if (!_liveActive) return;
         _liveActive = false;
         Touch();
-        Beep(false);
         SetBusy();
+        // para a captura ANTES do bip de fim, senao ele vira um segmento transcrito
         try { _live?.Stop(); } catch (Exception ex) { Logger.Error("Erro ao parar live", ex); }
+        Beep(false);
         _liveQueue?.CompleteAdding();                 // sinaliza fim ao consumidor
         try { if (_liveConsumer != null) await _liveConsumer; } catch { }
 
@@ -420,7 +429,7 @@ internal sealed class TrayApp : ApplicationContext
                     if (!string.IsNullOrWhiteSpace(text))
                     {
                         string chunk = text.Trim() + " ";
-                        _ui.Post(_ => TextInjector.PasteText(chunk, false), null);
+                        _ui.Post(_ => Deliver(chunk, false), null);
                         Logger.Info($"[live] chunk (~{seg.Length / 16000.0:F1}s): \"{text.Trim()}\"");
                     }
                 }
@@ -434,10 +443,12 @@ internal sealed class TrayApp : ApplicationContext
     {
         try
         {
-            _recorder.Start();
+            // O bip sai pelo alto-falante e volta pelo microfone: sem descartar esse trecho,
+            // o Whisper transcreve o proprio som como palavra. Toca primeiro (assincrono) e
+            // arma a captura ignorando a janela em que o bip ainda esta soando.
+            _recorder.Start(MuteWindowMs(Beep(true)));
             Touch();
             SetRecording();
-            Beep(true);
             Logger.Info("Gravando...");
         }
         catch (Exception ex)
@@ -452,10 +463,11 @@ internal sealed class TrayApp : ApplicationContext
     {
         _busy = true;
         SetBusy();
-        Beep(false);
         try
         {
+            // para a captura ANTES do bip de fim, senao ele entra no audio transcrito
             float[] samples = await _recorder.StopAsync();
+            Beep(false);
             Logger.Info($"Gravacao parada: {samples.Length} amostras (~{samples.Length / 16000.0:F1}s). Transcrevendo...");
 
             var transcriber = await EnsureModelLoadedAsync();
@@ -474,7 +486,7 @@ internal sealed class TrayApp : ApplicationContext
             }
             else
             {
-                _ui.Post(_ => TextInjector.PasteText(text, _cfg.AutoEnter), null);
+                _ui.Post(_ => Deliver(text, _cfg.AutoEnter), null);
             }
         }
         catch (Exception ex)
@@ -487,6 +499,80 @@ internal sealed class TrayApp : ApplicationContext
             _busy = false;
             SetIdle();
         }
+    }
+
+    // ---- destino fixo (pin de janela) ----
+    // O hook chama na thread dele; re-posta p/ a UI thread pelo mesmo motivo do OnTriggered.
+    private void OnPinToggled() => _ui.Post(_ => OnPinToggledCore(), null);
+
+    private void OnPinToggledCore()
+    {
+        if (_cfg.DiscoverMode) return;
+
+        if (_pinnedHwnd != IntPtr.Zero) { Unpin("Destino liberado", "O ditado volta pra janela em foco."); return; }
+
+        var hwnd = TextInjector.GetForegroundWindowHandle();
+        if (hwnd == IntPtr.Zero)
+        {
+            Balloon("Nada pra fixar", "Nao consegui identificar a janela em foco.", ToolTipIcon.Warning);
+            return;
+        }
+
+        _pinnedHwnd = hwnd;
+        _pinnedTitle = TextInjector.GetWindowTitle(hwnd);
+        _border?.SetPinned(hwnd);
+        Logger.Info($"Destino fixado: hwnd=0x{hwnd.ToInt64():X} \"{_pinnedTitle}\"");
+        Balloon("Destino fixado", $"O ditado vai sempre para: {ShortTitle(_pinnedTitle)}\n" +
+                                  $"Aperte {_cfg.PinHotkeyName} de novo para liberar.");
+        RefreshTrayState();
+    }
+
+    private void Unpin(string balloonTitle, string balloonText)
+    {
+        _pinnedHwnd = IntPtr.Zero;
+        _pinnedTitle = "";
+        _border?.SetPinned(IntPtr.Zero);
+        Logger.Info("Destino fixo liberado.");
+        Balloon(balloonTitle, balloonText);
+        RefreshTrayState();
+    }
+
+    /// <summary>
+    /// Reflete a mudanca de destino no tray sem atropelar uma gravacao em andamento —
+    /// SetIdle apagaria o icone de gravando e esconderia a moldura no meio do ditado.
+    /// </summary>
+    private void RefreshTrayState()
+    {
+        if (_recorder.IsRecording || _liveActive) SetRecording();
+        else if (_busy) SetBusy();
+        else SetIdle();
+    }
+
+    private static string ShortTitle(string title)
+    {
+        if (string.IsNullOrWhiteSpace(title)) return "(janela sem titulo)";
+        return title.Length <= 60 ? title : title[..57] + "...";
+    }
+
+    /// <summary>
+    /// Entrega o texto: na janela fixada, se houver uma valida; senao na janela em foco.
+    /// </summary>
+    private void Deliver(string text, bool autoEnter)
+    {
+        if (_pinnedHwnd != IntPtr.Zero)
+        {
+            if (!TextInjector.IsWindowAlive(_pinnedHwnd))
+            {
+                Unpin("Janela fixada sumiu", "Ela foi fechada; o ditado volta pra janela em foco.");
+                // segue adiante e entrega na janela em foco, p/ nao perder a transcricao
+            }
+            else
+            {
+                TextInjector.SendToWindow(_pinnedHwnd, text, autoEnter);
+                return;
+            }
+        }
+        TextInjector.PasteText(text, autoEnter, _cfg.PasteMethod);
     }
 
     private void OnKeyDiscovered(int vk)
@@ -513,8 +599,14 @@ internal sealed class TrayApp : ApplicationContext
         });
         menu.Items.Add("Abrir pasta de config", null, (_, _) =>
         {
-            try { System.Diagnostics.Process.Start("explorer.exe", AppContext.BaseDirectory); }
-            catch { }
+            // a config efetiva mora em %LOCALAPPDATA%\Matraca; a copia ao lado do exe e' so
+            // fallback de primeira execucao (e sob uiAccess nem e' gravavel).
+            try
+            {
+                Directory.CreateDirectory(Logger.DataDir);
+                System.Diagnostics.Process.Start("explorer.exe", Logger.DataDir);
+            }
+            catch (Exception ex) { Logger.Warn("Falha ao abrir a pasta de config: " + ex.Message); }
         });
         menu.Items.Add(new ToolStripSeparator());
         menu.Items.Add("Sair", null, (_, _) => ExitApp());
@@ -559,11 +651,16 @@ internal sealed class TrayApp : ApplicationContext
     private void SetIdle()
     {
         _tray.Icon = _icoIdle;
-        _tray.Text = _cfg.DiscoverMode
+        _tray.Text = Truncate(_cfg.DiscoverMode
             ? "Matraca — MODO DESCOBERTA"
-            : $"Matraca — pronto ({_cfg.HotkeyName})";
+            : _pinnedHwnd != IntPtr.Zero
+                ? $"Matraca — fixado em: {ShortTitle(_pinnedTitle)}"
+                : $"Matraca — pronto ({_cfg.HotkeyName})");
         _border?.HideBorder();
     }
+
+    // NotifyIcon.Text estoura com mais de 63 caracteres.
+    private static string Truncate(string s) => s.Length <= 63 ? s : s[..60] + "...";
 
     private void SetRecording()
     {
@@ -580,21 +677,27 @@ internal sealed class TrayApp : ApplicationContext
         // entao a janela marcada ainda e' a que vai receber o texto.
     }
 
+    // Folga sobre a duracao do som: cobre a latencia entre mandar tocar e o som sair de fato
+    // no alto-falante (SoundPlayer + buffer da placa) mais o eco curto do ambiente.
+    private const int BeepGuardMs = 150;
+
+    /// <summary>Quanto de audio descartar no inicio da captura para nao gravar o proprio bip.</summary>
+    private static int MuteWindowMs(int beepMs) => beepMs > 0 ? beepMs + BeepGuardMs : 0;
+
     // Sons distintos: subindo = comecou a gravar; descendo = parou.
     // Se houver um .wav configurado (startSound/stopSound), toca ele; senao, o tom.
-    private void Beep(bool start)
+    // Devolve a duracao do som em ms (0 se nao tocou nada).
+    private int Beep(bool start)
     {
-        if (!_cfg.Beep) return;
+        if (!_cfg.Beep) return 0;
         var file = start ? _cfg.StartSound : _cfg.StopSound;
         if (!string.IsNullOrWhiteSpace(file) && File.Exists(file))
-        {
-            Beeper.PlaySoundFile(file, _cfg.BeepVolume);
-            return;
-        }
+            return Beeper.PlaySoundFile(file, _cfg.BeepVolume);
+
         var notes = start
             ? new[] { (660, 90), (990, 130) }   // sobe
             : new[] { (990, 90), (590, 150) };   // desce
-        Beeper.Play(notes, _cfg.BeepVolume);
+        return Beeper.Play(notes, _cfg.BeepVolume);
     }
 
     private void Balloon(string title, string text, ToolTipIcon icon = ToolTipIcon.Info)

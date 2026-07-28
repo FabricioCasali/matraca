@@ -15,9 +15,12 @@ internal sealed class SettingsForm : Form
 
     private readonly TextBox _hotkeyBox;
     private readonly Button _captureBtn;
+    private readonly TextBox _pinHotkeyBox;
+    private readonly Button _pinCaptureBtn;
     private readonly ComboBox _modeBox;
     private readonly ComboBox _languageBox;
     private readonly CheckBox _autoEnterBox;
+    private readonly ComboBox _pasteMethodBox;
     private readonly CheckBox _beepBox;
     private readonly NumericUpDown _beepVolumeBox;
     private readonly NumericUpDown _silenceMsBox;
@@ -30,8 +33,13 @@ internal sealed class SettingsForm : Form
     private readonly NumericUpDown _borderThicknessBox;
     private readonly NumericUpDown _borderOpacityBox;
 
-    private string _hotkeyValue;   // o que vai pro JSON ("F15", "0xB6" ou "discover")
+    private string _hotkeyValue;      // o que vai pro JSON ("F15", "0xB6" ou "discover")
+    private string _pinHotkeyValue;   // idem p/ fixar janela; vazio = recurso desligado
+    private bool _capturingPin;       // qual dos dois campos esta capturando agora
     private Color _borderColor;
+
+    private const string PinOffLabel = "(desligado)";
+    private const string CapturingLabel = "pressione uma tecla...";
 
     private static readonly (string Value, string Label)[] Modes =
     {
@@ -46,6 +54,7 @@ internal sealed class SettingsForm : Form
         _mainHotkey = mainHotkey;
         var cfg = Config.Load();
         _hotkeyValue = cfg.DiscoverMode ? "discover" : HotkeyJsonValue(cfg.HotkeyVk);
+        _pinHotkeyValue = cfg.PinHotkeyVk == 0 ? "" : HotkeyJsonValue(cfg.PinHotkeyVk);
         _borderColor = ParseColorSafe(cfg.FocusBorderColor);
 
         Text = "Matraca — Configurações";
@@ -71,11 +80,31 @@ internal sealed class SettingsForm : Form
         var hotkeyPanel = NewRowPanel();
         _hotkeyBox = new TextBox { ReadOnly = true, Width = 200, Text = cfg.HotkeyName };
         _captureBtn = new Button { Text = "Capturar...", AutoSize = true };
-        _captureBtn.Click += (_, _) => ToggleCapture();
+        _captureBtn.Click += (_, _) => ToggleCapture(pin: false);
         hotkeyPanel.Controls.Add(_hotkeyBox);
         hotkeyPanel.Controls.Add(_captureBtn);
         AddRow(grid, "Tecla de atalho", hotkeyPanel,
             "Clique em Capturar e pressione a tecla desejada (Esc cancela).");
+
+        // -- tecla de fixar janela de destino --
+        var pinPanel = NewRowPanel();
+        _pinHotkeyBox = new TextBox
+        {
+            ReadOnly = true,
+            Width = 140,
+            Text = cfg.PinHotkeyVk == 0 ? PinOffLabel : cfg.PinHotkeyName,
+        };
+        _pinCaptureBtn = new Button { Text = "Capturar...", AutoSize = true };
+        _pinCaptureBtn.Click += (_, _) => ToggleCapture(pin: true);
+        var pinClearBtn = new Button { Text = "Limpar", AutoSize = true };
+        pinClearBtn.Click += (_, _) => { _pinHotkeyValue = ""; _pinHotkeyBox.Text = PinOffLabel; };
+        pinPanel.Controls.Add(_pinHotkeyBox);
+        pinPanel.Controls.Add(_pinCaptureBtn);
+        pinPanel.Controls.Add(pinClearBtn);
+        AddRow(grid, "Fixar janela de destino", pinPanel,
+            "Aperta e o ditado passa a ir sempre pra janela que estava em foco, mesmo que você "
+          + "mude de janela depois. Entrega sem trazer a janela pra frente — não funciona em "
+          + "terminal nem em apps Electron.");
 
         // -- modo --
         _modeBox = new ComboBox { DropDownStyle = ComboBoxStyle.DropDownList, Width = 320 };
@@ -91,6 +120,11 @@ internal sealed class SettingsForm : Form
         // -- auto enter / beep --
         _autoEnterBox = new CheckBox { Text = "Pressionar Enter após colar", Checked = cfg.AutoEnter, AutoSize = true };
         AddRow(grid, "Auto-Enter", _autoEnterBox);
+
+        _pasteMethodBox = new ComboBox { DropDownStyle = ComboBoxStyle.DropDownList, Width = 120 };
+        _pasteMethodBox.Items.AddRange(new object[] { "unicode", "clipboard" });
+        _pasteMethodBox.SelectedItem = cfg.PasteMethod;
+        AddRow(grid, "Método de colagem", _pasteMethodBox, "unicode: mais limpo (não usa clipboard); clipboard: tradicional.");
 
         var beepPanel = NewRowPanel();
         _beepBox = new CheckBox { Text = "Sons de início/fim", Checked = cfg.Beep, AutoSize = true };
@@ -166,24 +200,34 @@ internal sealed class SettingsForm : Form
         FormClosed += (_, _) => StopCapture();
     }
 
-    // ---- captura de tecla ----
-    private void ToggleCapture()
+    // ---- captura de tecla (serve aos dois campos: ditado e fixar janela) ----
+    private void ToggleCapture(bool pin)
     {
         if (_capture != null) { StopCapture(); return; }
 
+        _capturingPin = pin;
         if (_mainHotkey != null) _mainHotkey.Suspended = true;
         _capture = HotkeyListener.CreateDiscovery();
         _capture.KeyDiscovered += OnKeyCaptured;
         _capture.Start();
-        _hotkeyBox.Text = "pressione uma tecla...";
-        _captureBtn.Text = "Cancelar";
+        (pin ? _pinHotkeyBox : _hotkeyBox).Text = CapturingLabel;
+        (pin ? _pinCaptureBtn : _captureBtn).Text = "Cancelar";
     }
 
     private void OnKeyCaptured(int vk)
     {
-        if (vk == 0x1B) { RestoreHotkeyDisplay(); StopCapture(); return; } // Esc cancela
-        _hotkeyValue = HotkeyJsonValue(vk);
-        _hotkeyBox.Text = Config.NameForVk(vk);
+        if (vk == 0x1B) { RestoreDisplay(_capturingPin); StopCapture(); return; } // Esc cancela
+
+        if (_capturingPin)
+        {
+            _pinHotkeyValue = HotkeyJsonValue(vk);
+            _pinHotkeyBox.Text = Config.NameForVk(vk);
+        }
+        else
+        {
+            _hotkeyValue = HotkeyJsonValue(vk);
+            _hotkeyBox.Text = Config.NameForVk(vk);
+        }
         StopCapture();
     }
 
@@ -197,13 +241,22 @@ internal sealed class SettingsForm : Form
         }
         if (_mainHotkey != null) _mainHotkey.Suspended = false;
         _captureBtn.Text = "Capturar...";
-        if (_hotkeyBox.Text == "pressione uma tecla...") RestoreHotkeyDisplay();
+        _pinCaptureBtn.Text = "Capturar...";
+        if (_hotkeyBox.Text == CapturingLabel) RestoreDisplay(false);
+        if (_pinHotkeyBox.Text == CapturingLabel) RestoreDisplay(true);
     }
 
-    private void RestoreHotkeyDisplay()
-        => _hotkeyBox.Text = _hotkeyValue.Equals("discover", StringComparison.OrdinalIgnoreCase)
-            ? "discover"
-            : Config.ResolveKey(_hotkeyValue).name;
+    private void RestoreDisplay(bool pin)
+    {
+        if (pin)
+            _pinHotkeyBox.Text = _pinHotkeyValue.Length == 0
+                ? PinOffLabel
+                : Config.ResolveKey(_pinHotkeyValue).name;
+        else
+            _hotkeyBox.Text = _hotkeyValue.Equals("discover", StringComparison.OrdinalIgnoreCase)
+                ? "discover"
+                : Config.ResolveKey(_hotkeyValue).name;
+    }
 
     /// <summary>Valor pro JSON: nome conhecido ("F15") ou hex ("0x7E") p/ tecla sem nome.</summary>
     private static string HotkeyJsonValue(int vk)
@@ -235,6 +288,16 @@ internal sealed class SettingsForm : Form
 
     private void Save()
     {
+        // o hook engole a tecla alvo, entao a mesma tecla nos dois campos anularia o ditado
+        if (_pinHotkeyValue.Length > 0 &&
+            _pinHotkeyValue.Equals(_hotkeyValue, StringComparison.OrdinalIgnoreCase))
+        {
+            MessageBox.Show(this,
+                "A tecla de fixar janela não pode ser a mesma do ditado. Escolha outra ou limpe o campo.",
+                "Matraca", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+            return;
+        }
+
         try
         {
             // preserva campos que a tela nao edita (sons customizados)
@@ -244,6 +307,7 @@ internal sealed class SettingsForm : Form
                 modelPath = _modelPathBox.Text.Trim(),
                 language = string.IsNullOrWhiteSpace(_languageBox.Text) ? "pt" : _languageBox.Text.Trim(),
                 hotkey = _hotkeyValue,
+                pinHotkey = _pinHotkeyValue.Length == 0 ? null : _pinHotkeyValue,
                 mode = Modes[Math.Max(0, _modeBox.SelectedIndex)].Value,
                 autoEnter = _autoEnterBox.Checked,
                 beep = _beepBox.Checked,
@@ -258,6 +322,7 @@ internal sealed class SettingsForm : Form
                 focusBorderColor = $"#{_borderColor.R:X2}{_borderColor.G:X2}{_borderColor.B:X2}",
                 focusBorderThickness = (int)_borderThicknessBox.Value,
                 focusBorderOpacity = (float)_borderOpacityBox.Value,
+                pasteMethod = (string)_pasteMethodBox.SelectedItem!,
             });
             DialogResult = DialogResult.OK;
             Close();

@@ -18,6 +18,17 @@ internal sealed class FocusBorder : IDisposable
     private IntPtr _lastHwnd;
     private RECT _lastRect;
     private bool _visible;
+    private IntPtr _pinned;   // se != 0, marca sempre esta janela em vez da que esta em foco
+
+    /// <summary>
+    /// Fixa a moldura numa janela especifica (o destino fixo do ditado). Passe IntPtr.Zero
+    /// p/ voltar a seguir a janela em foco.
+    /// </summary>
+    public void SetPinned(IntPtr hwnd)
+    {
+        _pinned = hwnd;
+        _lastHwnd = IntPtr.Zero;   // forca reposicionamento no proximo tick
+    }
 
     public FocusBorder(Color color, int thickness, float opacity)
     {
@@ -49,7 +60,7 @@ internal sealed class FocusBorder : IDisposable
 
     private void Track()
     {
-        IntPtr hwnd = GetForegroundWindow();
+        IntPtr hwnd = _pinned != IntPtr.Zero ? _pinned : GetForegroundWindow();
         if (hwnd == IntPtr.Zero || hwnd == _overlay.Handle || IsIconic(hwnd)
             || !TryGetBounds(hwnd, out RECT r)
             || r.Right - r.Left < 20 || r.Bottom - r.Top < 20)

@@ -20,31 +20,37 @@ internal sealed class HotkeyListener : IDisposable
 
     private readonly bool _discover;
     private readonly int _targetVk;
+    private readonly int _pinVk;   // 0 = recurso de fixar janela desligado
     private readonly bool _holdMode;
-    private bool _isDown; // p/ ignorar auto-repeat no modo toggle
+    private bool _isDown;    // p/ ignorar auto-repeat no modo toggle
+    private bool _pinDown;   // idem, p/ a tecla de fixar janela
 
     /// <summary>Modo toggle: dispara a cada pressionar. Modo hold: true=apertou, false=soltou.</summary>
     public event Action<bool>? Triggered;
     /// <summary>Modo descoberta: reporta o vkCode de qualquer tecla pressionada.</summary>
     public event Action<int>? KeyDiscovered;
+    /// <summary>Tecla de fixar/soltar a janela de destino do ditado.</summary>
+    public event Action? PinToggled;
 
     /// <summary>Enquanto true, o hook deixa tudo passar (usado pela tela de config
     /// durante a captura de tecla, p/ o atalho atual nao disparar gravacao).</summary>
     public bool Suspended { get; set; }
 
     public HotkeyListener(Config cfg)
-        : this(cfg.DiscoverMode, cfg.HotkeyVk, cfg.Mode == "hold" || cfg.Mode == "push") { }
+        : this(cfg.DiscoverMode, cfg.HotkeyVk, cfg.PinHotkeyVk,
+               cfg.Mode == "hold" || cfg.Mode == "push") { }
 
-    private HotkeyListener(bool discover, int targetVk, bool holdMode)
+    private HotkeyListener(bool discover, int targetVk, int pinVk, bool holdMode)
     {
         _discover = discover;
         _targetVk = targetVk;
+        _pinVk = pinVk;
         _holdMode = holdMode; // hold/push precisam do evento de soltar
         _proc = HookCallback;
     }
 
     /// <summary>Hook avulso so pra descobrir teclas (tela de config). Nao engole nada.</summary>
-    public static HotkeyListener CreateDiscovery() => new(true, 0, false);
+    public static HotkeyListener CreateDiscovery() => new(true, 0, 0, false);
 
     public void Start()
     {
@@ -82,6 +88,12 @@ internal sealed class HotkeyListener : IDisposable
                     else if (up) { _isDown = false; }
                 }
                 return (IntPtr)1; // engole a tecla alvo (nao propaga p/ outros apps)
+            }
+            else if (_pinVk != 0 && vk == _pinVk)
+            {
+                if (down && !_pinDown) { _pinDown = true; PinToggled?.Invoke(); }
+                else if (up) { _pinDown = false; }
+                return (IntPtr)1;
             }
         }
         return CallNextHookEx(_hook, nCode, wParam, lParam);

@@ -22,11 +22,16 @@ internal sealed class LiveDictation : IDisposable
     private int _silenceMs;
     private int _silenceRun;
     private bool _speechActive;
+    private int _muteSamplesLeft;   // audio a descartar no inicio (o proprio bip de start)
 
     public event Action<float[]>? SegmentReady;
     public bool IsRunning { get; private set; }
 
-    public void Start(float threshold, int silenceMs)
+    /// <param name="muteMs">
+    /// Descarta os primeiros N ms capturados — o bip de inicio sai pelo alto-falante e volta
+    /// pelo microfone; sem isso o VAD o trata como fala e o Whisper o transcreve como palavra.
+    /// </param>
+    public void Start(float threshold, int silenceMs, int muteMs = 0)
     {
         _threshold = threshold <= 0 ? 0.012f : threshold;
         _silenceMs = silenceMs <= 0 ? 700 : silenceMs;
@@ -34,6 +39,7 @@ internal sealed class LiveDictation : IDisposable
         _preRoll.Clear();
         _speechActive = false;
         _silenceRun = 0;
+        _muteSamplesLeft = Math.Max(0, muteMs) * SampleRate / 1000;
 
         _waveIn = new WaveInEvent
         {
@@ -49,9 +55,19 @@ internal sealed class LiveDictation : IDisposable
     {
         int n = e.BytesRecorded / 2;
         if (n == 0) return;
+
+        int skip = 0;
+        if (_muteSamplesLeft > 0)
+        {
+            skip = Math.Min(_muteSamplesLeft, n);
+            _muteSamplesLeft -= skip;
+            n -= skip;
+            if (n == 0) return;
+        }
+
         var frame = new float[n];
         for (int i = 0; i < n; i++)
-            frame[i] = BitConverter.ToInt16(e.Buffer, i * 2) / 32768f;
+            frame[i] = BitConverter.ToInt16(e.Buffer, (i + skip) * 2) / 32768f;
         Feed(frame);
     }
 

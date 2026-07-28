@@ -20,9 +20,11 @@ model already downloaded by the Vibe app — **Vibe doesn't need to be running**
    focused field**.
 4. You review and hit Enter. (It never submits on its own — see the `autoEnter` setting.)
 
-The text goes **wherever the cursor is** — the app pastes via clipboard + `Ctrl+V`, preserving
-whatever you had copied before. While recording, a **colored border** highlights the window that
-will receive the text — if a pop-up steals focus, you see it before pasting.
+The text goes **wherever the cursor is** — by default the app **types it directly** (Unicode
+SendInput), never touching your clipboard; if you prefer, you can switch back to clipboard +
+`Ctrl+V` (the `pasteMethod` setting), which preserves whatever you had copied before. While
+recording, a **colored border** highlights the window that will receive the text — if a pop-up
+steals focus, you see it before pasting.
 
 ## First run — discover your key
 
@@ -76,8 +78,10 @@ The same file can be edited by hand (`appsettings.json`):
 | `modelPath` | Vibe's model | Path to the Whisper ggml `.bin`. Environment variables allowed (`%LOCALAPPDATA%`). |
 | `language` | `pt` | Audio language. Use `en` for English; `pt` handles embedded English terms well. |
 | `hotkey` | `discover` | Hotkey: `F13`–`F24`, media keys (`MediaPlayPause`, etc.), a number (`0xB6`) or `discover`. **Single key only** — combos like `Ctrl+Alt+X` are not supported; the configured key is reserved for dictation (it no longer reaches other apps). |
+| `pinHotkey` | `none` | Key that **pins the target window** (see below). `none` disables it. Must differ from `hotkey`. |
 | `mode` | `toggle` | `toggle` (press on / press off), `hold` (hold to talk), `live`/`push` (see below). |
 | `autoEnter` | `false` | If `true`, presses Enter after pasting (submits immediately). |
+| `pasteMethod` | `unicode` | How the text is delivered. `unicode`: types it directly via SendInput — **doesn't touch your clipboard**. `clipboard`: copies and sends `Ctrl+V`, restoring the previous clipboard content afterwards. Use `clipboard` if some app doesn't accept synthetic Unicode input. |
 | `beep` | `true` | Start (rising) / stop (falling) recording sounds. |
 | `silenceMs` | `700` | (live mode) pause length that ends a sentence. |
 | `vadThreshold` | `0.012` | (live mode) minimum energy (RMS) to count as speech. Raise if it picks up noise; lower if it clips quiet speech. |
@@ -100,6 +104,20 @@ something else:
   `cpu`/`vulkan`/`auto` requires **restarting the app** (the native runtime is fixed per process).
 
 > During transcription the GPU load is just a **~0.3s burst**; it's not continuous.
+
+### Pinning a target window
+
+Set `pinHotkey` to a key and pressing it **pins the window that's currently focused** as the fixed
+destination for your dictation. From then on the text goes to that window no matter which one you're
+actually looking at — dictate into your editor while reading a browser, for instance. Press the key
+again to release it. While pinned, the focus border marks the pinned window and the tray tooltip
+shows its title.
+
+> **Compatibility caveat:** the text is delivered *without* bringing the window to the foreground,
+> by posting messages straight to it. That works in classic Win32 text fields (Notepad, many native
+> apps) but **terminals, consoles and Chromium/Electron apps handle input their own way and ignore
+> posted messages** — dictation into those won't show up while pinned. Leave `pinHotkey` off and use
+> the normal focused-window flow for them.
 
 ### `live` mode (pause-based dictation / VAD)
 

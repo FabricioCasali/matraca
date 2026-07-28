@@ -15,34 +15,42 @@ internal static class Beeper
 {
     private const int SampleRate = 44100;
 
-    /// <summary>Toca tons sinteticos em sequencia. volume 0..1.</summary>
-    public static void Play((int freq, int ms)[] notes, float volume)
+    /// <summary>
+    /// Toca tons sinteticos em sequencia. volume 0..1.
+    /// Devolve a duracao do som em ms (0 se nao tocou) — quem grava usa isso p/ descartar
+    /// o trecho de audio contaminado pelo proprio bip vindo do alto-falante.
+    /// </summary>
+    public static int Play((int freq, int ms)[] notes, float volume)
     {
         volume = Math.Clamp(volume, 0f, 1f);
-        if (volume <= 0f || notes.Length == 0) return;
+        if (volume <= 0f || notes.Length == 0) return 0;
 
         byte[] wav;
         try { wav = BuildTonesWav(notes, volume); }
-        catch (Exception ex) { Logger.Warn($"beep: falha ao gerar WAV: {ex.Message}"); return; }
+        catch (Exception ex) { Logger.Warn($"beep: falha ao gerar WAV: {ex.Message}"); return 0; }
         PlayBytes(wav);
+        return notes.Sum(n => n.ms);
     }
 
-    /// <summary>Toca um arquivo de audio (wav/mp3/...) aplicando o volume (0..1).</summary>
-    public static void PlaySoundFile(string path, float volume)
+    /// <summary>Toca um arquivo de audio (wav/mp3/...) aplicando o volume (0..1). Devolve a duracao em ms.</summary>
+    public static int PlaySoundFile(string path, float volume)
     {
         volume = Math.Clamp(volume, 0f, 1f);
-        if (volume <= 0f) return;
+        if (volume <= 0f) return 0;
 
         byte[] wav;
+        int durationMs;
         try
         {
             using var reader = new AudioFileReader(path) { Volume = volume }; // decodifica + ganho
+            durationMs = (int)reader.TotalTime.TotalMilliseconds;
             using var mem = new MemoryStream();
             WaveFileWriter.WriteWavFileToStream(mem, reader.ToWaveProvider16()); // PCM16 -> WAV
             wav = mem.ToArray();
         }
-        catch (Exception ex) { Logger.Warn($"beep: falha ao decodificar '{path}': {ex.Message}"); return; }
+        catch (Exception ex) { Logger.Warn($"beep: falha ao decodificar '{path}': {ex.Message}"); return 0; }
         PlayBytes(wav);
+        return durationMs;
     }
 
     private static void PlayBytes(byte[] wav)

@@ -17,9 +17,11 @@ já baixado pelo app Vibe — **não precisa do Vibe rodando**.
 3. Aperta a tecla de novo → para, transcreve (~0,3s na RTX 4070 Ti) e **cola no campo em foco**.
 4. Você revisa e dá Enter. (Não envia sozinho — config `autoEnter`.)
 
-O texto vai pra **onde quer que o cursor esteja** — o app cola via clipboard + `Ctrl+V`, preservando
-o que você já tinha copiado. Durante a gravação, uma **moldura colorida** marca a janela que vai
-receber o texto — se um pop-up roubar o foco, você vê antes de colar.
+O texto vai pra **onde quer que o cursor esteja** — por padrão o app **digita direto** (SendInput
+Unicode), sem encostar no seu clipboard; se preferir, dá pra voltar pra colagem por clipboard +
+`Ctrl+V` (config `pasteMethod`), que preserva o que você já tinha copiado. Durante a gravação, uma
+**moldura colorida** marca a janela que vai receber o texto — se um pop-up roubar o foco, você vê
+antes de colar.
 
 ## Primeiro uso — descobrir sua tecla
 
@@ -73,8 +75,10 @@ O mesmo arquivo pode ser editado na mão (`appsettings.json`):
 | `modelPath` | modelo do Vibe | Caminho do `.bin` ggml do Whisper. Aceita variáveis (`%LOCALAPPDATA%`). |
 | `language` | `pt` | Idioma do áudio. `pt` lida bem com termos em inglês embutidos. |
 | `hotkey` | `discover` | Tecla de atalho: `F13`–`F24`, media keys (`MediaPlayPause`, etc.), número (`0xB6`) ou `discover`. **Somente tecla única** — combinações como `Ctrl+Alt+X` não são suportadas; a tecla configurada é reservada pro ditado (deixa de chegar aos outros apps). |
+| `pinHotkey` | `none` | Tecla que **fixa a janela de destino** (veja abaixo). `none` desliga. Precisa ser diferente da `hotkey`. |
 | `mode` | `toggle` | `toggle` (aperta liga / aperta desliga), `hold` (segura pra falar), `live`/`push` (ver abaixo). |
 | `autoEnter` | `false` | Se `true`, pressiona Enter depois de colar (envia na hora). |
+| `pasteMethod` | `unicode` | Como o texto é entregue. `unicode`: digita direto via SendInput — **não encosta no seu clipboard**. `clipboard`: copia e manda `Ctrl+V`, restaurando o conteúdo anterior depois. Use `clipboard` se algum app não aceitar entrada Unicode sintética. |
 | `beep` | `true` | Sons de início (subindo) / fim (descendo) de gravação. |
 | `silenceMs` | `700` | (modo live) duração da pausa que finaliza uma frase. |
 | `vadThreshold` | `0.012` | (modo live) energia mínima (RMS) p/ considerar que há fala. Aumente se pegar ruído; diminua se cortar fala baixa. |
@@ -97,6 +101,19 @@ precisa da GPU pra outra coisa:
   `cpu`/`vulkan`/`auto` exige **reiniciar o app** (o runtime nativo é fixado por processo).
 
 > Durante a transcrição o uso de GPU é só uma **rajada de ~0,3s**; não é carga contínua.
+
+### Fixando uma janela de destino
+
+Defina uma tecla em `pinHotkey` e, ao apertá-la, o Matraca **fixa a janela que está em foco naquele
+momento** como destino do ditado. A partir daí o texto vai sempre pra ela, não importa em qual janela
+você esteja — dá pra ditar no editor enquanto lê o navegador, por exemplo. Aperte a tecla de novo pra
+liberar. Enquanto fixada, a moldura marca a janela fixa e o tooltip da bandeja mostra o título dela.
+
+> **Ressalva de compatibilidade:** a entrega é feita *sem* trazer a janela pra frente, postando
+> mensagens direto nela. Isso funciona em campos Win32 clássicos (Notepad, boa parte dos apps
+> nativos), mas **terminal, console e apps Chromium/Electron tratam a entrada do jeito deles e
+> ignoram mensagens postadas** — ditar pra esses não vai aparecer enquanto estiver fixado. Pra eles,
+> deixe o `pinHotkey` desligado e use o fluxo normal de janela em foco.
 
 ### Modo `live` (ditado por pausa / VAD)
 

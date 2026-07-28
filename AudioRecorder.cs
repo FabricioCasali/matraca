@@ -5,15 +5,24 @@ namespace Matraca;
 /// <summary>Captura do microfone padrao em 16 kHz mono PCM16 (formato nativo do Whisper).</summary>
 internal sealed class AudioRecorder : IDisposable
 {
+    private const int SampleRate = 16000;
+    private const int BytesPerMs = SampleRate * 2 / 1000;   // PCM16 mono
+
     private WaveInEvent? _waveIn;
     private MemoryStream _buffer = new();
     private TaskCompletionSource<float[]>? _stopTcs;
+    private int _muteBytesLeft;   // audio a descartar no inicio (o proprio bip de start)
 
     public bool IsRecording { get; private set; }
 
-    public void Start()
+    /// <param name="muteMs">
+    /// Descarta os primeiros N ms capturados. Serve p/ jogar fora o bip de inicio, que sai
+    /// pelo alto-falante e volta pelo microfone — sem isso o Whisper o transcreve como palavra.
+    /// </param>
+    public void Start(int muteMs = 0)
     {
         _buffer = new MemoryStream();
+        _muteBytesLeft = Math.Max(0, muteMs) * BytesPerMs;
         _waveIn = new WaveInEvent
         {
             WaveFormat = new WaveFormat(16000, 16, 1),
@@ -38,7 +47,17 @@ internal sealed class AudioRecorder : IDisposable
     }
 
     private void OnData(object? sender, WaveInEventArgs e)
-        => _buffer.Write(e.Buffer, 0, e.BytesRecorded);
+    {
+        int offset = 0, count = e.BytesRecorded;
+        if (_muteBytesLeft > 0)
+        {
+            int skip = Math.Min(_muteBytesLeft, count);   // multiplo de 2: mantem o alinhamento PCM16
+            _muteBytesLeft -= skip;
+            offset = skip;
+            count -= skip;
+        }
+        if (count > 0) _buffer.Write(e.Buffer, offset, count);
+    }
 
     private void OnStopped(object? sender, StoppedEventArgs e)
     {
