@@ -23,7 +23,25 @@ Unicode), sem encostar no seu clipboard; se preferir, dá pra voltar pra colagem
 **moldura colorida** marca a janela que vai receber o texto — se um pop-up roubar o foco, você vê
 antes de colar.
 
-## Primeiro uso — descobrir sua tecla
+## Primeiro uso
+
+Se não houver um modelo Whisper configurado, o Matraca abre uma **tela de primeiro uso** que
+baixa um pra você (large-v3-turbo, small ou base — direto do repositório do whisper.cpp no
+Hugging Face) e captura sua tecla de atalho. Já tem um `.bin`? Aponte pro seu. É toda a
+configuração necessária.
+
+## Limpando o texto com o Claude (opcional, desligado por padrão)
+
+Com `postProcess` ligado e uma chave da API da Anthropic configurada, o texto transcrito passa
+por um modelo Claude que corrige pontuação e capitalização e tira as muletas de fala ("é...",
+"tipo", "né") — sem reescrever o que você disse.
+
+> Esse é o **único** recurso que manda algo pra fora da sua máquina, e só o texto, nunca o áudio.
+> Custa uma ida à rede por ditado (por *frase* nos modos `live`/`push`, o que joga contra a baixa
+> latência que esses modos buscam). Se falhar, estourar o tempo ou for recusado, você recebe a
+> transcrição original — nenhum ditado se perde por causa disso.
+
+## Primeiro uso alternativo — descobrir sua tecla
 
 O `appsettings.json` já vem com `"hotkey": "discover"`. Rode o app:
 
@@ -88,6 +106,18 @@ O mesmo arquivo pode ser editado na mão (`appsettings.json`):
 | `focusBorderColor` | `#E81123` | Cor da moldura (hex HTML). |
 | `focusBorderThickness` | `4` | Espessura da moldura em pixels (1–40). |
 | `focusBorderOpacity` | `0.9` | Opacidade da moldura (0.1–1.0). |
+| `focusBorderColorBusy` | `#FFB900` | Cor da moldura enquanto transcreve. |
+| `focusBorderColorPinned` | `#0078D4` | Cor da moldura quando há uma janela de destino fixada. |
+| `phraseMaxSeconds` | `6` | (modo live) passando disto numa fala contínua, uma pausa curta já encerra a frase — o texto continua fluindo em vez de esperar o corte duro de 20s. |
+| `inputDevice` | `""` | Nome do microfone. Vazio = padrão do Windows. Guardado por nome, então plugar/desplugar outros dispositivos não muda a escolha. |
+| `vocabulary` | `[]` | Termos que o Whisper costuma errar (nomes próprios, siglas, jargão). Vão como prompt inicial do modelo. |
+| `history` | `true` | Guarda as transcrições recentes em **texto puro** em `%LOCALAPPDATA%\Matraca\history.json`. Menu da bandeja → "Histórico de ditados...". |
+| `historyMaxItems` | `100` | Quantas transcrições manter. |
+| `postProcess` | `false` | Limpa o texto transcrito com um modelo Claude (veja abaixo). |
+| `postProcessModel` | `claude-opus-5` | Modelo usado na limpeza. |
+| `postProcessApiKey` | `""` | Chave da API da Anthropic. Vazio = usa a variável de ambiente `ANTHROPIC_API_KEY`. |
+| `postProcessPrompt` | `""` | Instrução customizada de limpeza. Vazio = usa a padrão embutida. |
+| `postProcessTimeoutMs` | `8000` | Passando disso, entrega a transcrição original sem limpar. |
 
 ### Concorrência de GPU (VRAM)
 
@@ -151,6 +181,14 @@ dotnet publish . -c Release -r win-x64 --self-contained false
   `Whisper.net.Runtime.Cuda` no `.csproj`.
 - A 1ª transcrição após abrir o app pode demorar alguns segundos (carga do modelo na VRAM); as
   seguintes são quase instantâneas.
+
+## Privacidade
+
+O áudio nunca sai da sua máquina e nunca é gravado em disco. Não há telemetria, analytics nem
+verificação de atualização. Dois recursos escrevem em disco (o log e o histórico de ditados,
+ambos em `%LOCALAPPDATA%\Matraca`, ambos com o texto transcrito), e um recurso opcional e
+desligado por padrão transmite texto (o pós-processamento com Claude). Detalhes completos no
+[Code Signing Policy](CODE_SIGNING_POLICY.md#privacy-policy).
 
 ## Licença
 

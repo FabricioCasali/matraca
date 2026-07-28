@@ -1,7 +1,14 @@
 # CI/CD do Matraca:
 #  - push/PR: compila e gera o instalador como artefato do run (validacao)
-#  - tag v* (ex.: v1.0.0): gera o instalador e publica um GitHub Release com ele
+#  - tag v* (ex.: v1.0.0): gera o instalador, manda assinar no SignPath e publica o Release
 # Como lancar uma versao:  git tag v1.2.3 && git push --tags
+#
+# Assinatura: enquanto o projeto nao for aprovado no SignPath Foundation, basta nao definir os
+# secrets/vars abaixo — o passo de assinatura e' pulado e o release sai sem assinar, como antes.
+#   secrets.SIGNPATH_API_TOKEN     token da API do SignPath
+#   vars.SIGNPATH_ORGANIZATION_ID  id da organizacao no SignPath
+#   vars.SIGNPATH_PROJECT_SLUG     slug do projeto      (padrao: matraca)
+#   vars.SIGNPATH_POLICY_SLUG      slug da signing policy (padrao: release-signing)
 name: build
 
 on:
@@ -12,6 +19,7 @@ on:
 
 permissions:
   contents: write # criar o release
+  id-token: write # exigido pelo SignPath p/ atestar a origem do build
 
 jobs:
   build:
@@ -42,6 +50,42 @@ jobs:
         with:
           name: matraca-setup-ci
           path: installer/output/*.exe
+
+      # ---- assinatura (so' em tag, e so' se o SignPath estiver configurado) ----
+      - name: Ha' credenciais do SignPath?
+        id: signpath
+        if: ${{ startsWith(github.ref, 'refs/tags/') }}
+        shell: pwsh
+        env:
+          TOKEN: ${{ secrets.SIGNPATH_API_TOKEN }}
+          ORG: ${{ vars.SIGNPATH_ORGANIZATION_ID }}
+        run: |
+          $ready = [string]::IsNullOrWhiteSpace($env:TOKEN) -eq $false -and
+                   [string]::IsNullOrWhiteSpace($env:ORG) -eq $false
+          "ready=$($ready.ToString().ToLower())" >> $env:GITHUB_OUTPUT
+          if (-not $ready) {
+            Write-Host '::warning::SignPath nao configurado; o release sai SEM assinatura.'
+          }
+
+      - name: Subir instalador nao assinado
+        id: unsigned
+        if: ${{ steps.signpath.outputs.ready == 'true' }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: matraca-setup-unsigned
+          path: installer/output/*.exe
+
+      - name: Assinar no SignPath (requer aprovacao manual)
+        if: ${{ steps.signpath.outputs.ready == 'true' }}
+        uses: signpath/github-action-submit-signing-request@v1
+        with:
+          api-token: ${{ secrets.SIGNPATH_API_TOKEN }}
+          organization-id: ${{ vars.SIGNPATH_ORGANIZATION_ID }}
+          project-slug: ${{ vars.SIGNPATH_PROJECT_SLUG || 'matraca' }}
+          signing-policy-slug: ${{ vars.SIGNPATH_POLICY_SLUG || 'release-signing' }}
+          github-artifact-id: ${{ steps.unsigned.outputs.artifact-id }}
+          wait-for-completion: true
+          output-artifact-directory: installer/output
 
       - name: Publicar release (tag)
         if: ${{ startsWith(github.ref, 'refs/tags/') }}

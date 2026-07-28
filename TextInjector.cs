@@ -151,6 +151,22 @@ internal static class TextInjector
     /// <summary>Handle da janela que esta em primeiro plano agora.</summary>
     public static IntPtr GetForegroundWindowHandle() => GetForegroundWindow();
 
+    /// <summary>
+    /// Traz uma janela pro primeiro plano (restaurando se estiver minimizada). Usado pela tela
+    /// de historico p/ devolver o foco antes de recolar — ao contrario do pin de destino, aqui
+    /// roubar o foco e' justamente o que se quer.
+    /// </summary>
+    public static void FocusWindow(IntPtr hwnd)
+    {
+        if (!IsWindowAlive(hwnd)) return;
+        try
+        {
+            if (IsIconic(hwnd)) ShowWindow(hwnd, SW_RESTORE);
+            SetForegroundWindow(hwnd);
+        }
+        catch (Exception ex) { Logger.Warn("Falha ao focar a janela: " + ex.Message); }
+    }
+
     /// <summary>A janela ainda existe?</summary>
     public static bool IsWindowAlive(IntPtr hwnd) => hwnd != IntPtr.Zero && IsWindow(hwnd);
 
@@ -229,8 +245,19 @@ internal static class TextInjector
     [DllImport("user32.dll", SetLastError = true)]
     private static extern bool PostMessage(IntPtr hWnd, uint msg, IntPtr wParam, IntPtr lParam);
 
+    private const int SW_RESTORE = 9;
+
     [DllImport("user32.dll")]
     private static extern IntPtr GetForegroundWindow();
+
+    [DllImport("user32.dll")]
+    private static extern bool SetForegroundWindow(IntPtr hWnd);
+
+    [DllImport("user32.dll")]
+    private static extern bool IsIconic(IntPtr hWnd);
+
+    [DllImport("user32.dll")]
+    private static extern bool ShowWindow(IntPtr hWnd, int nCmdShow);
 
     [DllImport("user32.dll")]
     private static extern bool IsWindow(IntPtr hWnd);

@@ -19,12 +19,14 @@ internal sealed class AudioRecorder : IDisposable
     /// Descarta os primeiros N ms capturados. Serve p/ jogar fora o bip de inicio, que sai
     /// pelo alto-falante e volta pelo microfone — sem isso o Whisper o transcreve como palavra.
     /// </param>
-    public void Start(int muteMs = 0)
+    /// <param name="deviceNumber">Indice do microfone; -1 = padrao do Windows.</param>
+    public void Start(int muteMs = 0, int deviceNumber = AudioDevices.DefaultDevice)
     {
         _buffer = new MemoryStream();
         _muteBytesLeft = Math.Max(0, muteMs) * BytesPerMs;
         _waveIn = new WaveInEvent
         {
+            DeviceNumber = deviceNumber,
             WaveFormat = new WaveFormat(16000, 16, 1),
             BufferMilliseconds = 50,
         };

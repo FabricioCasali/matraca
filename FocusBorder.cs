@@ -30,6 +30,17 @@ internal sealed class FocusBorder : IDisposable
         _lastHwnd = IntPtr.Zero;   // forca reposicionamento no proximo tick
     }
 
+    /// <summary>
+    /// Troca a cor da moldura p/ refletir o estado (gravando / transcrevendo / destino fixo).
+    /// A janela marcada nao muda — so' a cor, entao da' pra saber o que esta acontecendo sem
+    /// tirar os olhos de onde o texto vai cair.
+    /// </summary>
+    public void SetColor(Color color)
+    {
+        if (_overlay.BackColor == color) return;
+        _overlay.BackColor = color;
+    }
+
     public FocusBorder(Color color, int thickness, float opacity)
     {
         _thickness = Math.Max(1, thickness);

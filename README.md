@@ -26,7 +26,25 @@ SendInput), never touching your clipboard; if you prefer, you can switch back to
 recording, a **colored border** highlights the window that will receive the text — if a pop-up
 steals focus, you see it before pasting.
 
-## First run — discover your key
+## First run
+
+If no Whisper model is configured, Matraca opens a **first-run screen** that downloads one for
+you (large-v3-turbo, small or base — straight from the whisper.cpp repository on Hugging Face)
+and captures your hotkey. Already have a `.bin`? Point it at yours instead. That's the whole
+setup.
+
+## Cleaning up the text with Claude (optional, off by default)
+
+With `postProcess` enabled and an Anthropic API key configured, the transcribed text is sent to a
+Claude model that fixes punctuation and capitalization and drops speech fillers ("uh", "like",
+"you know") — without rewriting what you said.
+
+> This is the **only** feature that sends anything off your machine, and only the text, never the
+> audio. It costs one network round trip per dictation (per *phrase* in `live`/`push` mode, which
+> works against the low latency those modes are built for). If it fails, times out or is refused,
+> you get the original transcription — a dictation is never lost to it.
+
+## Alternative first run — discover your key
 
 `appsettings.json` ships with `"hotkey": "discover"`. Run the app:
 
@@ -91,6 +109,18 @@ The same file can be edited by hand (`appsettings.json`):
 | `focusBorderColor` | `#E81123` | Border color (HTML hex). |
 | `focusBorderThickness` | `4` | Border thickness in pixels (1–40). |
 | `focusBorderOpacity` | `0.9` | Border opacity (0.1–1.0). |
+| `focusBorderColorBusy` | `#FFB900` | Border color while transcribing. |
+| `focusBorderColorPinned` | `#0078D4` | Border color while a target window is pinned. |
+| `phraseMaxSeconds` | `6` | (live mode) after this much continuous speech, a short pause is enough to end the phrase — keeps text flowing instead of waiting for the 20s hard cut. |
+| `inputDevice` | `""` | Microphone name. Empty = Windows default. Stored by name, so unplugging other devices doesn't change it. |
+| `vocabulary` | `[]` | Terms Whisper tends to get wrong (proper nouns, acronyms, jargon). Fed to the model as its initial prompt. |
+| `history` | `true` | Stores recent transcriptions as **plain text** in `%LOCALAPPDATA%\Matraca\history.json`. Tray menu → "Histórico de ditados...". |
+| `historyMaxItems` | `100` | How many transcriptions to keep. |
+| `postProcess` | `false` | Clean the transcribed text with a Claude model (see below). |
+| `postProcessModel` | `claude-opus-5` | Model used for the cleanup. |
+| `postProcessApiKey` | `""` | Anthropic API key. Empty = uses the `ANTHROPIC_API_KEY` environment variable. |
+| `postProcessPrompt` | `""` | Custom cleanup instruction. Empty = built-in default. |
+| `postProcessTimeoutMs` | `8000` | If the model takes longer than this, the original transcription is delivered unchanged. |
 
 ### GPU concurrency (VRAM)
 
@@ -155,6 +185,14 @@ dotnet publish . -c Release -r win-x64 --self-contained false
   `Whisper.net.Runtime.Cuda` in the `.csproj`.
 - The first transcription after launching may take a few seconds (model load into VRAM); subsequent
   ones are near-instant.
+
+## Privacy
+
+Audio never leaves your machine and is never written to disk. There is no telemetry, no
+analytics and no update check. Two features write to disk (the log and the dictation history,
+both under `%LOCALAPPDATA%\Matraca`, both containing transcribed text), and one optional,
+off-by-default feature transmits text (Claude post-processing). Full details in the
+[Code Signing Policy](CODE_SIGNING_POLICY.md#privacy-policy).
 
 ## License
 

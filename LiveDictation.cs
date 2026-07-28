@@ -12,7 +12,14 @@ internal sealed class LiveDictation : IDisposable
     private const int SampleRate = 16000;
     private const int FrameMs = 30;          // tamanho do buffer NAudio
     private const int PreRollFrames = 5;     // ~150ms de áudio antes do início da fala
-    private const int MaxSegSeconds = 20;    // corta frase muito longa (limite do Whisper ~30s)
+    private const int MaxSegSeconds = 20;    // corte duro: limite do Whisper (~30s)
+
+    /// <summary>
+    /// Pausa aceita como fim de frase depois que a fala já passou de <see cref="_phraseMaxSeconds"/>.
+    /// Quem fala emendado quase nunca faz a pausa cheia de silenceMs, e sem isto o texto só saía
+    /// no corte duro de 20s — chegando todo de uma vez e com atraso enorme.
+    /// </summary>
+    private const int SoftCutSilenceMs = 250;
 
     private WaveInEvent? _waveIn;
     private readonly List<float> _segment = new();
@@ -20,6 +27,7 @@ internal sealed class LiveDictation : IDisposable
 
     private float _threshold;
     private int _silenceMs;
+    private int _phraseMaxSeconds;
     private int _silenceRun;
     private bool _speechActive;
     private int _muteSamplesLeft;   // audio a descartar no inicio (o proprio bip de start)
@@ -31,10 +39,12 @@ internal sealed class LiveDictation : IDisposable
     /// Descarta os primeiros N ms capturados — o bip de inicio sai pelo alto-falante e volta
     /// pelo microfone; sem isso o VAD o trata como fala e o Whisper o transcreve como palavra.
     /// </param>
-    public void Start(float threshold, int silenceMs, int muteMs = 0)
+    public void Start(float threshold, int silenceMs, int phraseMaxSeconds = 6, int muteMs = 0,
+                      int deviceNumber = AudioDevices.DefaultDevice)
     {
         _threshold = threshold <= 0 ? 0.012f : threshold;
-        _silenceMs = silenceMs <= 0 ? 700 : silenceMs;
+        _silenceMs = silenceMs <= 0 ? 450 : silenceMs;
+        _phraseMaxSeconds = phraseMaxSeconds <= 0 ? 6 : phraseMaxSeconds;
         _segment.Clear();
         _preRoll.Clear();
         _speechActive = false;
@@ -43,6 +53,7 @@ internal sealed class LiveDictation : IDisposable
 
         _waveIn = new WaveInEvent
         {
+            DeviceNumber = deviceNumber,
             WaveFormat = new WaveFormat(SampleRate, 16, 1),
             BufferMilliseconds = FrameMs,
         };
@@ -100,7 +111,7 @@ internal sealed class LiveDictation : IDisposable
         {
             _segment.AddRange(frame);   // mantém a cauda de silêncio
             _silenceRun += frameMs;
-            if (_silenceRun >= _silenceMs)
+            if (_silenceRun >= EffectiveSilenceMs())
                 FinalizeSegment();
         }
         else
@@ -108,6 +119,17 @@ internal sealed class LiveDictation : IDisposable
             _preRoll.Enqueue(frame);    // ring de pré-roll enquanto em silêncio
             while (_preRoll.Count > PreRollFrames) _preRoll.Dequeue();
         }
+    }
+
+    /// <summary>
+    /// Quanto silêncio encerra a frase agora. Enquanto a fala é curta, exige a pausa cheia
+    /// (silenceMs) — assim não pica a frase no meio. Passando de phraseMaxSeconds, passa a
+    /// aceitar uma respirada curta, entregando o texto em pedaços menores e mais rápido.
+    /// </summary>
+    private int EffectiveSilenceMs()
+    {
+        double secs = _segment.Count / (double)SampleRate;
+        return secs >= _phraseMaxSeconds ? Math.Min(_silenceMs, SoftCutSilenceMs) : _silenceMs;
     }
 
     private void FinalizeSegment()
@@ -137,10 +159,11 @@ internal sealed class LiveDictation : IDisposable
     }
 
     /// <summary>Teste offline: alimenta o VAD com amostras de um arquivo, em frames de 30ms.</summary>
-    public void FeedForTest(float[] all, float threshold, int silenceMs)
+    public void FeedForTest(float[] all, float threshold, int silenceMs, int phraseMaxSeconds = 6)
     {
         _threshold = threshold <= 0 ? 0.012f : threshold;
-        _silenceMs = silenceMs <= 0 ? 700 : silenceMs;
+        _silenceMs = silenceMs <= 0 ? 450 : silenceMs;
+        _phraseMaxSeconds = phraseMaxSeconds <= 0 ? 6 : phraseMaxSeconds;
         _segment.Clear(); _preRoll.Clear(); _speechActive = false; _silenceRun = 0;
 
         int frameSize = SampleRate * FrameMs / 1000; // 480 amostras

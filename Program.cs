@@ -67,6 +67,7 @@ internal static class Program
         Application.SetCompatibleTextRenderingDefault(false);
         try
         {
+            RunOnboardingIfNeeded();
             Application.Run(new TrayApp());
         }
         catch (Exception ex)
@@ -75,6 +76,25 @@ internal static class Program
             MessageBox.Show("Erro fatal no Matraca:\n" + ex.Message, "Matraca",
                 MessageBoxButtons.OK, MessageBoxIcon.Error);
         }
+    }
+
+    /// <summary>
+    /// Sem um modelo Whisper valido o app nao transcreve nada — antes isso so' aparecia como
+    /// um balao de erro depois de iniciar. Agora oferece baixar um na primeira execucao.
+    /// Cancelar e' permitido: o app sobe assim mesmo e reclama pelo caminho antigo.
+    /// </summary>
+    private static void RunOnboardingIfNeeded()
+    {
+        try
+        {
+            var modelPath = Environment.ExpandEnvironmentVariables(Config.LoadRaw().modelPath ?? "");
+            if (modelPath.Length > 0 && File.Exists(modelPath)) return;
+
+            Logger.Info($"Modelo nao encontrado ('{modelPath}'); abrindo a tela de primeiro uso.");
+            using var form = new OnboardingForm();
+            form.ShowDialog();
+        }
+        catch (Exception ex) { Logger.Error("Falha na tela de primeiro uso", ex); }
     }
 
     private static void RunLiveTest(string wavPath)
@@ -90,7 +110,7 @@ internal static class Program
             for (int i = 0; i < samples.Length; i++)
                 samples[i] = BitConverter.ToInt16(bytes, i * 2) / 32768f;
 
-            using var t = new Transcriber(cfg.ModelPath, cfg.Language);
+            using var t = new Transcriber(cfg.ModelPath, cfg.Language, cfg.Vocabulary);
             var live = new LiveDictation();
             int idx = 0;
             live.SegmentReady += seg =>
@@ -99,8 +119,8 @@ internal static class Program
                 string text = t.TranscribeAsync(seg).GetAwaiter().GetResult();
                 Logger.Info($"[LIVE-TESTE] chunk {n} (~{seg.Length / 16000.0:F1}s): \"{text.Trim()}\"");
             };
-            Logger.Info($"[LIVE-TESTE] silenceMs={cfg.SilenceMs} threshold={cfg.VadThreshold}");
-            live.FeedForTest(samples, cfg.VadThreshold, cfg.SilenceMs);
+            Logger.Info($"[LIVE-TESTE] silenceMs={cfg.SilenceMs} threshold={cfg.VadThreshold} phraseMax={cfg.PhraseMaxSeconds}s");
+            live.FeedForTest(samples, cfg.VadThreshold, cfg.SilenceMs, cfg.PhraseMaxSeconds);
             Logger.Info($"[LIVE-TESTE] total de chunks: {idx}");
         }
         catch (Exception ex) { Logger.Error("[LIVE-TESTE] Falhou", ex); }
@@ -123,7 +143,7 @@ internal static class Program
             for (int i = 0; i < samples.Length; i++)
                 samples[i] = BitConverter.ToInt16(bytes, i * 2) / 32768f;
 
-            using var t = new Transcriber(cfg.ModelPath, cfg.Language);
+            using var t = new Transcriber(cfg.ModelPath, cfg.Language, cfg.Vocabulary);
             for (int run = 1; run <= 2; run++)
             {
                 var sw = System.Diagnostics.Stopwatch.StartNew();
@@ -154,6 +174,7 @@ internal sealed class TrayApp : ApplicationContext
     private bool _announcedReady;                  // balão "Pronto" só na 1ª carga
     private bool _busy;          // transcrevendo (modos toggle/hold)
     private int _lastDiscovered; // evita spam de balao no modo descoberta
+    private KeyMods _lastDiscoveredMods;
 
     // auto-descarregar por inatividade (libera VRAM)
     private long _lastActivityTick;
@@ -166,6 +187,12 @@ internal sealed class TrayApp : ApplicationContext
     // independente de qual esta em foco na hora de falar.
     private IntPtr _pinnedHwnd;
     private string _pinnedTitle = "";
+
+    // limpeza opcional do texto por um modelo Claude (null = desligado)
+    private readonly TextPostProcessor? _postProcessor;
+
+    // transcricoes recentes guardadas em disco (null = desligado)
+    private readonly DictationHistory? _history;
 
     // modo live (VAD)
     private LiveDictation? _live;
@@ -215,6 +242,9 @@ internal sealed class TrayApp : ApplicationContext
                 Logger.Warn($"Moldura de foco desativada (cor '{_cfg.FocusBorderColor}' invalida? {ex.Message})");
             }
         }
+
+        _postProcessor = TextPostProcessor.TryCreate(_cfg);
+        _history = _cfg.History ? new DictationHistory(_cfg.HistoryMaxItems) : null;
 
         _hotkey = new HotkeyListener(_cfg);
         _hotkey.Triggered += OnTriggered;
@@ -266,7 +296,7 @@ internal sealed class TrayApp : ApplicationContext
             {
                 try
                 {
-                    var t = new Transcriber(_cfg.ModelPath, _cfg.Language);
+                    var t = new Transcriber(_cfg.ModelPath, _cfg.Language, _cfg.Vocabulary);
                     lock (_gate) { _transcriber = t; }
                     _ui.Post(_ =>
                     {
@@ -372,10 +402,11 @@ internal sealed class TrayApp : ApplicationContext
             _live.SegmentReady += seg => { try { _liveQueue?.Add(seg); } catch { } };
             _liveConsumer = Task.Run(ConsumeLiveSegments);
             // idem StartRecording: toca o bip e descarta a janela em que ele soa
-            _live.Start(_cfg.VadThreshold, _cfg.SilenceMs, MuteWindowMs(Beep(true)));
+            _live.Start(_cfg.VadThreshold, _cfg.SilenceMs, _cfg.PhraseMaxSeconds,
+                        MuteWindowMs(Beep(true)), AudioDevices.Resolve(_cfg.InputDevice));
             Touch();
             SetRecording();
-            Logger.Info($"Live (VAD) iniciado. silenceMs={_cfg.SilenceMs} threshold={_cfg.VadThreshold}");
+            Logger.Info($"Live (VAD) iniciado. silenceMs={_cfg.SilenceMs} threshold={_cfg.VadThreshold} phraseMax={_cfg.PhraseMaxSeconds}s");
         }
         catch (Exception ex)
         {
@@ -428,6 +459,13 @@ internal sealed class TrayApp : ApplicationContext
                     Touch();
                     if (!string.IsNullOrWhiteSpace(text))
                     {
+                        // No modo live isto custa uma ida a' rede por frase — o usuario opta
+                        // por isso ao ligar o pos-processamento (ver README).
+                        if (_postProcessor != null)
+                        {
+                            text = _postProcessor.CleanAsync(text).GetAwaiter().GetResult();
+                            Touch();
+                        }
                         string chunk = text.Trim() + " ";
                         _ui.Post(_ => Deliver(chunk, false), null);
                         Logger.Info($"[live] chunk (~{seg.Length / 16000.0:F1}s): \"{text.Trim()}\"");
@@ -446,7 +484,7 @@ internal sealed class TrayApp : ApplicationContext
             // O bip sai pelo alto-falante e volta pelo microfone: sem descartar esse trecho,
             // o Whisper transcreve o proprio som como palavra. Toca primeiro (assincrono) e
             // arma a captura ignorando a janela em que o bip ainda esta soando.
-            _recorder.Start(MuteWindowMs(Beep(true)));
+            _recorder.Start(MuteWindowMs(Beep(true)), AudioDevices.Resolve(_cfg.InputDevice));
             Touch();
             SetRecording();
             Logger.Info("Gravando...");
@@ -486,6 +524,8 @@ internal sealed class TrayApp : ApplicationContext
             }
             else
             {
+                if (_postProcessor != null) text = await _postProcessor.CleanAsync(text);
+                Touch();
                 _ui.Post(_ => Deliver(text, _cfg.AutoEnter), null);
             }
         }
@@ -559,6 +599,8 @@ internal sealed class TrayApp : ApplicationContext
     /// </summary>
     private void Deliver(string text, bool autoEnter)
     {
+        _history?.Add(text);
+
         if (_pinnedHwnd != IntPtr.Zero)
         {
             if (!TextInjector.IsWindowAlive(_pinnedHwnd))
@@ -575,14 +617,15 @@ internal sealed class TrayApp : ApplicationContext
         TextInjector.PasteText(text, autoEnter, _cfg.PasteMethod);
     }
 
-    private void OnKeyDiscovered(int vk)
+    private void OnKeyDiscovered(int vk, KeyMods mods)
     {
-        if (vk == _lastDiscovered) return;
+        if (vk == _lastDiscovered && mods == _lastDiscoveredMods) return;
         _lastDiscovered = vk;
-        string name = Config.NameForVk(vk);
-        Logger.Info($"Tecla detectada: vk=0x{vk:X2} ({vk}) -> nome sugerido: {name}");
+        _lastDiscoveredMods = mods;
+        string name = Config.FormatHotkey(vk, mods);
+        Logger.Info($"Tecla detectada: vk=0x{vk:X2} ({vk}) mods={mods} -> atalho sugerido: {name}");
         _ui.Post(_ => Balloon("Tecla detectada",
-            $"Codigo: 0x{vk:X2} ({vk})  |  nome: {name}\n" +
+            $"Codigo: 0x{vk:X2} ({vk})  |  atalho: {name}\n" +
             $"Coloque \"hotkey\": \"{name}\" em appsettings.json e reinicie."), null);
     }
 
@@ -591,6 +634,8 @@ internal sealed class TrayApp : ApplicationContext
     {
         var menu = new ContextMenuStrip();
         menu.Items.Add("Configurações...", null, (_, _) => OpenSettings());
+        if (_history != null)
+            menu.Items.Add("Histórico de ditados...", null, (_, _) => OpenHistory());
         menu.Items.Add(new ToolStripSeparator());
         menu.Items.Add("Abrir matraca.log", null, (_, _) =>
         {
@@ -611,6 +656,15 @@ internal sealed class TrayApp : ApplicationContext
         menu.Items.Add(new ToolStripSeparator());
         menu.Items.Add("Sair", null, (_, _) => ExitApp());
         return menu;
+    }
+
+    private void OpenHistory()
+    {
+        if (_history == null) return;
+        // captura o alvo ANTES de abrir a tela: a partir daqui o foco e' dela
+        var returnTo = TextInjector.GetForegroundWindowHandle();
+        using var form = new HistoryForm(_history, _cfg, returnTo);
+        form.ShowDialog();
     }
 
     private void OpenSettings()
@@ -642,6 +696,7 @@ internal sealed class TrayApp : ApplicationContext
             _recorder.Dispose();
             _transcriber?.Dispose();
             _border?.Dispose();
+            _postProcessor?.Dispose();
             _tray.Visible = false;
         }
         catch { }
@@ -666,6 +721,7 @@ internal sealed class TrayApp : ApplicationContext
     {
         _tray.Icon = _icoRec;
         _tray.Text = "Matraca — GRAVANDO (aperte de novo p/ parar)";
+        _border?.SetColor(BorderColorFor(recording: true));
         _border?.ShowBorder();
     }
 
@@ -673,8 +729,22 @@ internal sealed class TrayApp : ApplicationContext
     {
         _tray.Icon = _icoBusy;
         _tray.Text = "Matraca — transcrevendo...";
-        // moldura continua visivel: a cola (Ctrl+V) acontece no fim do estado busy,
-        // entao a janela marcada ainda e' a que vai receber o texto.
+        // moldura continua visivel: a entrega do texto acontece no fim do estado busy,
+        // entao a janela marcada ainda e' a que vai receber o texto. So' a cor muda.
+        _border?.SetColor(BorderColorFor(recording: false));
+    }
+
+    /// <summary>
+    /// Cor da moldura por estado: destino fixo tem prioridade (o texto vai pra la' de todo
+    /// jeito), senao vermelho gravando / âmbar transcrevendo.
+    /// </summary>
+    private Color BorderColorFor(bool recording)
+    {
+        var html = _pinnedHwnd != IntPtr.Zero
+            ? _cfg.FocusBorderColorPinned
+            : recording ? _cfg.FocusBorderColor : _cfg.FocusBorderColorBusy;
+        try { return ColorTranslator.FromHtml(html); }
+        catch { return Color.FromArgb(0xE8, 0x11, 0x23); }
     }
 
     // Folga sobre a duracao do som: cobre a latencia entre mandar tocar e o som sair de fato
@@ -715,6 +785,7 @@ internal sealed class TrayApp : ApplicationContext
             _hotkey.Dispose();
             _idleTimer?.Dispose();
             _border?.Dispose();
+            _postProcessor?.Dispose();
             try { _live?.Stop(); _liveQueue?.CompleteAdding(); } catch { }
             _recorder.Dispose();
             _transcriber?.Dispose();

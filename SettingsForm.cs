@@ -4,6 +4,8 @@ namespace Matraca;
 
 /// <summary>
 /// Tela de configuracoes: edita o appsettings.json do usuario (%LOCALAPPDATA%\Matraca).
+/// Organizada em abas porque a lista de opcoes ficou grande demais p/ uma coluna so'.
+///
 /// A captura de atalho usa um hook de descoberta proprio e SUSPENDE o hook principal
 /// enquanto captura (senao apertar o atalho atual dispararia uma gravacao).
 /// Retorna DialogResult.OK quando salvou; quem chama decide reiniciar o app.
@@ -13,6 +15,7 @@ internal sealed class SettingsForm : Form
     private readonly HotkeyListener? _mainHotkey;   // p/ suspender durante a captura
     private HotkeyListener? _capture;               // hook de descoberta temporario
 
+    // -- aba Ditado --
     private readonly TextBox _hotkeyBox;
     private readonly Button _captureBtn;
     private readonly TextBox _pinHotkeyBox;
@@ -21,22 +24,44 @@ internal sealed class SettingsForm : Form
     private readonly ComboBox _languageBox;
     private readonly CheckBox _autoEnterBox;
     private readonly ComboBox _pasteMethodBox;
+
+    // -- aba Áudio --
+    private readonly ComboBox _inputDeviceBox;
     private readonly CheckBox _beepBox;
     private readonly NumericUpDown _beepVolumeBox;
+    private readonly TextBox _startSoundBox;
+    private readonly TextBox _stopSoundBox;
     private readonly NumericUpDown _silenceMsBox;
+    private readonly NumericUpDown _phraseMaxBox;
     private readonly NumericUpDown _vadThresholdBox;
-    private readonly NumericUpDown _idleUnloadBox;
-    private readonly ComboBox _gpuBox;
-    private readonly TextBox _modelPathBox;
+
+    // -- aba Visual --
     private readonly CheckBox _borderBox;
     private readonly Button _borderColorBtn;
+    private readonly Button _borderColorBusyBtn;
+    private readonly Button _borderColorPinnedBtn;
     private readonly NumericUpDown _borderThicknessBox;
     private readonly NumericUpDown _borderOpacityBox;
 
-    private string _hotkeyValue;      // o que vai pro JSON ("F15", "0xB6" ou "discover")
+    // -- aba Modelo --
+    private readonly TextBox _modelPathBox;
+    private readonly ComboBox _gpuBox;
+    private readonly NumericUpDown _idleUnloadBox;
+    private readonly TextBox _vocabularyBox;
+
+    // -- aba Avançado --
+    private readonly CheckBox _historyBox;
+    private readonly NumericUpDown _historyMaxBox;
+    private readonly CheckBox _postProcessBox;
+    private readonly TextBox _postModelBox;
+    private readonly TextBox _postApiKeyBox;
+    private readonly NumericUpDown _postTimeoutBox;
+    private readonly TextBox _postPromptBox;
+
+    private string _hotkeyValue;      // o que vai pro JSON ("F15", "Ctrl+Alt+X" ou "discover")
     private string _pinHotkeyValue;   // idem p/ fixar janela; vazio = recurso desligado
     private bool _capturingPin;       // qual dos dois campos esta capturando agora
-    private Color _borderColor;
+    private Color _borderColor, _borderColorBusy, _borderColorPinned;
 
     private const string PinOffLabel = "(desligado)";
     private const string CapturingLabel = "pressione uma tecla...";
@@ -53,9 +78,14 @@ internal sealed class SettingsForm : Form
     {
         _mainHotkey = mainHotkey;
         var cfg = Config.Load();
-        _hotkeyValue = cfg.DiscoverMode ? "discover" : HotkeyJsonValue(cfg.HotkeyVk);
-        _pinHotkeyValue = cfg.PinHotkeyVk == 0 ? "" : HotkeyJsonValue(cfg.PinHotkeyVk);
-        _borderColor = ParseColorSafe(cfg.FocusBorderColor);
+        var raw = Config.LoadRaw();
+
+        _hotkeyValue = cfg.DiscoverMode ? "discover" : Config.FormatHotkey(cfg.HotkeyVk, cfg.HotkeyMods);
+        _pinHotkeyValue = cfg.PinHotkeyVk == 0
+            ? "" : Config.FormatHotkey(cfg.PinHotkeyVk, cfg.PinHotkeyMods);
+        _borderColor = ParseColorSafe(cfg.FocusBorderColor, 0xE81123);
+        _borderColorBusy = ParseColorSafe(cfg.FocusBorderColorBusy, 0xFFB900);
+        _borderColorPinned = ParseColorSafe(cfg.FocusBorderColorPinned, 0x0078D4);
 
         Text = "Matraca — Configurações";
         FormBorderStyle = FormBorderStyle.FixedDialog;
@@ -64,34 +94,28 @@ internal sealed class SettingsForm : Form
         StartPosition = FormStartPosition.CenterScreen;
         AutoScaleMode = AutoScaleMode.Dpi;
         Font = new Font("Segoe UI", 9f);
+        ClientSize = new Size(620, 560);
 
-        var grid = new TableLayoutPanel
-        {
-            Dock = DockStyle.Fill,
-            ColumnCount = 2,
-            Padding = new Padding(12),
-            AutoSize = true,
-            AutoSizeMode = AutoSizeMode.GrowAndShrink,
-        };
-        grid.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 170));
-        grid.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 330));
+        var tabs = new TabControl { Dock = DockStyle.Fill, Padding = new Point(12, 6) };
 
-        // -- atalho --
+        // ============================ DITADO ============================
+        var gDictation = NewGrid();
+
         var hotkeyPanel = NewRowPanel();
-        _hotkeyBox = new TextBox { ReadOnly = true, Width = 200, Text = cfg.HotkeyName };
+        _hotkeyBox = new TextBox { ReadOnly = true, Width = 150, Text = cfg.HotkeyName };
         _captureBtn = new Button { Text = "Capturar...", AutoSize = true };
         _captureBtn.Click += (_, _) => ToggleCapture(pin: false);
         hotkeyPanel.Controls.Add(_hotkeyBox);
         hotkeyPanel.Controls.Add(_captureBtn);
-        AddRow(grid, "Tecla de atalho", hotkeyPanel,
-            "Clique em Capturar e pressione a tecla desejada (Esc cancela).");
+        AddRow(gDictation, "Tecla de atalho", hotkeyPanel,
+            "Clique em Capturar e pressione a tecla (Esc cancela). Aceita combos como Ctrl+Alt+X; "
+          + "teclas de digitação sozinhas não são aceitas.");
 
-        // -- tecla de fixar janela de destino --
         var pinPanel = NewRowPanel();
         _pinHotkeyBox = new TextBox
         {
             ReadOnly = true,
-            Width = 140,
+            Width = 150,
             Text = cfg.PinHotkeyVk == 0 ? PinOffLabel : cfg.PinHotkeyName,
         };
         _pinCaptureBtn = new Button { Text = "Capturar...", AutoSize = true };
@@ -101,30 +125,45 @@ internal sealed class SettingsForm : Form
         pinPanel.Controls.Add(_pinHotkeyBox);
         pinPanel.Controls.Add(_pinCaptureBtn);
         pinPanel.Controls.Add(pinClearBtn);
-        AddRow(grid, "Fixar janela de destino", pinPanel,
-            "Aperta e o ditado passa a ir sempre pra janela que estava em foco, mesmo que você "
-          + "mude de janela depois. Entrega sem trazer a janela pra frente — não funciona em "
-          + "terminal nem em apps Electron.");
+        AddRow(gDictation, "Fixar janela de destino", pinPanel,
+            "Aperta e o ditado passa a ir sempre pra janela que estava em foco. Entrega sem "
+          + "trazer a janela pra frente — não funciona em terminal nem em apps Electron.");
 
-        // -- modo --
         _modeBox = new ComboBox { DropDownStyle = ComboBoxStyle.DropDownList, Width = 320 };
         foreach (var (_, label) in Modes) _modeBox.Items.Add(label);
         _modeBox.SelectedIndex = Math.Max(0, Array.FindIndex(Modes, m => m.Value == cfg.Mode));
-        AddRow(grid, "Modo de ditado", _modeBox);
+        AddRow(gDictation, "Modo de ditado", _modeBox);
 
-        // -- idioma --
         _languageBox = new ComboBox { Width = 120, Text = cfg.Language };
         _languageBox.Items.AddRange(new object[] { "pt", "en", "es", "auto" });
-        AddRow(grid, "Idioma", _languageBox);
+        AddRow(gDictation, "Idioma", _languageBox);
 
-        // -- auto enter / beep --
         _autoEnterBox = new CheckBox { Text = "Pressionar Enter após colar", Checked = cfg.AutoEnter, AutoSize = true };
-        AddRow(grid, "Auto-Enter", _autoEnterBox);
+        AddRow(gDictation, "Auto-Enter", _autoEnterBox);
 
         _pasteMethodBox = new ComboBox { DropDownStyle = ComboBoxStyle.DropDownList, Width = 120 };
         _pasteMethodBox.Items.AddRange(new object[] { "unicode", "clipboard" });
         _pasteMethodBox.SelectedItem = cfg.PasteMethod;
-        AddRow(grid, "Método de colagem", _pasteMethodBox, "unicode: mais limpo (não usa clipboard); clipboard: tradicional.");
+        AddRow(gDictation, "Método de colagem", _pasteMethodBox,
+            "unicode: digita direto, não encosta no clipboard. clipboard: Ctrl+V tradicional.");
+
+        tabs.TabPages.Add(NewTab("Ditado", gDictation));
+
+        // ============================ ÁUDIO =============================
+        var gAudio = NewGrid();
+
+        _inputDeviceBox = new ComboBox { DropDownStyle = ComboBoxStyle.DropDownList, Width = 320 };
+        _inputDeviceBox.Items.Add("(padrão do Windows)");
+        foreach (var name in AudioDevices.ListNames()) _inputDeviceBox.Items.Add(name);
+        _inputDeviceBox.SelectedIndex = 0;
+        if (cfg.InputDevice.Length > 0)
+        {
+            int idx = _inputDeviceBox.Items.IndexOf(cfg.InputDevice);
+            // dispositivo salvo mas desconectado: mostra assim mesmo p/ nao perder a escolha
+            if (idx < 0) idx = _inputDeviceBox.Items.Add(cfg.InputDevice + "  (desconectado)");
+            _inputDeviceBox.SelectedIndex = idx;
+        }
+        AddRow(gAudio, "Microfone", _inputDeviceBox);
 
         var beepPanel = NewRowPanel();
         _beepBox = new CheckBox { Text = "Sons de início/fim", Checked = cfg.Beep, AutoSize = true };
@@ -132,52 +171,136 @@ internal sealed class SettingsForm : Form
         beepPanel.Controls.Add(_beepBox);
         beepPanel.Controls.Add(new Label { Text = "volume:", AutoSize = true, Padding = new Padding(8, 5, 0, 0) });
         beepPanel.Controls.Add(_beepVolumeBox);
-        AddRow(grid, "Feedback sonoro", beepPanel);
+        AddRow(gAudio, "Feedback sonoro", beepPanel);
 
-        // -- VAD (modo live/push) --
+        _startSoundBox = new TextBox { Width = 220, Text = raw.startSound ?? "" };
+        AddRow(gAudio, "Som de início", SoundPanel(_startSoundBox),
+            "Arquivo .wav/.mp3 opcional. Vazio = tom sintético (subindo).");
+
+        _stopSoundBox = new TextBox { Width = 220, Text = raw.stopSound ?? "" };
+        AddRow(gAudio, "Som de fim", SoundPanel(_stopSoundBox),
+            "Vazio = tom sintético (descendo).");
+
         _silenceMsBox = NewNumeric(200m, 5000m, cfg.SilenceMs, 50m, 0);
-        AddRow(grid, "Pausa p/ frase (ms)", _silenceMsBox,
-            "Modos live/push: silêncio que encerra uma frase.");
+        AddRow(gAudio, "Pausa p/ frase (ms)", _silenceMsBox,
+            "Modos live/push: silêncio que encerra uma frase. Menor = texto sai mais rápido.");
+
+        _phraseMaxBox = NewNumeric(2m, 20m, cfg.PhraseMaxSeconds, 1m, 0);
+        AddRow(gAudio, "Corte suave após (s)", _phraseMaxBox,
+            "Passando disto numa fala contínua, uma pausa curta já encerra a frase — evita "
+          + "esperar o limite de 20s e colar tudo de uma vez.");
 
         _vadThresholdBox = NewNumeric(0.001m, 0.2m, (decimal)cfg.VadThreshold, 0.001m, 3);
-        AddRow(grid, "Sensibilidade VAD", _vadThresholdBox,
+        AddRow(gAudio, "Sensibilidade VAD", _vadThresholdBox,
             "Energia mínima p/ considerar fala. Maior = ignora mais ruído.");
 
-        // -- moldura de foco --
-        var borderPanel = NewRowPanel();
-        _borderBox = new CheckBox { Text = "Marcar janela em foco", Checked = cfg.FocusBorder, AutoSize = true };
-        _borderColorBtn = new Button { Text = "Cor", Width = 60, BackColor = _borderColor, ForeColor = Color.White };
-        _borderColorBtn.Click += (_, _) => PickBorderColor();
+        tabs.TabPages.Add(NewTab("Áudio", gAudio));
+
+        // ============================ VISUAL ============================
+        var gVisual = NewGrid();
+
+        _borderBox = new CheckBox { Text = "Marcar janela em foco durante a gravação", Checked = cfg.FocusBorder, AutoSize = true };
+        AddRow(gVisual, "Moldura de foco", _borderBox,
+            "Mostra em qual janela o texto será entregue.");
+
+        var colorPanel = NewRowPanel();
+        _borderColorBtn = ColorButton("Gravando", _borderColor, c => _borderColor = c);
+        _borderColorBusyBtn = ColorButton("Transcrevendo", _borderColorBusy, c => _borderColorBusy = c);
+        _borderColorPinnedBtn = ColorButton("Fixado", _borderColorPinned, c => _borderColorPinned = c);
+        colorPanel.Controls.Add(_borderColorBtn);
+        colorPanel.Controls.Add(_borderColorBusyBtn);
+        colorPanel.Controls.Add(_borderColorPinnedBtn);
+        AddRow(gVisual, "Cores por estado", colorPanel,
+            "A moldura troca de cor conforme o estado, sem mudar de janela.");
+
         _borderThicknessBox = NewNumeric(1m, 40m, cfg.FocusBorderThickness, 1m, 0);
+        AddRow(gVisual, "Espessura (px)", _borderThicknessBox);
+
         _borderOpacityBox = NewNumeric(0.1m, 1m, (decimal)cfg.FocusBorderOpacity, 0.1m, 1);
-        borderPanel.Controls.Add(_borderBox);
-        borderPanel.Controls.Add(_borderColorBtn);
-        borderPanel.Controls.Add(new Label { Text = "px:", AutoSize = true, Padding = new Padding(6, 5, 0, 0) });
-        borderPanel.Controls.Add(_borderThicknessBox);
-        borderPanel.Controls.Add(new Label { Text = "opac.:", AutoSize = true, Padding = new Padding(6, 5, 0, 0) });
-        borderPanel.Controls.Add(_borderOpacityBox);
-        AddRow(grid, "Moldura de foco", borderPanel,
-            "Mostra em qual janela o texto será colado durante a gravação.");
+        AddRow(gVisual, "Opacidade", _borderOpacityBox);
 
-        // -- desempenho --
-        _idleUnloadBox = NewNumeric(0m, 240m, cfg.IdleUnloadMinutes, 1m, 0);
-        AddRow(grid, "Liberar VRAM após (min)", _idleUnloadBox, "0 = nunca descarregar o modelo.");
+        tabs.TabPages.Add(NewTab("Visual", gVisual));
 
-        _gpuBox = new ComboBox { DropDownStyle = ComboBoxStyle.DropDownList, Width = 120 };
-        _gpuBox.Items.AddRange(new object[] { "auto", "vulkan", "cpu" });
-        _gpuBox.SelectedItem = cfg.Gpu is "vulkan" or "cpu" ? cfg.Gpu : "auto";
-        AddRow(grid, "Processamento", _gpuBox);
+        // ============================ MODELO ============================
+        var gModel = NewGrid();
 
-        // -- modelo --
         var modelPanel = NewRowPanel();
-        _modelPathBox = new TextBox { Width = 270, Text = Config.LoadRaw().modelPath ?? cfg.ModelPath };
+        _modelPathBox = new TextBox { Width = 270, Text = raw.modelPath ?? cfg.ModelPath };
         var browseBtn = new Button { Text = "...", Width = 32 };
         browseBtn.Click += (_, _) => BrowseModel();
         modelPanel.Controls.Add(_modelPathBox);
         modelPanel.Controls.Add(browseBtn);
-        AddRow(grid, "Modelo Whisper (.bin)", modelPanel);
+        AddRow(gModel, "Modelo Whisper (.bin)", modelPanel);
 
-        // -- botoes --
+        _gpuBox = new ComboBox { DropDownStyle = ComboBoxStyle.DropDownList, Width = 120 };
+        _gpuBox.Items.AddRange(new object[] { "auto", "vulkan", "cpu" });
+        _gpuBox.SelectedItem = cfg.Gpu is "vulkan" or "cpu" ? cfg.Gpu : "auto";
+        AddRow(gModel, "Processamento", _gpuBox);
+
+        _idleUnloadBox = NewNumeric(0m, 240m, cfg.IdleUnloadMinutes, 1m, 0);
+        AddRow(gModel, "Liberar VRAM após (min)", _idleUnloadBox, "0 = nunca descarregar o modelo.");
+
+        _vocabularyBox = new TextBox
+        {
+            Multiline = true,
+            ScrollBars = ScrollBars.Vertical,
+            Width = 320,
+            Height = 110,
+            Text = string.Join(Environment.NewLine, cfg.Vocabulary),
+        };
+        AddRow(gModel, "Vocabulário", _vocabularyBox,
+            "Um termo por linha: nomes próprios, siglas e jargão que o Whisper costuma errar. "
+          + "Vira o prompt inicial do modelo.");
+
+        tabs.TabPages.Add(NewTab("Modelo", gModel));
+
+        // =========================== AVANÇADO ===========================
+        var gAdv = NewGrid();
+
+        var histPanel = NewRowPanel();
+        _historyBox = new CheckBox { Text = "Guardar transcrições recentes", Checked = cfg.History, AutoSize = true };
+        _historyMaxBox = NewNumeric(1m, 5000m, cfg.HistoryMaxItems, 10m, 0);
+        histPanel.Controls.Add(_historyBox);
+        histPanel.Controls.Add(new Label { Text = "máx.:", AutoSize = true, Padding = new Padding(8, 5, 0, 0) });
+        histPanel.Controls.Add(_historyMaxBox);
+        AddRow(gAdv, "Histórico", histPanel,
+            "Grava em texto puro no disco (%LOCALAPPDATA%\\Matraca\\history.json) tudo o que "
+          + "você ditar. Desligue se isso não for aceitável.");
+
+        _postProcessBox = new CheckBox
+        {
+            Text = "Limpar o texto com um modelo Claude",
+            Checked = cfg.PostProcess,
+            AutoSize = true,
+        };
+        AddRow(gAdv, "Pós-processamento", _postProcessBox,
+            "Corrige pontuação e tira muletas de fala. Custa uma ida à rede por ditado (por "
+          + "frase, nos modos live/push) e usa a API da Anthropic, que é paga.");
+
+        _postModelBox = new TextBox { Width = 220, Text = cfg.PostProcessModel };
+        AddRow(gAdv, "Modelo", _postModelBox);
+
+        _postApiKeyBox = new TextBox { Width = 220, Text = cfg.PostProcessApiKey, UseSystemPasswordChar = true };
+        AddRow(gAdv, "Chave de API", _postApiKeyBox,
+            "Vazio = usa a variável de ambiente ANTHROPIC_API_KEY.");
+
+        _postTimeoutBox = NewNumeric(1000m, 60000m, cfg.PostProcessTimeoutMs, 500m, 0);
+        AddRow(gAdv, "Timeout (ms)", _postTimeoutBox,
+            "Estourando o tempo, entrega a transcrição original sem limpar.");
+
+        _postPromptBox = new TextBox
+        {
+            Multiline = true,
+            ScrollBars = ScrollBars.Vertical,
+            Width = 320,
+            Height = 90,
+            Text = cfg.PostProcessPrompt,
+        };
+        AddRow(gAdv, "Instrução", _postPromptBox, "Vazio = usa a instrução padrão embutida.");
+
+        tabs.TabPages.Add(NewTab("Avançado", gAdv));
+
+        // ---- botoes ----
         var buttons = new FlowLayoutPanel
         {
             FlowDirection = FlowDirection.RightToLeft,
@@ -193,10 +316,8 @@ internal sealed class SettingsForm : Form
         AcceptButton = saveBtn;
         CancelButton = cancelBtn;
 
-        Controls.Add(grid);
+        Controls.Add(tabs);
         Controls.Add(buttons);
-        AutoSize = true;
-        AutoSizeMode = AutoSizeMode.GrowAndShrink;
         FormClosed += (_, _) => StopCapture();
     }
 
@@ -214,20 +335,26 @@ internal sealed class SettingsForm : Form
         (pin ? _pinCaptureBtn : _captureBtn).Text = "Cancelar";
     }
 
-    private void OnKeyCaptured(int vk)
+    private void OnKeyCaptured(int vk, KeyMods mods)
     {
-        if (vk == 0x1B) { RestoreDisplay(_capturingPin); StopCapture(); return; } // Esc cancela
+        if (vk == 0x1B && mods == KeyMods.None) { RestoreDisplay(_capturingPin); StopCapture(); return; } // Esc cancela
 
-        if (_capturingPin)
+        var combo = Config.FormatHotkey(vk, mods);
+        // revalida: letra/dígito solto é recusado, então não deixa salvar um atalho morto
+        if (Config.ParseHotkey(combo).vk == 0)
         {
-            _pinHotkeyValue = HotkeyJsonValue(vk);
-            _pinHotkeyBox.Text = Config.NameForVk(vk);
+            MessageBox.Show(this,
+                $"'{combo}' não serve como atalho: teclas de digitação sozinhas parariam de "
+              + "funcionar no sistema inteiro. Junte um modificador (ex.: Ctrl+Alt+"
+              + Config.NameForVk(vk) + ") ou use uma tecla dedicada como F13–F24.",
+                "Matraca", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+            RestoreDisplay(_capturingPin);
+            StopCapture();
+            return;
         }
-        else
-        {
-            _hotkeyValue = HotkeyJsonValue(vk);
-            _hotkeyBox.Text = Config.NameForVk(vk);
-        }
+
+        if (_capturingPin) { _pinHotkeyValue = combo; _pinHotkeyBox.Text = combo; }
+        else { _hotkeyValue = combo; _hotkeyBox.Text = combo; }
         StopCapture();
     }
 
@@ -248,32 +375,62 @@ internal sealed class SettingsForm : Form
 
     private void RestoreDisplay(bool pin)
     {
-        if (pin)
-            _pinHotkeyBox.Text = _pinHotkeyValue.Length == 0
-                ? PinOffLabel
-                : Config.ResolveKey(_pinHotkeyValue).name;
-        else
-            _hotkeyBox.Text = _hotkeyValue.Equals("discover", StringComparison.OrdinalIgnoreCase)
-                ? "discover"
-                : Config.ResolveKey(_hotkeyValue).name;
-    }
-
-    /// <summary>Valor pro JSON: nome conhecido ("F15") ou hex ("0x7E") p/ tecla sem nome.</summary>
-    private static string HotkeyJsonValue(int vk)
-    {
-        var name = Config.NameForVk(vk);
-        return name.StartsWith("VK_0x") ? $"0x{vk:X2}" : name;
+        // _hotkeyValue/_pinHotkeyValue ja estao no formato de exibicao ("Ctrl+Alt+X")
+        if (pin) _pinHotkeyBox.Text = _pinHotkeyValue.Length == 0 ? PinOffLabel : _pinHotkeyValue;
+        else _hotkeyBox.Text = _hotkeyValue;
     }
 
     // ---- demais campos ----
-    private void PickBorderColor()
+    private Button ColorButton(string label, Color initial, Action<Color> set)
     {
-        using var dlg = new ColorDialog { Color = _borderColor, FullOpen = true };
-        if (dlg.ShowDialog(this) == DialogResult.OK)
+        var btn = new Button { Text = label, AutoSize = true, BackColor = initial, ForeColor = Contrast(initial) };
+        btn.Click += (_, _) =>
         {
-            _borderColor = dlg.Color;
-            _borderColorBtn.BackColor = _borderColor;
-        }
+            using var dlg = new ColorDialog { Color = btn.BackColor, FullOpen = true };
+            if (dlg.ShowDialog(this) != DialogResult.OK) return;
+            set(dlg.Color);
+            btn.BackColor = dlg.Color;
+            btn.ForeColor = Contrast(dlg.Color);
+        };
+        return btn;
+    }
+
+    /// <summary>Preto ou branco, o que der pra ler em cima da cor escolhida.</summary>
+    private static Color Contrast(Color c)
+        => (c.R * 0.299 + c.G * 0.587 + c.B * 0.114) > 150 ? Color.Black : Color.White;
+
+    private FlowLayoutPanel SoundPanel(TextBox box)
+    {
+        var panel = NewRowPanel();
+        var browse = new Button { Text = "...", Width = 32 };
+        browse.Click += (_, _) =>
+        {
+            using var dlg = new OpenFileDialog
+            {
+                Filter = "Áudio (*.wav;*.mp3)|*.wav;*.mp3|Todos (*.*)|*.*",
+                FileName = Environment.ExpandEnvironmentVariables(box.Text),
+            };
+            if (dlg.ShowDialog(this) == DialogResult.OK) box.Text = dlg.FileName;
+        };
+        var play = new Button { Text = "▶", Width = 32 };
+        play.Click += (_, _) =>
+        {
+            var path = Environment.ExpandEnvironmentVariables(box.Text.Trim());
+            if (path.Length == 0 || !File.Exists(path))
+            {
+                MessageBox.Show(this, "Escolha um arquivo de áudio existente para ouvir.",
+                    "Matraca", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                return;
+            }
+            Beeper.PlaySoundFile(path, (float)_beepVolumeBox.Value);
+        };
+        var clear = new Button { Text = "Limpar", AutoSize = true };
+        clear.Click += (_, _) => box.Text = "";
+        panel.Controls.Add(box);
+        panel.Controls.Add(browse);
+        panel.Controls.Add(play);
+        panel.Controls.Add(clear);
+        return panel;
     }
 
     private void BrowseModel()
@@ -288,7 +445,7 @@ internal sealed class SettingsForm : Form
 
     private void Save()
     {
-        // o hook engole a tecla alvo, entao a mesma tecla nos dois campos anularia o ditado
+        // o hook engole a tecla alvo, entao o mesmo atalho nos dois campos anularia o ditado
         if (_pinHotkeyValue.Length > 0 &&
             _pinHotkeyValue.Equals(_hotkeyValue, StringComparison.OrdinalIgnoreCase))
         {
@@ -300,8 +457,6 @@ internal sealed class SettingsForm : Form
 
         try
         {
-            // preserva campos que a tela nao edita (sons customizados)
-            var existing = Config.LoadRaw();
             Config.SaveRaw(new Config.RawConfig
             {
                 modelPath = _modelPathBox.Text.Trim(),
@@ -310,19 +465,31 @@ internal sealed class SettingsForm : Form
                 pinHotkey = _pinHotkeyValue.Length == 0 ? null : _pinHotkeyValue,
                 mode = Modes[Math.Max(0, _modeBox.SelectedIndex)].Value,
                 autoEnter = _autoEnterBox.Checked,
+                pasteMethod = (string)_pasteMethodBox.SelectedItem!,
+                inputDevice = SelectedInputDevice(),
                 beep = _beepBox.Checked,
                 beepVolume = (float)_beepVolumeBox.Value,
-                startSound = existing.startSound,
-                stopSound = existing.stopSound,
+                startSound = NullIfBlank(_startSoundBox.Text),
+                stopSound = NullIfBlank(_stopSoundBox.Text),
                 silenceMs = (int)_silenceMsBox.Value,
+                phraseMaxSeconds = (int)_phraseMaxBox.Value,
                 vadThreshold = (float)_vadThresholdBox.Value,
                 idleUnloadMinutes = (int)_idleUnloadBox.Value,
                 gpu = (string)_gpuBox.SelectedItem!,
+                vocabulary = ParseVocabulary(),
                 focusBorder = _borderBox.Checked,
-                focusBorderColor = $"#{_borderColor.R:X2}{_borderColor.G:X2}{_borderColor.B:X2}",
+                focusBorderColor = Hex(_borderColor),
+                focusBorderColorBusy = Hex(_borderColorBusy),
+                focusBorderColorPinned = Hex(_borderColorPinned),
                 focusBorderThickness = (int)_borderThicknessBox.Value,
                 focusBorderOpacity = (float)_borderOpacityBox.Value,
-                pasteMethod = (string)_pasteMethodBox.SelectedItem!,
+                history = _historyBox.Checked,
+                historyMaxItems = (int)_historyMaxBox.Value,
+                postProcess = _postProcessBox.Checked,
+                postProcessModel = _postModelBox.Text.Trim(),
+                postProcessApiKey = _postApiKeyBox.Text.Trim(),
+                postProcessPrompt = NullIfBlank(_postPromptBox.Text),
+                postProcessTimeoutMs = (int)_postTimeoutBox.Value,
             });
             DialogResult = DialogResult.OK;
             Close();
@@ -335,7 +502,53 @@ internal sealed class SettingsForm : Form
         }
     }
 
+    /// <summary>Vazio no JSON = padrão do Windows; o sufixo "(desconectado)" nunca é gravado.</summary>
+    private string? SelectedInputDevice()
+    {
+        if (_inputDeviceBox.SelectedIndex <= 0) return null;
+        var name = _inputDeviceBox.SelectedItem?.ToString() ?? "";
+        int mark = name.IndexOf("  (desconectado)", StringComparison.Ordinal);
+        return mark >= 0 ? name[..mark] : name;
+    }
+
+    private string[]? ParseVocabulary()
+    {
+        var terms = _vocabularyBox.Text
+            .Split(new[] { '\r', '\n' }, StringSplitOptions.RemoveEmptyEntries)
+            .Select(t => t.Trim())
+            .Where(t => t.Length > 0)
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToArray();
+        return terms.Length == 0 ? null : terms;
+    }
+
+    private static string? NullIfBlank(string s) => string.IsNullOrWhiteSpace(s) ? null : s.Trim();
+
+    private static string Hex(Color c) => $"#{c.R:X2}{c.G:X2}{c.B:X2}";
+
     // ---- helpers de layout ----
+    private static TabPage NewTab(string title, Control content)
+    {
+        var page = new TabPage(title) { AutoScroll = true, Padding = new Padding(4) };
+        page.Controls.Add(content);
+        return page;
+    }
+
+    private static TableLayoutPanel NewGrid()
+    {
+        var grid = new TableLayoutPanel
+        {
+            Dock = DockStyle.Top,
+            ColumnCount = 2,
+            Padding = new Padding(12),
+            AutoSize = true,
+            AutoSizeMode = AutoSizeMode.GrowAndShrink,
+        };
+        grid.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 170));
+        grid.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 400));
+        return grid;
+    }
+
     private static FlowLayoutPanel NewRowPanel() => new()
     {
         FlowDirection = FlowDirection.LeftToRight,
@@ -380,16 +593,16 @@ internal sealed class SettingsForm : Form
         {
             Text = hint,
             AutoSize = true,
-            MaximumSize = new Size(320, 0),
+            MaximumSize = new Size(390, 0),
             ForeColor = SystemColors.GrayText,
             Margin = new Padding(2, 2, 0, 0),
         });
         grid.Controls.Add(stack);
     }
 
-    private static Color ParseColorSafe(string html)
+    private static Color ParseColorSafe(string html, int fallback)
     {
         try { return ColorTranslator.FromHtml(html); }
-        catch { return Color.FromArgb(0xE8, 0x11, 0x23); }
+        catch { return Color.FromArgb(fallback >> 16 & 0xFF, fallback >> 8 & 0xFF, fallback & 0xFF); }
     }
 }

@@ -11,10 +11,12 @@ internal sealed class Config
     /// <summary>"discover" => modo descoberta de tecla. Senao, vkey resolvida.</summary>
     public bool DiscoverMode { get; init; }
     public int HotkeyVk { get; init; }
+    public KeyMods HotkeyMods { get; init; }
     public string HotkeyName { get; init; } = "";
 
     /// <summary>Tecla que fixa/solta a janela de destino do ditado. 0 = recurso desligado.</summary>
     public int PinHotkeyVk { get; init; }
+    public KeyMods PinHotkeyMods { get; init; }
     public string PinHotkeyName { get; init; } = "";
 
     public string Mode { get; init; } = "toggle"; // "toggle" | "hold" | "live" | "push"
@@ -25,15 +27,49 @@ internal sealed class Config
     public string StopSound { get; init; } = "";  // .wav opcional p/ fim (senao usa tom)
 
     // modo "live" (VAD por pausa)
-    public int SilenceMs { get; init; } = 700;        // pausa que finaliza uma frase
+    public int SilenceMs { get; init; } = 450;        // pausa que finaliza uma frase
     public float VadThreshold { get; init; } = 0.012f; // energia (RMS) p/ considerar fala
+
+    /// <summary>
+    /// Segundos de fala contínua a partir dos quais uma pausa curta já encerra a frase.
+    /// Menor = texto sai em pedaços menores e mais rápido; maior = frases mais inteiras.
+    /// </summary>
+    public int PhraseMaxSeconds { get; init; } = 6;
+
+    /// <summary>
+    /// Nome do microfone a usar. Vazio = dispositivo padrão do Windows. Guardamos o nome e não
+    /// o índice porque o índice muda quando se pluga/despluga um dispositivo.
+    /// </summary>
+    public string InputDevice { get; init; } = "";
+
+    /// <summary>
+    /// Termos que o Whisper costuma errar (nomes próprios, jargão, siglas). Vão como prompt
+    /// inicial do modelo, que passa a considerá-los ao decidir o que ouviu.
+    /// </summary>
+    public string[] Vocabulary { get; init; } = Array.Empty<string>();
+
+    /// <summary>
+    /// Guarda as transcrições recentes em disco (%LOCALAPPDATA%\Matraca\history.json).
+    /// Desligue se não quiser o que você dita gravado em texto puro.
+    /// </summary>
+    public bool History { get; init; } = true;
+    public int HistoryMaxItems { get; init; } = 100;
+
+    // pós-processamento opcional do texto por um modelo Claude (pontuação, muletas)
+    public bool PostProcess { get; init; }
+    public string PostProcessModel { get; init; } = "claude-opus-5";
+    public string PostProcessApiKey { get; init; } = "";   // vazio = usa ANTHROPIC_API_KEY
+    public string PostProcessPrompt { get; init; } = "";   // vazio = instrução padrão embutida
+    public int PostProcessTimeoutMs { get; init; } = 8000;
 
     public int IdleUnloadMinutes { get; init; } = 5;  // descarrega modelo (libera VRAM) após ocioso; 0 = nunca
     public string Gpu { get; init; } = "auto";        // "auto" | "vulkan" | "cpu"
 
     // moldura na janela em foco durante a gravacao (mostra onde o texto sera colado)
     public bool FocusBorder { get; init; } = true;
-    public string FocusBorderColor { get; init; } = "#E81123";   // hex html (vermelho = gravando)
+    public string FocusBorderColor { get; init; } = "#E81123";       // vermelho = gravando
+    public string FocusBorderColorBusy { get; init; } = "#FFB900";   // âmbar = transcrevendo
+    public string FocusBorderColorPinned { get; init; } = "#0078D4"; // azul = destino fixo
     public int FocusBorderThickness { get; init; } = 4;          // px
     public float FocusBorderOpacity { get; init; } = 0.9f;       // 0..1
     public string PasteMethod { get; init; } = "unicode";        // "unicode" | "clipboard"
@@ -51,11 +87,23 @@ internal sealed class Config
         public string? startSound { get; set; }
         public string? stopSound { get; set; }
         public int? silenceMs { get; set; }
+        public int? phraseMaxSeconds { get; set; }
         public float? vadThreshold { get; set; }
+        public string? inputDevice { get; set; }
+        public string[]? vocabulary { get; set; }
+        public bool? history { get; set; }
+        public int? historyMaxItems { get; set; }
+        public bool? postProcess { get; set; }
+        public string? postProcessModel { get; set; }
+        public string? postProcessApiKey { get; set; }
+        public string? postProcessPrompt { get; set; }
+        public int? postProcessTimeoutMs { get; set; }
         public int? idleUnloadMinutes { get; set; }
         public string? gpu { get; set; }
         public bool? focusBorder { get; set; }
         public string? focusBorderColor { get; set; }
+        public string? focusBorderColorBusy { get; set; }
+        public string? focusBorderColorPinned { get; set; }
         public int? focusBorderThickness { get; set; }
         public float? focusBorderOpacity { get; set; }
         public string? pasteMethod { get; set; }
@@ -107,8 +155,13 @@ internal sealed class Config
         var modelPath = Environment.ExpandEnvironmentVariables(raw.modelPath ?? "");
         var hotkey = (raw.hotkey ?? "discover").Trim();
         var discover = hotkey.Equals("discover", StringComparison.OrdinalIgnoreCase);
-        var (vk, name) = discover ? (0, "discover") : ResolveKey(hotkey);
-        var (pinVk, pinName) = ResolvePinKey(raw.pinHotkey, vk);
+        var (vk, mods, name) = discover ? (0, KeyMods.None, "discover") : ParseHotkey(hotkey);
+        if (!discover && vk == 0)
+        {
+            Logger.Warn($"Atalho '{hotkey}' invalido; caindo em modo descoberta.");
+            discover = true; name = "discover";
+        }
+        var (pinVk, pinMods, pinName) = ResolvePinKey(raw.pinHotkey, vk, mods);
 
         return new Config
         {
@@ -116,8 +169,10 @@ internal sealed class Config
             Language = string.IsNullOrWhiteSpace(raw.language) ? "pt" : raw.language!,
             DiscoverMode = discover,
             HotkeyVk = vk,
+            HotkeyMods = mods,
             HotkeyName = name,
             PinHotkeyVk = pinVk,
+            PinHotkeyMods = pinMods,
             PinHotkeyName = pinName,
             Mode = (raw.mode ?? "toggle").Trim().ToLowerInvariant(),
             AutoEnter = raw.autoEnter ?? false,
@@ -125,12 +180,29 @@ internal sealed class Config
             BeepVolume = Math.Clamp(raw.beepVolume ?? 0.8f, 0f, 1f),
             StartSound = Environment.ExpandEnvironmentVariables(raw.startSound ?? ""),
             StopSound = Environment.ExpandEnvironmentVariables(raw.stopSound ?? ""),
-            SilenceMs = raw.silenceMs ?? 700,
+            SilenceMs = raw.silenceMs ?? 450,
+            PhraseMaxSeconds = Math.Clamp(raw.phraseMaxSeconds ?? 6, 2, 20),
             VadThreshold = raw.vadThreshold ?? 0.012f,
+            InputDevice = (raw.inputDevice ?? "").Trim(),
+            Vocabulary = (raw.vocabulary ?? Array.Empty<string>())
+                .Select(v => (v ?? "").Trim())
+                .Where(v => v.Length > 0)
+                .Distinct(StringComparer.OrdinalIgnoreCase)
+                .ToArray(),
+            History = raw.history ?? true,
+            HistoryMaxItems = Math.Clamp(raw.historyMaxItems ?? 100, 1, 5000),
+            PostProcess = raw.postProcess ?? false,
+            PostProcessModel = string.IsNullOrWhiteSpace(raw.postProcessModel)
+                ? "claude-opus-5" : raw.postProcessModel!.Trim(),
+            PostProcessApiKey = (raw.postProcessApiKey ?? "").Trim(),
+            PostProcessPrompt = (raw.postProcessPrompt ?? "").Trim(),
+            PostProcessTimeoutMs = Math.Clamp(raw.postProcessTimeoutMs ?? 8000, 1000, 60000),
             IdleUnloadMinutes = raw.idleUnloadMinutes ?? 5,
             Gpu = string.IsNullOrWhiteSpace(raw.gpu) ? "auto" : raw.gpu!.Trim().ToLowerInvariant(),
             FocusBorder = raw.focusBorder ?? true,
             FocusBorderColor = string.IsNullOrWhiteSpace(raw.focusBorderColor) ? "#E81123" : raw.focusBorderColor!.Trim(),
+            FocusBorderColorBusy = string.IsNullOrWhiteSpace(raw.focusBorderColorBusy) ? "#FFB900" : raw.focusBorderColorBusy!.Trim(),
+            FocusBorderColorPinned = string.IsNullOrWhiteSpace(raw.focusBorderColorPinned) ? "#0078D4" : raw.focusBorderColorPinned!.Trim(),
             FocusBorderThickness = Math.Clamp(raw.focusBorderThickness ?? 4, 1, 40),
             FocusBorderOpacity = Math.Clamp(raw.focusBorderOpacity ?? 0.9f, 0.1f, 1f),
             // qualquer coisa fora de "clipboard" cai no padrao — um valor invalido no JSON
@@ -141,27 +213,99 @@ internal sealed class Config
     }
 
     /// <summary>
-    /// Resolve a tecla de fixar janela. Vazio/"none" desliga o recurso, e a tecla nao pode
-    /// colidir com a do ditado (o hook engole a tecla alvo, entao uma anularia a outra).
+    /// Resolve a tecla de fixar janela. Vazio/"none" desliga o recurso, e o atalho nao pode
+    /// colidir com o do ditado (o hook engole a tecla alvo, entao um anularia o outro).
     /// </summary>
-    private static (int vk, string name) ResolvePinKey(string? raw, int dictationVk)
+    private static (int vk, KeyMods mods, string name) ResolvePinKey(
+        string? raw, int dictationVk, KeyMods dictationMods)
     {
         var s = (raw ?? "").Trim();
         if (s.Length == 0 || s.Equals("none", StringComparison.OrdinalIgnoreCase))
-            return (0, "");
+            return (0, KeyMods.None, "");
 
-        var (vk, name) = ResolveKey(s);
+        var (vk, mods, name) = ParseHotkey(s);
         if (vk == 0)
         {
             Logger.Warn($"pinHotkey '{s}' nao reconhecida; fixar janela ficou desligado.");
-            return (0, "");
+            return (0, KeyMods.None, "");
         }
-        if (vk == dictationVk)
+        if (vk == dictationVk && mods == dictationMods)
         {
-            Logger.Warn($"pinHotkey '{s}' e' a mesma tecla do ditado; fixar janela ficou desligado.");
-            return (0, "");
+            Logger.Warn($"pinHotkey '{s}' e' o mesmo atalho do ditado; fixar janela ficou desligado.");
+            return (0, KeyMods.None, "");
         }
-        return (vk, name);
+        return (vk, mods, name);
+    }
+
+    /// <summary>
+    /// Aceita tecla unica ("F15", "MediaPlayPause", "0xB6") ou combo ("Ctrl+Alt+X").
+    /// Devolve vk=0 quando nao da pra usar o que foi pedido.
+    /// </summary>
+    public static (int vk, KeyMods mods, string name) ParseHotkey(string s)
+    {
+        s = (s ?? "").Trim();
+        if (s.Length == 0) return (0, KeyMods.None, "");
+
+        var parts = s.Split('+', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+        var mods = KeyMods.None;
+        string? baseKey = null;
+        foreach (var p in parts)
+        {
+            switch (p.ToLowerInvariant())
+            {
+                case "ctrl": case "control": mods |= KeyMods.Ctrl; break;
+                case "alt": mods |= KeyMods.Alt; break;
+                case "shift": mods |= KeyMods.Shift; break;
+                case "win": case "windows": mods |= KeyMods.Win; break;
+                default:
+                    if (baseKey != null)
+                    {
+                        Logger.Warn($"Atalho '{s}' tem mais de uma tecla base.");
+                        return (0, KeyMods.None, "");
+                    }
+                    baseKey = p;
+                    break;
+            }
+        }
+        if (baseKey == null)
+        {
+            Logger.Warn($"Atalho '{s}' so tem modificadores, falta a tecla.");
+            return (0, KeyMods.None, "");
+        }
+
+        var (vk, _) = ResolveKey(baseKey);
+        if (vk == 0) return (0, KeyMods.None, "");
+
+        // Letra/digito solto sequestraria a tecla no sistema inteiro (o hook engole a tecla
+        // alvo), deixando o usuario sem conseguir digitar. So vale acompanhado de modificador.
+        if (mods == KeyMods.None && IsTypingKey(vk))
+        {
+            Logger.Warn($"Atalho '{s}': tecla de digitacao sem modificador nao e' aceita " +
+                        "(ela pararia de funcionar no sistema inteiro). Use algo como Ctrl+Alt+" + baseKey + ".");
+            return (0, KeyMods.None, "");
+        }
+        return (vk, mods, FormatHotkey(vk, mods));
+    }
+
+    /// <summary>Letras e digitos: teclas que o usuario precisa pra escrever.</summary>
+    private static bool IsTypingKey(int vk) => vk is (>= 0x30 and <= 0x39) or (>= 0x41 and <= 0x5A);
+
+    /// <summary>
+    /// Formata o atalho pro JSON e pra tela ("Ctrl+Alt+X"). O resultado sempre volta a ser
+    /// lido por <see cref="ParseHotkey"/> — tecla sem nome conhecido vira hex ("0x7E"), e nao
+    /// o rotulo "VK_0x7E", que nao seria reconhecido na volta.
+    /// </summary>
+    public static string FormatHotkey(int vk, KeyMods mods)
+    {
+        var parts = new List<string>(5);
+        if (mods.HasFlag(KeyMods.Ctrl)) parts.Add("Ctrl");
+        if (mods.HasFlag(KeyMods.Alt)) parts.Add("Alt");
+        if (mods.HasFlag(KeyMods.Shift)) parts.Add("Shift");
+        if (mods.HasFlag(KeyMods.Win)) parts.Add("Win");
+
+        var name = NameForVk(vk);
+        parts.Add(name.StartsWith("VK_0x", StringComparison.Ordinal) ? $"0x{vk:X2}" : name);
+        return string.Join("+", parts);
     }
 
     /// <summary>Traz o appsettings.json da instalacao antiga (Ditador) na primeira execucao.</summary>
@@ -211,8 +355,12 @@ internal sealed class Config
     }
 
     // Teclas uteis p/ atalho dedicado: F-keys (incl. F13-F24), media keys, app keys.
-    private static readonly Dictionary<string, int> KeyNames =
-        new(StringComparer.OrdinalIgnoreCase)
+    // Letras e digitos entram depois (BuildKeyNames), so utilizaveis em combo.
+    private static readonly Dictionary<string, int> KeyNames = BuildKeyNames();
+
+    private static Dictionary<string, int> BuildKeyNames()
+    {
+        var d = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase)
     {
         ["F1"] = 0x70, ["F2"] = 0x71, ["F3"] = 0x72, ["F4"] = 0x73,
         ["F5"] = 0x74, ["F6"] = 0x75, ["F7"] = 0x76, ["F8"] = 0x77,
@@ -226,4 +374,10 @@ internal sealed class Config
         ["VolumeMute"] = 0xAD, ["VolumeDown"] = 0xAE, ["VolumeUp"] = 0xAF,
         ["LaunchApp1"] = 0xB6, ["LaunchApp2"] = 0xB7, ["LaunchMail"] = 0xB4,
     };
+
+        // adicionadas por ultimo p/ nao virarem o nome preferido em NameForVk
+        for (int vk = 0x41; vk <= 0x5A; vk++) d[((char)vk).ToString()] = vk;   // A-Z
+        for (int vk = 0x30; vk <= 0x39; vk++) d[((char)vk).ToString()] = vk;   // 0-9
+        return d;
+    }
 }
