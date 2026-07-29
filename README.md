@@ -72,8 +72,8 @@ Download/build the installer and run it:
 
 ```powershell
 # build the installer (requires the .NET 8 SDK and Inno Setup 6):
-installer\build-installer.ps1 -Version 1.0.0
-# output: installer\output\matraca-setup-1.0.0.exe
+installer\build-installer.ps1 -Version 1.1.0
+# output: installer\output\matraca-setup-1.1.0.exe
 ```
 
 The installer is self-contained (no .NET runtime required) and offers two options:
@@ -97,7 +97,7 @@ The same file can be edited by hand (`appsettings.json`):
 |---|---|---|
 | `modelPath` | Vibe's model | Path to the Whisper ggml `.bin`. Environment variables allowed (`%LOCALAPPDATA%`). |
 | `language` | `pt` | Audio language. Use `en` for English; `pt` handles embedded English terms well. |
-| `hotkey` | `discover` | Hotkey: `F13`–`F24`, media keys (`MediaPlayPause`, etc.), a number (`0xB6`) or `discover`. **Single key only** — combos like `Ctrl+Alt+X` are not supported; the configured key is reserved for dictation (it no longer reaches other apps). |
+| `hotkey` | `discover` | Hotkey: `F13`–`F24`, media keys, numpad (`NumPad0`), navigation keys, a raw code (`0xB6`), or a combo (`Ctrl+Alt+X`). Also `discover` to find your key. Letters, digits and editing keys are only accepted **with** a modifier — alone they would stop working system-wide, since the configured key is reserved for dictation. |
 | `pinHotkey` | `none` | Key that **pins the target window** (see below). `none` disables it. Must differ from `hotkey`. |
 | `pinDelivery` | `focus` | How the pinned window receives the text. `focus`: bring it forward, type, restore focus — works anywhere. `nofocus`: post silently — classic Win32 fields only. |
 | `mode` | `toggle` | `toggle` (press on / press off), `hold` (hold to talk), `live`/`push` (see below). |
@@ -199,7 +199,17 @@ Audio never leaves your machine and is never written to disk. There is no teleme
 analytics and no update check. Two features write to disk (the log and the dictation history,
 both under `%LOCALAPPDATA%\Matraca`, both containing transcribed text), and one optional,
 off-by-default feature transmits text (Claude post-processing). Full details in the
-[Code Signing Policy](CODE_SIGNING_POLICY.md#privacy-policy).
+[privacy policy](CODE_SIGNING_POLICY.md#privacy-policy).
+
+## Code signing policy
+
+Free code signing provided by [SignPath.io](https://signpath.io), certificate by
+[SignPath Foundation](https://signpath.org).
+
+Releases are built only by GitHub Actions from the tagged commit, and every release requires
+manual approval before it is signed. Team roles, the build process and the
+[privacy policy](CODE_SIGNING_POLICY.md#privacy-policy) are documented in the full
+[Code Signing Policy](CODE_SIGNING_POLICY.md).
 
 ## License
 

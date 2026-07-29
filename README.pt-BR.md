@@ -69,8 +69,8 @@ Baixe/gere o instalador e execute:
 
 ```powershell
 # gerar o instalador (requer .NET 8 SDK e Inno Setup 6):
-installer\build-installer.ps1 -Version 1.0.0
-# saida: installer\output\matraca-setup-1.0.0.exe
+installer\build-installer.ps1 -Version 1.1.0
+# saida: installer\output\matraca-setup-1.1.0.exe
 ```
 
 O instalador é self-contained (não precisa de .NET instalado) e oferece duas opções:
@@ -94,7 +94,7 @@ O mesmo arquivo pode ser editado na mão (`appsettings.json`):
 |---|---|---|
 | `modelPath` | modelo do Vibe | Caminho do `.bin` ggml do Whisper. Aceita variáveis (`%LOCALAPPDATA%`). |
 | `language` | `pt` | Idioma do áudio. `pt` lida bem com termos em inglês embutidos. |
-| `hotkey` | `discover` | Tecla de atalho: `F13`–`F24`, media keys (`MediaPlayPause`, etc.), número (`0xB6`) ou `discover`. **Somente tecla única** — combinações como `Ctrl+Alt+X` não são suportadas; a tecla configurada é reservada pro ditado (deixa de chegar aos outros apps). |
+| `hotkey` | `discover` | Tecla de atalho: `F13`–`F24`, media keys, numpad (`NumPad0`), teclas de navegação, código cru (`0xB6`) ou combo (`Ctrl+Alt+X`). Também aceita `discover` pra descobrir sua tecla. Letras, dígitos e teclas de edição só são aceitos **com** modificador — sozinhos parariam de funcionar no sistema inteiro, já que a tecla configurada é reservada pro ditado. |
 | `pinHotkey` | `none` | Tecla que **fixa a janela de destino** (veja abaixo). `none` desliga. Precisa ser diferente da `hotkey`. |
 | `pinDelivery` | `focus` | Como a janela fixada recebe o texto. `focus`: traz pra frente, digita e devolve o foco — funciona em qualquer app. `nofocus`: entrega em silêncio — só campos Win32 clássicos. |
 | `mode` | `toggle` | `toggle` (aperta liga / aperta desliga), `hold` (segura pra falar), `live`/`push` (ver abaixo). |
@@ -194,8 +194,18 @@ dotnet publish . -c Release -r win-x64 --self-contained false
 O áudio nunca sai da sua máquina e nunca é gravado em disco. Não há telemetria, analytics nem
 verificação de atualização. Dois recursos escrevem em disco (o log e o histórico de ditados,
 ambos em `%LOCALAPPDATA%\Matraca`, ambos com o texto transcrito), e um recurso opcional e
-desligado por padrão transmite texto (o pós-processamento com Claude). Detalhes completos no
-[Code Signing Policy](CODE_SIGNING_POLICY.md#privacy-policy).
+desligado por padrão transmite texto (o pós-processamento com Claude). Detalhes completos na
+[política de privacidade](CODE_SIGNING_POLICY.md#privacy-policy).
+
+## Code signing policy
+
+Free code signing provided by [SignPath.io](https://signpath.io), certificate by
+[SignPath Foundation](https://signpath.org).
+
+Os releases são gerados apenas pelo GitHub Actions a partir do commit da tag, e cada release exige
+aprovação manual antes de ser assinado. Os papéis do time, o processo de build e a
+[política de privacidade](CODE_SIGNING_POLICY.md#privacy-policy) estão na
+[Code Signing Policy](CODE_SIGNING_POLICY.md) completa.
 
 ## Licença
 

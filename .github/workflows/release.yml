@@ -93,3 +93,12 @@ jobs:
         with:
           files: installer/output/*.exe
           generate_release_notes: true
+          body: |
+            ## Code signing policy
+
+            Free code signing provided by [SignPath.io](https://signpath.io), certificate by
+            [SignPath Foundation](https://signpath.org).
+
+            Built by GitHub Actions from the tagged commit; every release requires manual approval
+            before signing. Team roles, build process and privacy policy:
+            [CODE_SIGNING_POLICY.md](https://github.com/FabricioCasali/matraca/blob/main/CODE_SIGNING_POLICY.md).
