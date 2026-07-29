@@ -830,7 +830,17 @@ internal sealed class TrayApp : ApplicationContext
             : _pinnedHwnd != IntPtr.Zero
                 ? $"Matraca — fixado em: {ShortTitle(_pinnedTitle)}"
                 : $"Matraca — pronto ({_cfg.HotkeyName})");
-        _border?.HideBorder();
+
+        // Com destino fixo, a moldura FICA na janela fixada mesmo fora da gravacao. Fixar e' um
+        // modo persistente e facil de esquecer — sem marca permanente voce dita achando que vai
+        // pra janela em foco e o texto cai em outro lugar. Serve tambem como a confirmacao que o
+        // balao do tray nao garante: o Windows engole balao repetido, a moldura nao depende dele.
+        if (_pinnedHwnd != IntPtr.Zero)
+        {
+            _border?.SetColor(BorderColorFor(recording: false));
+            _border?.ShowBorder();
+        }
+        else _border?.HideBorder();
     }
 
     // NotifyIcon.Text estoura com mais de 63 caracteres.
