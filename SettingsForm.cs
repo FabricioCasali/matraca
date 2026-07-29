@@ -20,6 +20,7 @@ internal sealed class SettingsForm : Form
     private readonly Button _captureBtn;
     private readonly TextBox _pinHotkeyBox;
     private readonly Button _pinCaptureBtn;
+    private readonly ComboBox _pinDeliveryBox;
     private readonly ComboBox _modeBox;
     private readonly ComboBox _languageBox;
     private readonly CheckBox _autoEnterBox;
@@ -126,8 +127,19 @@ internal sealed class SettingsForm : Form
         pinPanel.Controls.Add(_pinCaptureBtn);
         pinPanel.Controls.Add(pinClearBtn);
         AddRow(gDictation, "Fixar janela de destino", pinPanel,
-            "Aperta e o ditado passa a ir sempre pra janela que estava em foco. Entrega sem "
-          + "trazer a janela pra frente — não funciona em terminal nem em apps Electron.");
+            "Aperta e o ditado passa a ir sempre pra janela que estava em foco, mesmo que você "
+          + "mude de janela depois.");
+
+        _pinDeliveryBox = new ComboBox { DropDownStyle = ComboBoxStyle.DropDownList, Width = 320 };
+        _pinDeliveryBox.Items.AddRange(new object[]
+        {
+            "focus — traz a janela pra frente e devolve o foco (funciona sempre)",
+            "nofocus — entrega em silêncio (só campos Win32 clássicos)",
+        });
+        _pinDeliveryBox.SelectedIndex = cfg.PinDelivery == "nofocus" ? 1 : 0;
+        AddRow(gDictation, "Entrega no destino fixo", _pinDeliveryBox,
+            "O modo silencioso não traz a janela pra frente, mas terminal, console e apps "
+          + "Electron ignoram — nesses o texto simplesmente não aparece.");
 
         _modeBox = new ComboBox { DropDownStyle = ComboBoxStyle.DropDownList, Width = 320 };
         foreach (var (_, label) in Modes) _modeBox.Items.Add(label);
@@ -463,6 +475,7 @@ internal sealed class SettingsForm : Form
                 language = string.IsNullOrWhiteSpace(_languageBox.Text) ? "pt" : _languageBox.Text.Trim(),
                 hotkey = _hotkeyValue,
                 pinHotkey = _pinHotkeyValue.Length == 0 ? null : _pinHotkeyValue,
+                pinDelivery = _pinDeliveryBox.SelectedIndex == 1 ? "nofocus" : "focus",
                 mode = Modes[Math.Max(0, _modeBox.SelectedIndex)].Value,
                 autoEnter = _autoEnterBox.Checked,
                 pasteMethod = (string)_pasteMethodBox.SelectedItem!,

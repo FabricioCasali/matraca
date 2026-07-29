@@ -19,6 +19,15 @@ internal sealed class Config
     public KeyMods PinHotkeyMods { get; init; }
     public string PinHotkeyName { get; init; } = "";
 
+    /// <summary>
+    /// Como entregar na janela fixada.
+    /// "focus": traz a janela pra frente, digita e devolve o foco — funciona em qualquer app,
+    ///          ao custo de a janela piscar. É o padrão porque é o que realmente funciona.
+    /// "nofocus": posta a mensagem sem trazer a janela pra frente. Mais elegante, mas só
+    ///          funciona em campos Win32 clássicos — terminal e Electron ignoram.
+    /// </summary>
+    public string PinDelivery { get; init; } = "focus";
+
     public string Mode { get; init; } = "toggle"; // "toggle" | "hold" | "live" | "push"
     public bool AutoEnter { get; init; }
     public bool Beep { get; init; } = true;
@@ -80,6 +89,7 @@ internal sealed class Config
         public string? language { get; set; }
         public string? hotkey { get; set; }
         public string? pinHotkey { get; set; }
+        public string? pinDelivery { get; set; }
         public string? mode { get; set; }
         public bool? autoEnter { get; set; }
         public bool? beep { get; set; }
@@ -174,6 +184,9 @@ internal sealed class Config
             PinHotkeyVk = pinVk,
             PinHotkeyMods = pinMods,
             PinHotkeyName = pinName,
+            // qualquer coisa fora de "nofocus" cai no modo que funciona em todo lugar
+            PinDelivery = (raw.pinDelivery ?? "").Trim().Equals("nofocus", StringComparison.OrdinalIgnoreCase)
+                ? "nofocus" : "focus",
             Mode = (raw.mode ?? "toggle").Trim().ToLowerInvariant(),
             AutoEnter = raw.autoEnter ?? false,
             Beep = raw.beep ?? true,

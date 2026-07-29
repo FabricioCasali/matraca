@@ -94,6 +94,7 @@ O mesmo arquivo pode ser editado na mão (`appsettings.json`):
 | `language` | `pt` | Idioma do áudio. `pt` lida bem com termos em inglês embutidos. |
 | `hotkey` | `discover` | Tecla de atalho: `F13`–`F24`, media keys (`MediaPlayPause`, etc.), número (`0xB6`) ou `discover`. **Somente tecla única** — combinações como `Ctrl+Alt+X` não são suportadas; a tecla configurada é reservada pro ditado (deixa de chegar aos outros apps). |
 | `pinHotkey` | `none` | Tecla que **fixa a janela de destino** (veja abaixo). `none` desliga. Precisa ser diferente da `hotkey`. |
+| `pinDelivery` | `focus` | Como a janela fixada recebe o texto. `focus`: traz pra frente, digita e devolve o foco — funciona em qualquer app. `nofocus`: entrega em silêncio — só campos Win32 clássicos. |
 | `mode` | `toggle` | `toggle` (aperta liga / aperta desliga), `hold` (segura pra falar), `live`/`push` (ver abaixo). |
 | `autoEnter` | `false` | Se `true`, pressiona Enter depois de colar (envia na hora). |
 | `pasteMethod` | `unicode` | Como o texto é entregue. `unicode`: digita direto via SendInput — **não encosta no seu clipboard**. `clipboard`: copia e manda `Ctrl+V`, restaurando o conteúdo anterior depois. Use `clipboard` se algum app não aceitar entrada Unicode sintética. |
@@ -139,11 +140,14 @@ momento** como destino do ditado. A partir daí o texto vai sempre pra ela, não
 você esteja — dá pra ditar no editor enquanto lê o navegador, por exemplo. Aperte a tecla de novo pra
 liberar. Enquanto fixada, a moldura marca a janela fixa e o tooltip da bandeja mostra o título dela.
 
-> **Ressalva de compatibilidade:** a entrega é feita *sem* trazer a janela pra frente, postando
-> mensagens direto nela. Isso funciona em campos Win32 clássicos (Notepad, boa parte dos apps
-> nativos), mas **terminal, console e apps Chromium/Electron tratam a entrada do jeito deles e
-> ignoram mensagens postadas** — ditar pra esses não vai aparecer enquanto estiver fixado. Pra eles,
-> deixe o `pinHotkey` desligado e use o fluxo normal de janela em foco.
+A entrega tem dois modos, escolhidos em `pinDelivery`:
+
+- **`focus`** (padrão) — traz a janela fixada pra frente, digita e **devolve o foco pra onde você
+  estava**. Funciona em qualquer alvo, inclusive terminal e apps Electron. O custo é a janela
+  piscar na tela por um instante.
+- **`nofocus`** — posta a mensagem direto na janela, sem trazê-la pra frente. Mais discreto, mas
+  só funciona em campos Win32 clássicos: **terminal, console e apps Chromium/Electron tratam a
+  entrada do jeito deles e ignoram mensagens postadas**, então nesses o texto não aparece.
 
 ### Modo `live` (ditado por pausa / VAD)
 

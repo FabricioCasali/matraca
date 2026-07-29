@@ -136,16 +136,7 @@ internal sealed class HistoryForm : Form
 
         // fecha primeiro: enquanto esta tela existir, ela e' quem tem o foco
         Close();
-        TextInjector.FocusWindow(_returnTo);
-        // pequena folga p/ o Windows concluir a troca de foco antes de digitar
-        var timer = new System.Windows.Forms.Timer { Interval = 150 };
-        timer.Tick += (_, _) =>
-        {
-            timer.Stop();
-            timer.Dispose();
-            TextInjector.PasteText(text, false, _cfg.PasteMethod);
-        };
-        timer.Start();
+        TextInjector.DeliverWithFocus(_returnTo, text, autoEnter: false, onDone: _ => { });
     }
 
     private void ClearAll()

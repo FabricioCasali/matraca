@@ -32,6 +32,9 @@ internal sealed class HotkeyListener : IDisposable
     private const int VK_LWIN = 0x5B;
     private const int VK_RWIN = 0x5C;
 
+    // KBDLLHOOKSTRUCT: vkCode(4) scanCode(4) flags(4) time(4) dwExtraInfo
+    private const int KbdExtraInfoOffset = 16;
+
     private readonly LowLevelKeyboardProc _proc; // manter referencia viva (anti-GC)
     private IntPtr _hook = IntPtr.Zero;
 
@@ -86,6 +89,16 @@ internal sealed class HotkeyListener : IDisposable
 
     private IntPtr HookCallback(int nCode, IntPtr wParam, IntPtr lParam)
     {
+        // Texto que NOS mesmos digitamos: sai na frente, antes de qualquer outro trabalho.
+        // Cada caractere injetado passa por este hook, e um ditado longo sao centenas deles —
+        // atender rapido evita estourar o LowLevelHooksTimeout (o Windows descartaria os
+        // eventos, e o texto chegaria furado no destino). Reconhecemos pela assinatura em
+        // dwExtraInfo, e nao pelo flag LLKHF_INJECTED: teclas vindas de remapeadores
+        // (AutoHotkey e afins) tambem sao "injetadas", e o atalho precisa continuar valendo
+        // pra elas.
+        if (nCode >= 0 && Marshal.ReadIntPtr(lParam, KbdExtraInfoOffset) == (IntPtr)TextInjector.InjectionTag)
+            return CallNextHookEx(_hook, nCode, wParam, lParam);
+
         if (nCode >= 0 && !Suspended)
         {
             int msg = (int)wParam;
@@ -99,52 +112,43 @@ internal sealed class HotkeyListener : IDisposable
                 if (down && !IsModifierVk(vk)) KeyDiscovered?.Invoke(vk, CurrentMods());
                 // nao engole a tecla no modo descoberta
             }
-            else if (vk == _targetVk)
+            else if (down)
             {
-                var handled = HandleTarget(down, up, _targetMods, ref _isDown, pressed =>
+                // A MESMA tecla pode servir aos dois atalhos com modificadores diferentes
+                // (ex.: F15 dita, Ctrl+F15 fixa a janela). Por isso os dois sao testados por
+                // combinacao EXATA, e nao numa cadeia else-if por vkCode — senao o primeiro
+                // ramo a bater no vkCode engoliria o evento e o outro nunca rodaria.
+                var mods = CurrentMods();
+
+                if (_pinVk != 0 && vk == _pinVk && mods == _pinMods && !_pinDown)
                 {
-                    if (pressed || _holdMode) Triggered?.Invoke(pressed);
-                });
-                if (handled) return (IntPtr)1; // engole a tecla alvo (nao propaga p/ outros apps)
+                    _pinDown = true;
+                    PinToggled?.Invoke();
+                    return (IntPtr)1;
+                }
+                if (vk == _targetVk && mods == _targetMods && !_isDown)
+                {
+                    _isDown = true;
+                    Triggered?.Invoke(true);
+                    return (IntPtr)1;
+                }
+                // auto-repeat de um atalho ja' segurado: engole sem redisparar
+                if ((_isDown && vk == _targetVk) || (_pinDown && vk == _pinVk)) return (IntPtr)1;
             }
-            else if (_pinVk != 0 && vk == _pinVk)
+            else if (up)
             {
-                var handled = HandleTarget(down, up, _pinMods, ref _pinDown, pressed =>
+                // no soltar os modificadores ja' podem ter sido liberados; o que vale e' se
+                // o pressionar correspondente foi nosso.
+                if (_pinDown && vk == _pinVk) { _pinDown = false; return (IntPtr)1; }
+                if (_isDown && vk == _targetVk)
                 {
-                    if (pressed) PinToggled?.Invoke();
-                });
-                if (handled) return (IntPtr)1;
+                    _isDown = false;
+                    if (_holdMode) Triggered?.Invoke(false);
+                    return (IntPtr)1;
+                }
             }
         }
         return CallNextHookEx(_hook, nCode, wParam, lParam);
-    }
-
-    /// <summary>
-    /// Trata uma tecla alvo. Devolve true quando o evento foi consumido (e deve ser engolido).
-    /// Com modificadores configurados, so consome se eles baterem exatamente — senao a tecla
-    /// precisa seguir o caminho normal, ou o atalho sequestraria a tecla pura do usuario.
-    /// </summary>
-    private static bool HandleTarget(bool down, bool up, KeyMods required, ref bool isDown,
-                                     Action<bool> fire)
-    {
-        if (down)
-        {
-            if (isDown) return true;                   // auto-repeat do teclado
-            if (CurrentMods() != required) return false; // combo nao bate: deixa passar
-            isDown = true;
-            fire(true);
-            return true;
-        }
-        if (up)
-        {
-            // no soltar os modificadores ja podem ter sido liberados; o que vale e' se
-            // o pressionar correspondente foi nosso.
-            if (!isDown) return false;
-            isDown = false;
-            fire(false);
-            return true;
-        }
-        return false;
     }
 
     private static bool IsModifierVk(int vk)

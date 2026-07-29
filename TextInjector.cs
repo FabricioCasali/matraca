@@ -11,19 +11,41 @@ namespace Matraca;
 /// </summary>
 internal static class TextInjector
 {
+    /// <summary>
+    /// Assinatura posta em dwExtraInfo de tudo que injetamos, p/ o hook de teclado reconhecer
+    /// os proprios eventos e deixa-los passar sem trabalho. Ver o comentario em SendUnicode.
+    /// </summary>
+    /// <remarks>Cabe em 32 bits de proposito: IntPtr tem esse tamanho num processo x86.</remarks>
+    public const int InjectionTag = 0x4D54_5243; // "MTRC"
+
     public static void PasteText(string text, bool autoEnter, string method)
     {
         if (string.IsNullOrEmpty(text)) return;
 
         if (method == "clipboard")
         {
+            // precisa da UI thread (STA): o Clipboard do WinForms exige
             PasteViaClipboard(text, autoEnter);
+            return;
         }
-        else
+
+        // ATENCAO: NAO digitar na UI thread.
+        //
+        // O hook global de teclado (WH_KEYBOARD_LL) vive na UI thread, e TODO evento que a
+        // gente injeta passa por ele. Digitando aqui, a thread fica presa dentro do SendInput
+        // e nao consegue atender os callbacks dos eventos que ela mesma esta' injetando —
+        // estourado o LowLevelHooksTimeout (~300ms), o Windows DESCARTA os eventos. O sintoma
+        // e' texto chegando sem espacos e cortado no meio. Numa thread de fundo a UI fica
+        // livre p/ servir o hook, e nada se perde.
+        Task.Run(() =>
         {
-            SendUnicode(text);
-            if (autoEnter) SendEnter();
-        }
+            try
+            {
+                SendUnicode(text);
+                if (autoEnter) SendEnter();
+            }
+            catch (Exception ex) { Logger.Error("Falha ao digitar o texto", ex); }
+        });
     }
 
     private static void PasteViaClipboard(string text, bool autoEnter)
@@ -90,7 +112,7 @@ internal static class TextInjector
                 wScan = ch,
                 dwFlags = keyUp ? KEYEVENTF_UNICODE | KEYEVENTF_KEYUP : KEYEVENTF_UNICODE,
                 time = 0,
-                dwExtraInfo = IntPtr.Zero,
+                dwExtraInfo = (IntPtr)InjectionTag,
             }
         }
     };
@@ -110,7 +132,7 @@ internal static class TextInjector
         if (hwnd == IntPtr.Zero || !IsWindow(hwnd)) return false;
         if (string.IsNullOrEmpty(text)) return true;
 
-        IntPtr target = ResolveFocusedChild(hwnd);
+        IntPtr target = ResolveTextTarget(hwnd);
         foreach (char ch in text)
         {
             if (ch == '\r') continue;                       // trata CRLF como um Enter so
@@ -129,32 +151,71 @@ internal static class TextInjector
     }
 
     /// <summary>
-    /// Descobre qual controle tem o foco DENTRO da janela alvo. GetFocus() e' por thread, entao
-    /// e' preciso grudar nossa fila de entrada na dela por um instante. Sem isso o texto iria
-    /// pro frame da janela em vez do campo de edicao.
+    /// Descobre qual controle deve receber o texto DENTRO da janela alvo.
+    ///
+    /// GetFocus() e' por thread e so' responde por uma thread que esteja em primeiro plano —
+    /// justamente o que a janela fixada NAO esta'. Por isso ha' um segundo caminho: varrer as
+    /// janelas filhas atras de um controle de edicao conhecido. Sem isso o WM_CHAR ia parar no
+    /// frame da janela, que simplesmente o descarta (foi o que aconteceu no Notepad++ e no
+    /// Bloco de Notas).
     /// </summary>
-    private static IntPtr ResolveFocusedChild(IntPtr topLevel)
+    private static IntPtr ResolveTextTarget(IntPtr topLevel)
     {
         uint targetThread = GetWindowThreadProcessId(topLevel, out _);
         uint ourThread = GetCurrentThreadId();
-        if (targetThread == 0 || targetThread == ourThread) return topLevel;
 
-        if (!AttachThreadInput(ourThread, targetThread, true)) return topLevel;
+        if (targetThread != 0 && targetThread != ourThread
+            && AttachThreadInput(ourThread, targetThread, true))
+        {
+            try
+            {
+                IntPtr focus = GetFocus();
+                if (focus != IntPtr.Zero) return focus;
+            }
+            finally { AttachThreadInput(ourThread, targetThread, false); }
+        }
+
+        return FindEditChild(topLevel) ?? topLevel;
+    }
+
+    private static readonly string[] EditClassHints =
+        { "Edit", "RichEdit", "Scintilla", "TextBox" };
+
+    /// <summary>Primeira janela filha visivel cuja classe parece um campo de texto.</summary>
+    private static IntPtr? FindEditChild(IntPtr parent)
+    {
+        IntPtr? found = null;
         try
         {
-            IntPtr focus = GetFocus();
-            return focus != IntPtr.Zero ? focus : topLevel;
+            EnumChildWindows(parent, (child, _) =>
+            {
+                if (!IsWindowVisible(child)) return true;   // segue procurando
+                var cls = new System.Text.StringBuilder(128);
+                if (GetClassName(child, cls, cls.Capacity) == 0) return true;
+                var name = cls.ToString();
+                foreach (var hint in EditClassHints)
+                {
+                    if (name.IndexOf(hint, StringComparison.OrdinalIgnoreCase) < 0) continue;
+                    found = child;
+                    return false;   // achou: para a varredura
+                }
+                return true;
+            }, IntPtr.Zero);
         }
-        finally { AttachThreadInput(ourThread, targetThread, false); }
+        catch (Exception ex) { Logger.Warn("Falha ao varrer janelas filhas: " + ex.Message); }
+        return found;
     }
 
     /// <summary>Handle da janela que esta em primeiro plano agora.</summary>
     public static IntPtr GetForegroundWindowHandle() => GetForegroundWindow();
 
     /// <summary>
-    /// Traz uma janela pro primeiro plano (restaurando se estiver minimizada). Usado pela tela
-    /// de historico p/ devolver o foco antes de recolar — ao contrario do pin de destino, aqui
-    /// roubar o foco e' justamente o que se quer.
+    /// Traz uma janela pro primeiro plano (restaurando se estiver minimizada).
+    ///
+    /// O Windows nao deixa um processo qualquer roubar o primeiro plano: quem nao recebeu o
+    /// ultimo evento de entrada so' consegue piscar o botao na barra de tarefas. O jeito
+    /// consagrado de contornar e' grudar nossa fila de entrada na da thread que esta' em
+    /// primeiro plano pelo instante da troca — dai o SetForegroundWindow e' aceito.
     /// </summary>
     public static void FocusWindow(IntPtr hwnd)
     {
@@ -162,9 +223,90 @@ internal static class TextInjector
         try
         {
             if (IsIconic(hwnd)) ShowWindow(hwnd, SW_RESTORE);
-            SetForegroundWindow(hwnd);
+
+            uint ourThread = GetCurrentThreadId();
+            uint fgThread = GetWindowThreadProcessId(GetForegroundWindow(), out _);
+
+            bool attached = fgThread != 0 && fgThread != ourThread
+                            && AttachThreadInput(ourThread, fgThread, true);
+            try { SetForegroundWindow(hwnd); }
+            finally { if (attached) AttachThreadInput(ourThread, fgThread, false); }
         }
         catch (Exception ex) { Logger.Warn("Falha ao focar a janela: " + ex.Message); }
+    }
+
+    /// <summary>
+    /// Entrega o texto numa janela especifica TRAZENDO-A pro primeiro plano, e devolvendo o
+    /// foco pra onde estava. Ao contrario do <see cref="SendToWindow"/>, funciona em qualquer
+    /// alvo — terminal, Electron, UWP — porque o texto entra pelo caminho normal de teclado.
+    /// O preco e' a janela piscar na tela por um instante.
+    ///
+    /// Roda inteiro numa thread de fundo (ver o aviso em PasteText: digitar na UI thread faz o
+    /// proprio hook de teclado engasgar e o Windows descartar caracteres). Por isso digita
+    /// sempre via SendInput, mesmo com pasteMethod=clipboard — o Clipboard do WinForms exigiria
+    /// a UI thread, que e' justamente a que precisa ficar livre aqui.
+    /// </summary>
+    public static void DeliverWithFocus(IntPtr hwnd, string text, bool autoEnter,
+                                        Action<bool> onDone)
+    {
+        if (!IsWindowAlive(hwnd)) { onDone(false); return; }
+
+        var previous = GetForegroundWindow();
+
+        Task.Run(() =>
+        {
+            bool ok = false;
+            try
+            {
+                FocusWindow(hwnd);
+
+                // Sem esperar a troca efetivar, o SendInput cairia na janela antiga: o
+                // SetForegroundWindow retorna antes de o Windows concluir a mudanca.
+                if (!WaitForForeground(hwnd, 800))
+                {
+                    Logger.Warn("A janela fixada nao veio pro primeiro plano a tempo; nao "
+                              + "entreguei o texto p/ nao colar na janela errada.");
+                }
+                else
+                {
+                    SendUnicode(text);
+                    if (autoEnter) SendEnter();
+
+                    // O SendInput e' assincrono: enfileira os eventos e volta na hora, sem
+                    // esperar o app alvo consumi-los. Devolver o foco aqui cortaria o fim do
+                    // texto — os ultimos caracteres chegariam com a janela ja' trocada.
+                    Thread.Sleep(SettleMsFor(text));
+                    ok = true;
+                }
+            }
+            catch (Exception ex) { Logger.Error("Falha ao entregar na janela fixada", ex); }
+            finally
+            {
+                // devolve o foco mesmo se a digitacao falhou, p/ nao largar o usuario na
+                // janela errada
+                try { if (previous != hwnd && IsWindowAlive(previous)) FocusWindow(previous); }
+                catch (Exception ex) { Logger.Warn("Falha ao devolver o foco: " + ex.Message); }
+                onDone(ok);
+            }
+        });
+    }
+
+    /// <summary>
+    /// Folga pro app alvo drenar a fila de entrada antes de a gente mexer no foco. Cresce com o
+    /// tamanho do texto porque a fila tambem cresce; limitada nas pontas p/ nao travar a
+    /// devolucao do foco em textos enormes nem encurtar demais nos curtos.
+    /// </summary>
+    private static int SettleMsFor(string text) => Math.Clamp(120 + text.Length * 2, 200, 1500);
+
+    private static bool WaitForForeground(IntPtr hwnd, int timeoutMs)
+    {
+        var sw = System.Diagnostics.Stopwatch.StartNew();
+        while (sw.ElapsedMilliseconds < timeoutMs)
+        {
+            if (GetForegroundWindow() == hwnd) return true;
+            Thread.Sleep(15);
+        }
+        return GetForegroundWindow() == hwnd;
     }
 
     /// <summary>A janela ainda existe?</summary>
@@ -230,7 +372,7 @@ internal static class TextInjector
                 wScan = 0,
                 dwFlags = keyUp ? KEYEVENTF_KEYUP : 0,
                 time = 0,
-                dwExtraInfo = IntPtr.Zero,
+                dwExtraInfo = (IntPtr)InjectionTag,
             }
         }
     };
@@ -273,6 +415,17 @@ internal static class TextInjector
 
     [DllImport("user32.dll")]
     private static extern bool AttachThreadInput(uint idAttach, uint idAttachTo, bool fAttach);
+
+    private delegate bool EnumWindowsProc(IntPtr hWnd, IntPtr lParam);
+
+    [DllImport("user32.dll")]
+    private static extern bool EnumChildWindows(IntPtr hWndParent, EnumWindowsProc lpEnumFunc, IntPtr lParam);
+
+    [DllImport("user32.dll")]
+    private static extern bool IsWindowVisible(IntPtr hWnd);
+
+    [DllImport("user32.dll", CharSet = CharSet.Unicode)]
+    private static extern int GetClassName(IntPtr hWnd, System.Text.StringBuilder lpClassName, int nMaxCount);
 
     [DllImport("user32.dll", CharSet = CharSet.Unicode)]
     private static extern int GetWindowTextLength(IntPtr hWnd);

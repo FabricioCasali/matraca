@@ -97,6 +97,7 @@ The same file can be edited by hand (`appsettings.json`):
 | `language` | `pt` | Audio language. Use `en` for English; `pt` handles embedded English terms well. |
 | `hotkey` | `discover` | Hotkey: `F13`–`F24`, media keys (`MediaPlayPause`, etc.), a number (`0xB6`) or `discover`. **Single key only** — combos like `Ctrl+Alt+X` are not supported; the configured key is reserved for dictation (it no longer reaches other apps). |
 | `pinHotkey` | `none` | Key that **pins the target window** (see below). `none` disables it. Must differ from `hotkey`. |
+| `pinDelivery` | `focus` | How the pinned window receives the text. `focus`: bring it forward, type, restore focus — works anywhere. `nofocus`: post silently — classic Win32 fields only. |
 | `mode` | `toggle` | `toggle` (press on / press off), `hold` (hold to talk), `live`/`push` (see below). |
 | `autoEnter` | `false` | If `true`, presses Enter after pasting (submits immediately). |
 | `pasteMethod` | `unicode` | How the text is delivered. `unicode`: types it directly via SendInput — **doesn't touch your clipboard**. `clipboard`: copies and sends `Ctrl+V`, restoring the previous clipboard content afterwards. Use `clipboard` if some app doesn't accept synthetic Unicode input. |
@@ -143,11 +144,14 @@ actually looking at — dictate into your editor while reading a browser, for in
 again to release it. While pinned, the focus border marks the pinned window and the tray tooltip
 shows its title.
 
-> **Compatibility caveat:** the text is delivered *without* bringing the window to the foreground,
-> by posting messages straight to it. That works in classic Win32 text fields (Notepad, many native
-> apps) but **terminals, consoles and Chromium/Electron apps handle input their own way and ignore
-> posted messages** — dictation into those won't show up while pinned. Leave `pinHotkey` off and use
-> the normal focused-window flow for them.
+Delivery has two modes, selected with `pinDelivery`:
+
+- **`focus`** (default) — brings the pinned window to the front, types, and **returns focus to
+  where you were**. Works with any target, terminals and Electron apps included. The cost is the
+  window flashing on screen for an instant.
+- **`nofocus`** — posts the message straight to the window without bringing it forward. Quieter,
+  but only works in classic Win32 text fields: **terminals, consoles and Chromium/Electron apps
+  handle input their own way and ignore posted messages**, so the text won't show up there.
 
 ### `live` mode (pause-based dictation / VAD)
 

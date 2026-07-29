@@ -608,9 +608,19 @@ internal sealed class TrayApp : ApplicationContext
                 Unpin("Janela fixada sumiu", "Ela foi fechada; o ditado volta pra janela em foco.");
                 // segue adiante e entrega na janela em foco, p/ nao perder a transcricao
             }
-            else
+            else if (_cfg.PinDelivery == "nofocus")
             {
                 TextInjector.SendToWindow(_pinnedHwnd, text, autoEnter);
+                return;
+            }
+            else
+            {
+                // assincrono: se nao conseguir entregar na janela fixada, cai na janela atual
+                // em vez de perder o ditado
+                TextInjector.DeliverWithFocus(_pinnedHwnd, text, autoEnter, ok =>
+                {
+                    if (!ok) _ui.Post(_ => TextInjector.PasteText(text, autoEnter, _cfg.PasteMethod), null);
+                });
                 return;
             }
         }
