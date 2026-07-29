@@ -138,6 +138,19 @@ dotnet publish . -c Release -r win-x64 --self-contained false
 - The first transcription after launching may take a few seconds (model load into VRAM); subsequent
   ones are near-instant.
 
+## Code signing policy
+
+Free code signing provided by [SignPath.io](https://signpath.io), certificate by
+[SignPath Foundation](https://signpath.org).
+
+Releases are built only by GitHub Actions from the tagged commit, and every release requires
+manual approval before it is signed. Team roles, the build process and the privacy policy are
+documented in the full [Code Signing Policy](CODE_SIGNING_POLICY.md).
+
+**Privacy:** audio is transcribed locally and never leaves your machine. The program transfers no
+information to other networked systems unless specifically requested by the user — see the
+[privacy policy](CODE_SIGNING_POLICY.md#privacy-policy).
+
 ## License
 
 [MIT](LICENSE).

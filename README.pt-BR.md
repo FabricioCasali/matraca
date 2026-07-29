@@ -135,6 +135,19 @@ dotnet publish . -c Release -r win-x64 --self-contained false
 - A 1ª transcrição após abrir o app pode demorar alguns segundos (carga do modelo na VRAM); as
   seguintes são quase instantâneas.
 
+## Code signing policy
+
+Free code signing provided by [SignPath.io](https://signpath.io), certificate by
+[SignPath Foundation](https://signpath.org).
+
+Os releases são gerados apenas pelo GitHub Actions a partir do commit da tag, e cada release exige
+aprovação manual antes de ser assinado. Os papéis do time, o processo de build e a política de
+privacidade estão na [Code Signing Policy](CODE_SIGNING_POLICY.md) completa.
+
+**Privacidade:** o áudio é transcrito localmente e nunca sai da sua máquina. O programa não
+transmite informação a nenhum sistema em rede sem pedido explícito do usuário — veja a
+[política de privacidade](CODE_SIGNING_POLICY.md#privacy-policy).
+
 ## Licença
 
 [MIT](LICENSE).
