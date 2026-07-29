@@ -9,10 +9,11 @@ internal sealed class AudioRecorder : IDisposable
     private const int BytesPerMs = SampleRate * 2 / 1000;   // PCM16 mono
 
     /// <summary>
-    /// Teto do mute dinamico (ver <see cref="StillMuted"/>): mesmo que a reproducao do bip
-    /// trave, a gravacao volta a aceitar audio depois disto.
+    /// Teto do mute dinamico (ver <see cref="StillMuted"/>). Ele existe so' p/ cobrir a latencia
+    /// entre mandar tocar e o som sair de fato — nao p/ acompanhar um som longo, que ai' comeria
+    /// fala. Tambem garante que uma reproducao travada nao mate a gravacao.
     /// </summary>
-    private const int MaxExtraMuteMs = 1200;
+    private const int MaxExtraMuteMs = 400;
 
     private WaveInEvent? _waveIn;
     private MemoryStream _buffer = new();

@@ -21,8 +21,11 @@ internal sealed class LiveDictation : IDisposable
     /// </summary>
     private const int SoftCutSilenceMs = 250;
 
-    /// <summary>Teto do mute dinamico (ver <see cref="StillMuted"/>).</summary>
-    private const int MaxExtraMuteMs = 1200;
+    /// <summary>
+    /// Teto do mute dinamico (ver <see cref="StillMuted"/>). Cobre so' a latencia ate' o som
+    /// sair de fato; acompanhar um som longo comeria fala do usuario.
+    /// </summary>
+    private const int MaxExtraMuteMs = 400;
 
     private WaveInEvent? _waveIn;
     private readonly List<float> _segment = new();

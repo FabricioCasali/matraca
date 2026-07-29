@@ -867,11 +867,33 @@ internal sealed class TrayApp : ApplicationContext
     }
 
     /// <summary>
-    /// Piso da janela de descarte no inicio da captura, pela duracao nominal do som. A captura
-    /// estende isso sozinha enquanto o bip estiver soando de verdade (ver Beeper.InBeepShadow),
-    /// que e' o que cobre a latencia de decodificacao e do buffer da placa.
+    /// Teto da janela de descarte. Cada ms aqui e' um ms de fala que o usuario perde, entao um
+    /// som de inicio longo nao pode mandar sozinho: passando disto, o resto dele pode acabar
+    /// entrando no audio, e o certo e' escolher um som mais curto.
     /// </summary>
-    private static int MuteWindowMs(int beepMs) => beepMs > 0 ? beepMs + Beeper.GuardMs : 0;
+    private const int MaxMuteWindowMs = 900;
+
+    private static bool _warnedLongBeep;
+
+    /// <summary>
+    /// Piso da janela de descarte no inicio da captura, pela duracao do som (ja' sem o silencio
+    /// do fim). A captura estende isso sozinha enquanto o bip estiver soando de verdade (ver
+    /// Beeper.InBeepShadow), que e' o que cobre a latencia de decodificacao e do buffer da placa.
+    /// </summary>
+    private static int MuteWindowMs(int beepMs)
+    {
+        if (beepMs <= 0) return 0;
+        int window = beepMs + Beeper.GuardMs;
+        if (window <= MaxMuteWindowMs) return window;
+
+        if (!_warnedLongBeep)
+        {
+            _warnedLongBeep = true;
+            Logger.Warn($"Som de inicio longo ({beepMs}ms): a captura so' descarta {MaxMuteWindowMs}ms, " +
+                        "senao voce perderia esse tanto de fala. Um som mais curto evita o problema.");
+        }
+        return MaxMuteWindowMs;
+    }
 
     // Sons distintos: subindo = comecou a gravar; descendo = parou.
     // Se houver um .wav configurado (startSound/stopSound), toca ele; senao, o tom.
