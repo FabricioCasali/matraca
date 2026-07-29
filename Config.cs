@@ -338,13 +338,15 @@ internal sealed class Config
     }
 
     /// <summary>
-    /// Teclas que o usuario precisa no dia a dia e que nao podem ser sequestradas sozinhas:
-    /// letras, digitos (incl. teclado numerico) e as de edicao basica.
+    /// Teclas que o usuario precisa no dia a dia e que nao podem ser sequestradas sozinhas.
+    ///
+    /// O teclado numerico NAO entra: suas teclas duplicam a fileira de cima, entao dedicar uma
+    /// ao ditado nao tira nada de quem digita — e um NumPad0 como push-to-talk e' uma escolha
+    /// comum. So' fica de fora o que nao tem substituto no teclado.
     /// </summary>
     public static bool IsEssentialKey(int vk) => vk is
         (>= 0x30 and <= 0x39) or   // 0-9
         (>= 0x41 and <= 0x5A) or   // A-Z
-        (>= 0x60 and <= 0x6F) or   // numpad (digitos e operadores)
         0x08 or 0x09 or 0x0D or 0x1B or 0x20;  // Backspace, Tab, Enter, Esc, Space
 
     /// <summary>

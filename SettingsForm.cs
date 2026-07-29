@@ -455,8 +455,25 @@ internal sealed class SettingsForm : Form
         (pin ? _pinCaptureBtn : _captureBtn).Text = "Cancelar";
     }
 
+    /// <summary>
+    /// Chamado de dentro do callback do hook. NAO pode fazer trabalho aqui: se o callback
+    /// demora mais que o LowLevelHooksTimeout (~300ms) o Windows remove o hook em silencio, e
+    /// a captura simplesmente para de responder. Abrir um MessageBox daqui — o que a validacao
+    /// de tecla fazia — trava o callback pelo tempo que a caixa ficar aberta. Entao so' re-posta
+    /// pra fila de mensagens e retorna na hora.
+    /// </summary>
     private void OnKeyCaptured(int vk, KeyMods mods)
     {
+        try { BeginInvoke(new Action(() => HandleKeyCaptured(vk, mods))); }
+        catch (Exception ex) { Logger.Warn("captura de tecla: falha ao repostar: " + ex.Message); }
+    }
+
+    private void HandleKeyCaptured(int vk, KeyMods mods)
+    {
+        if (_capture == null) return;   // ja' cancelada entre o hook e este ponto
+
+        Logger.Info($"Captura de tecla: vk=0x{vk:X2} ({vk}) mods={mods} -> {Config.FormatHotkey(vk, mods)}");
+
         if (vk == 0x1B && mods == KeyMods.None) { RestoreDisplay(_capturingPin); StopCapture(); return; } // Esc cancela
 
         var combo = Config.FormatHotkey(vk, mods);
