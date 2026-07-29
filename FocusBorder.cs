@@ -72,7 +72,14 @@ internal sealed class FocusBorder : IDisposable
     private void Track()
     {
         IntPtr hwnd = _pinned != IntPtr.Zero ? _pinned : GetForegroundWindow();
-        if (hwnd == IntPtr.Zero || hwnd == _overlay.Handle || IsIconic(hwnd)
+
+        // A janela fixada pode estar em outro desktop virtual. O overlay nao pertence a desktop
+        // nenhum, entao sem esta checagem ele continuaria desenhado por cima do desktop atual,
+        // contornando o nada. So' vale a pena consultar no caso fixado: a janela em foco esta',
+        // por definicao, no desktop atual.
+        bool offDesktop = _pinned != IntPtr.Zero && !IsOnCurrentDesktop(hwnd);
+
+        if (hwnd == IntPtr.Zero || hwnd == _overlay.Handle || IsIconic(hwnd) || offDesktop
             || !TryGetBounds(hwnd, out RECT r)
             || r.Right - r.Left < 20 || r.Bottom - r.Top < 20)
         {
@@ -108,6 +115,47 @@ internal sealed class FocusBorder : IDisposable
 
     private static bool RectEquals(RECT a, RECT b)
         => a.Left == b.Left && a.Top == b.Top && a.Right == b.Right && a.Bottom == b.Bottom;
+
+    /// <summary>
+    /// A janela esta' no desktop virtual que o usuario ve agora? Em caso de duvida devolve true:
+    /// esconder a moldura por engano e' pior do que mostra-la — ela e' a unica marca de que o
+    /// ditado tem destino fixo.
+    /// </summary>
+    private static bool IsOnCurrentDesktop(IntPtr hwnd)
+    {
+        try
+        {
+            if (!_vdmTried)
+            {
+                _vdmTried = true;
+                var type = Type.GetTypeFromCLSID(VirtualDesktopManagerClsid);
+                if (type != null) _vdm = Activator.CreateInstance(type) as IVirtualDesktopManager;
+                if (_vdm == null) Logger.Warn("VirtualDesktopManager indisponivel; a moldura ignora desktops virtuais.");
+            }
+            if (_vdm == null) return true;
+            return _vdm.IsWindowOnCurrentVirtualDesktop(hwnd, out int onCurrent) != 0 || onCurrent != 0;
+        }
+        catch (Exception ex)
+        {
+            Logger.Warn("Falha ao consultar o desktop virtual da janela: " + ex.Message);
+            return true;
+        }
+    }
+
+    private static readonly Guid VirtualDesktopManagerClsid = new("aa509086-5ca9-4c25-8f95-589d3c07b48a");
+    private static IVirtualDesktopManager? _vdm;
+    private static bool _vdmTried;
+
+    // Shell do Windows 10/11. Os parametros de saida sao BOOL (4 bytes) e nao VARIANT_BOOL,
+    // entao vao como int p/ nao depender do marshalling padrao de bool em COM.
+    [ComImport, Guid("a5cd92ff-29be-454c-8d04-d82879fb3f1b"),
+     InterfaceType(ComInterfaceType.InterfaceIsIUnknown)]
+    private interface IVirtualDesktopManager
+    {
+        [PreserveSig] int IsWindowOnCurrentVirtualDesktop(IntPtr topLevelWindow, out int onCurrentDesktop);
+        [PreserveSig] int GetWindowDesktopId(IntPtr topLevelWindow, out Guid desktopId);
+        [PreserveSig] int MoveWindowToDesktop(IntPtr topLevelWindow, ref Guid desktopId);
+    }
 
     // DWMWA_EXTENDED_FRAME_BOUNDS: contorno visivel real da janela (sem a borda de
     // redimensionamento invisivel do Win10/11 que o GetWindowRect inclui).
