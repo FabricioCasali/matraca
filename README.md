@@ -87,7 +87,9 @@ The installer is self-contained (no .NET runtime required) and offers two option
 
 **Tray menu → Configurações...** opens the settings window: hotkey (click *Capture* and press the
 key), dictation mode, language, focus border, VAD, GPU, etc. It saves to
-`%LOCALAPPDATA%\Matraca\appsettings.json` and offers to restart the app to apply.
+`%LOCALAPPDATA%\Matraca\appsettings.json` and **applies everything immediately** — no restart.
+The only exception is switching between GPU and CPU, which is fixed for the life of the process;
+that one asks whether you want to restart.
 
 The same file can be edited by hand (`appsettings.json`):
 
@@ -103,7 +105,8 @@ The same file can be edited by hand (`appsettings.json`):
 | `pasteMethod` | `unicode` | How the text is delivered. `unicode`: types it directly via SendInput — **doesn't touch your clipboard**. `clipboard`: copies and sends `Ctrl+V`, restoring the previous clipboard content afterwards. Use `clipboard` if some app doesn't accept synthetic Unicode input. |
 | `beep` | `true` | Start (rising) / stop (falling) recording sounds. |
 | `silenceMs` | `700` | (live mode) pause length that ends a sentence. |
-| `vadThreshold` | `0.012` | (live mode) minimum energy (RMS) to count as speech. Raise if it picks up noise; lower if it clips quiet speech. |
+| `vadThreshold` | `0.012` | (live mode) minimum energy (RMS) to count as speech. Fallback value, used when the current microphone has no entry in `micSensitivity`. |
+| `micSensitivity` | `{}` | Per-microphone sensitivity (`{"Mic name": 0.02}`). Different mics have very different output levels, so one global value is wrong for at least one of them. Set it in the settings window: speak and drag the marker on the live meter — the bar turns green when Matraca counts it as speech. |
 | `idleUnloadMinutes` | `5` | Unloads the model (frees ~1.5 GB of VRAM) after N idle minutes. Reloads automatically on the next dictation. `0` = never unload. |
 | `gpu` | `auto` | `auto` (GPU if available, else CPU), `vulkan` (force GPU) or `cpu` (force CPU). |
 | `focusBorder` | `true` | Draws a colored border around the focused window while recording — shows **where the text will be pasted** (handy when a pop-up steals focus). Follows focus in real time and never interferes with clicks or focus. |

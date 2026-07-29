@@ -40,6 +40,24 @@ internal sealed class Config
     public float VadThreshold { get; init; } = 0.012f; // energia (RMS) p/ considerar fala
 
     /// <summary>
+    /// Sensibilidade por microfone (nome do dispositivo -> RMS). Microfones tem niveis de saida
+    /// muito diferentes, entao um valor unico esta errado pra pelo menos um deles. O que estiver
+    /// aqui vence o <see cref="VadThreshold"/> global quando aquele microfone esta selecionado.
+    /// </summary>
+    public Dictionary<string, float> MicSensitivity { get; init; } = new(StringComparer.OrdinalIgnoreCase);
+
+    /// <summary>Sensibilidade que vale pro microfone informado (cai no global se nao houver).</summary>
+    public float VadThresholdFor(string? device)
+    {
+        var name = (device ?? "").Trim();
+        if (name.Length > 0 && MicSensitivity.TryGetValue(name, out var v) && v > 0) return v;
+        return VadThreshold;
+    }
+
+    /// <summary>Sensibilidade que vale pro microfone configurado agora.</summary>
+    public float EffectiveVadThreshold => VadThresholdFor(InputDevice);
+
+    /// <summary>
     /// Segundos de fala contínua a partir dos quais uma pausa curta já encerra a frase.
     /// Menor = texto sai em pedaços menores e mais rápido; maior = frases mais inteiras.
     /// </summary>
@@ -99,6 +117,7 @@ internal sealed class Config
         public int? silenceMs { get; set; }
         public int? phraseMaxSeconds { get; set; }
         public float? vadThreshold { get; set; }
+        public Dictionary<string, float>? micSensitivity { get; set; }
         public string? inputDevice { get; set; }
         public string[]? vocabulary { get; set; }
         public bool? history { get; set; }
@@ -196,6 +215,7 @@ internal sealed class Config
             SilenceMs = raw.silenceMs ?? 450,
             PhraseMaxSeconds = Math.Clamp(raw.phraseMaxSeconds ?? 6, 2, 20),
             VadThreshold = raw.vadThreshold ?? 0.012f,
+            MicSensitivity = BuildMicSensitivity(raw.micSensitivity),
             InputDevice = (raw.inputDevice ?? "").Trim(),
             Vocabulary = (raw.vocabulary ?? Array.Empty<string>())
                 .Select(v => (v ?? "").Trim())
@@ -223,6 +243,23 @@ internal sealed class Config
             PasteMethod = (raw.pasteMethod ?? "").Trim().Equals("clipboard", StringComparison.OrdinalIgnoreCase)
                 ? "clipboard" : "unicode",
         };
+    }
+
+    /// <summary>
+    /// Normaliza o mapa de sensibilidade por microfone: nome vazio ou valor fora de faixa sai
+    /// (um zero salvo por engano desligaria o VAD, transcrevendo silencio pra sempre).
+    /// </summary>
+    private static Dictionary<string, float> BuildMicSensitivity(Dictionary<string, float>? raw)
+    {
+        var d = new Dictionary<string, float>(StringComparer.OrdinalIgnoreCase);
+        if (raw == null) return d;
+        foreach (var (name, value) in raw)
+        {
+            var key = (name ?? "").Trim();
+            if (key.Length == 0 || value <= 0f) continue;
+            d[key] = Math.Clamp(value, 0.001f, 0.5f);
+        }
+        return d;
     }
 
     /// <summary>
@@ -291,17 +328,24 @@ internal sealed class Config
 
         // Letra/digito solto sequestraria a tecla no sistema inteiro (o hook engole a tecla
         // alvo), deixando o usuario sem conseguir digitar. So vale acompanhado de modificador.
-        if (mods == KeyMods.None && IsTypingKey(vk))
+        if (mods == KeyMods.None && IsEssentialKey(vk))
         {
-            Logger.Warn($"Atalho '{s}': tecla de digitacao sem modificador nao e' aceita " +
+            Logger.Warn($"Atalho '{s}': esta tecla sozinha nao e' aceita " +
                         "(ela pararia de funcionar no sistema inteiro). Use algo como Ctrl+Alt+" + baseKey + ".");
             return (0, KeyMods.None, "");
         }
         return (vk, mods, FormatHotkey(vk, mods));
     }
 
-    /// <summary>Letras e digitos: teclas que o usuario precisa pra escrever.</summary>
-    private static bool IsTypingKey(int vk) => vk is (>= 0x30 and <= 0x39) or (>= 0x41 and <= 0x5A);
+    /// <summary>
+    /// Teclas que o usuario precisa no dia a dia e que nao podem ser sequestradas sozinhas:
+    /// letras, digitos (incl. teclado numerico) e as de edicao basica.
+    /// </summary>
+    public static bool IsEssentialKey(int vk) => vk is
+        (>= 0x30 and <= 0x39) or   // 0-9
+        (>= 0x41 and <= 0x5A) or   // A-Z
+        (>= 0x60 and <= 0x6F) or   // numpad (digitos e operadores)
+        0x08 or 0x09 or 0x0D or 0x1B or 0x20;  // Backspace, Tab, Enter, Esc, Space
 
     /// <summary>
     /// Formata o atalho pro JSON e pra tela ("Ctrl+Alt+X"). O resultado sempre volta a ser
@@ -386,6 +430,20 @@ internal sealed class Config
         ["MediaNext"] = 0xB0, ["MediaPrev"] = 0xB1,
         ["VolumeMute"] = 0xAD, ["VolumeDown"] = 0xAE, ["VolumeUp"] = 0xAF,
         ["LaunchApp1"] = 0xB6, ["LaunchApp2"] = 0xB7, ["LaunchMail"] = 0xB4,
+
+        // teclado numerico
+        ["NumPad0"] = 0x60, ["NumPad1"] = 0x61, ["NumPad2"] = 0x62, ["NumPad3"] = 0x63,
+        ["NumPad4"] = 0x64, ["NumPad5"] = 0x65, ["NumPad6"] = 0x66, ["NumPad7"] = 0x67,
+        ["NumPad8"] = 0x68, ["NumPad9"] = 0x69,
+        ["NumMultiply"] = 0x6A, ["NumAdd"] = 0x6B, ["NumSubtract"] = 0x6D,
+        ["NumDecimal"] = 0x6E, ["NumDivide"] = 0x6F, ["NumLock"] = 0x90,
+
+        // navegacao e edicao
+        ["Left"] = 0x25, ["Up"] = 0x26, ["Right"] = 0x27, ["Down"] = 0x28,
+        ["Insert"] = 0x2D, ["Delete"] = 0x2E, ["Home"] = 0x24, ["End"] = 0x23,
+        ["PageUp"] = 0x21, ["PageDown"] = 0x22, ["PrintScreen"] = 0x2C,
+        ["Tab"] = 0x09, ["Space"] = 0x20, ["Enter"] = 0x0D, ["Backspace"] = 0x08,
+        ["Esc"] = 0x1B, ["CapsLock"] = 0x14,
     };
 
         // adicionadas por ultimo p/ nao virarem o nome preferido em NameForVk

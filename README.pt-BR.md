@@ -84,7 +84,9 @@ O instalador é self-contained (não precisa de .NET instalado) e oferece duas o
 
 **Menu da bandeja → Configurações...** abre a tela de parametrização: tecla de atalho (clique em
 *Capturar* e pressione a tecla), modo de ditado, idioma, moldura de foco, VAD, GPU etc. Salva em
-`%LOCALAPPDATA%\Matraca\appsettings.json` e oferece reiniciar o app para aplicar.
+`%LOCALAPPDATA%\Matraca\appsettings.json` e **aplica tudo na hora** — sem reiniciar. A única
+exceção é a troca entre GPU e CPU, que é fixada por processo; só nesse caso ele pergunta se você
+quer reiniciar.
 
 O mesmo arquivo pode ser editado na mão (`appsettings.json`):
 
@@ -100,7 +102,8 @@ O mesmo arquivo pode ser editado na mão (`appsettings.json`):
 | `pasteMethod` | `unicode` | Como o texto é entregue. `unicode`: digita direto via SendInput — **não encosta no seu clipboard**. `clipboard`: copia e manda `Ctrl+V`, restaurando o conteúdo anterior depois. Use `clipboard` se algum app não aceitar entrada Unicode sintética. |
 | `beep` | `true` | Sons de início (subindo) / fim (descendo) de gravação. |
 | `silenceMs` | `700` | (modo live) duração da pausa que finaliza uma frase. |
-| `vadThreshold` | `0.012` | (modo live) energia mínima (RMS) p/ considerar que há fala. Aumente se pegar ruído; diminua se cortar fala baixa. |
+| `vadThreshold` | `0.012` | (modo live) energia mínima (RMS) p/ considerar que há fala. É o valor de fallback, usado quando o microfone atual não tem entrada em `micSensitivity`. |
+| `micSensitivity` | `{}` | Sensibilidade por microfone (`{"Nome do mic": 0.02}`). Microfones têm níveis de saída bem diferentes, então um valor único está errado pra pelo menos um deles. Ajuste na tela de configurações: fale e arraste a marca sobre o medidor ao vivo — a barra fica verde quando o Matraca considera que é fala. |
 | `idleUnloadMinutes` | `5` | Descarrega o modelo (libera ~1,5 GB de VRAM) após N min sem uso. Recarrega sozinho no próximo ditado. `0` = nunca descarrega. |
 | `gpu` | `auto` | `auto` (GPU se houver, senão CPU), `vulkan` (força GPU) ou `cpu` (força CPU). |
 | `focusBorder` | `true` | Desenha uma moldura colorida na janela em foco enquanto grava — mostra **onde o texto vai ser colado** (útil quando um pop-up rouba o foco). A moldura segue o foco em tempo real e não interfere em cliques nem no foco. |

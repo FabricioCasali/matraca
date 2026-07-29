@@ -8,10 +8,17 @@ internal sealed class AudioRecorder : IDisposable
     private const int SampleRate = 16000;
     private const int BytesPerMs = SampleRate * 2 / 1000;   // PCM16 mono
 
+    /// <summary>
+    /// Teto do mute dinamico (ver <see cref="StillMuted"/>): mesmo que a reproducao do bip
+    /// trave, a gravacao volta a aceitar audio depois disto.
+    /// </summary>
+    private const int MaxExtraMuteMs = 1200;
+
     private WaveInEvent? _waveIn;
     private MemoryStream _buffer = new();
     private TaskCompletionSource<float[]>? _stopTcs;
-    private int _muteBytesLeft;   // audio a descartar no inicio (o proprio bip de start)
+    private int _muteBytesLeft;        // audio a descartar no inicio (o proprio bip de start)
+    private long _dynamicMuteDeadline; // ate' quando o mute pode se estender pelo bip real
 
     public bool IsRecording { get; private set; }
 
@@ -24,6 +31,7 @@ internal sealed class AudioRecorder : IDisposable
     {
         _buffer = new MemoryStream();
         _muteBytesLeft = Math.Max(0, muteMs) * BytesPerMs;
+        _dynamicMuteDeadline = Environment.TickCount64 + Math.Max(0, muteMs) + MaxExtraMuteMs;
         _waveIn = new WaveInEvent
         {
             DeviceNumber = deviceNumber,
@@ -58,8 +66,17 @@ internal sealed class AudioRecorder : IDisposable
             offset = skip;
             count -= skip;
         }
+        // O muteMs e' calculado pela duracao do som, mas entre mandar tocar e o som sair de fato
+        // ha' latencia (decodificacao + buffer da placa) — com um arquivo mais longo o fim do bip
+        // caia depois da janela e vazava pro audio. Enquanto ele estiver soando de verdade,
+        // continua descartando; o deadline garante que isso nao vire um mute infinito.
+        if (count > 0 && StillMuted()) count = 0;
+
         if (count > 0) _buffer.Write(e.Buffer, offset, count);
     }
+
+    private bool StillMuted()
+        => Environment.TickCount64 < _dynamicMuteDeadline && Beeper.InBeepShadow(Beeper.GuardMs);
 
     private void OnStopped(object? sender, StoppedEventArgs e)
     {

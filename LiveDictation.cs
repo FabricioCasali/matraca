@@ -21,6 +21,9 @@ internal sealed class LiveDictation : IDisposable
     /// </summary>
     private const int SoftCutSilenceMs = 250;
 
+    /// <summary>Teto do mute dinamico (ver <see cref="StillMuted"/>).</summary>
+    private const int MaxExtraMuteMs = 1200;
+
     private WaveInEvent? _waveIn;
     private readonly List<float> _segment = new();
     private readonly Queue<float[]> _preRoll = new();
@@ -31,6 +34,7 @@ internal sealed class LiveDictation : IDisposable
     private int _silenceRun;
     private bool _speechActive;
     private int _muteSamplesLeft;   // audio a descartar no inicio (o proprio bip de start)
+    private long _dynamicMuteDeadline; // ate' quando o mute pode se estender pelo bip real
 
     public event Action<float[]>? SegmentReady;
     public bool IsRunning { get; private set; }
@@ -50,6 +54,7 @@ internal sealed class LiveDictation : IDisposable
         _speechActive = false;
         _silenceRun = 0;
         _muteSamplesLeft = Math.Max(0, muteMs) * SampleRate / 1000;
+        _dynamicMuteDeadline = Environment.TickCount64 + Math.Max(0, muteMs) + MaxExtraMuteMs;
 
         _waveIn = new WaveInEvent
         {
@@ -76,11 +81,19 @@ internal sealed class LiveDictation : IDisposable
             if (n == 0) return;
         }
 
+        // muteMs vem da duracao do som, mas o bip so' comeca a sair depois da decodificacao e do
+        // buffer da placa; enquanto ele estiver soando de verdade, segue descartando (o deadline
+        // impede que uma reproducao travada mate a captura).
+        if (StillMuted()) return;
+
         var frame = new float[n];
         for (int i = 0; i < n; i++)
             frame[i] = BitConverter.ToInt16(e.Buffer, (i + skip) * 2) / 32768f;
         Feed(frame);
     }
+
+    private bool StillMuted()
+        => Environment.TickCount64 < _dynamicMuteDeadline && Beeper.InBeepShadow(Beeper.GuardMs);
 
     // Núcleo do VAD (um frame por vez). Reutilizado pelo mic e pelo teste por arquivo.
     private void Feed(float[] frame)

@@ -15,6 +15,24 @@ internal static class Beeper
 {
     private const int SampleRate = 44100;
 
+    // Quantas reproducoes estao no ar e quando a ultima terminou. A janela de mute da gravacao
+    // era calculada so' pela duracao do som, o que subestima: entre mandar tocar e o som sair de
+    // fato ha' o Task.Run, a decodificacao do arquivo e o buffer da placa. Com um mp3 mais longo
+    // essa latencia jogava o fim do som pra depois da janela e ele vazava pro audio gravado.
+    // Com isto o mute acompanha a reproducao real em vez de adivinhar.
+    private static int _playing;
+    private static long _quietSinceTick = Environment.TickCount64;
+
+    /// <summary>Folga apos o som terminar: cobre o buffer da placa e o eco curto do ambiente.</summary>
+    public const int GuardMs = 150;
+
+    /// <summary>Ha' som de bip tocando agora.</summary>
+    public static bool IsPlaying => Volatile.Read(ref _playing) > 0;
+
+    /// <summary>Ainda estamos dentro da sombra do bip (tocando ou ha' menos de guardMs que parou).</summary>
+    public static bool InBeepShadow(int guardMs)
+        => IsPlaying || (Environment.TickCount64 - Interlocked.Read(ref _quietSinceTick)) < guardMs;
+
     /// <summary>
     /// Toca tons sinteticos em sequencia. volume 0..1.
     /// Devolve a duracao do som em ms (0 se nao tocou) — quem grava usa isso p/ descartar
@@ -55,6 +73,7 @@ internal static class Beeper
 
     private static void PlayBytes(byte[] wav)
     {
+        Interlocked.Increment(ref _playing);   // ja' conta como "tocando": o Task pode demorar a entrar
         Task.Run(() =>
         {
             try
@@ -64,6 +83,11 @@ internal static class Beeper
                 sp.PlaySync();
             }
             catch (Exception ex) { Logger.Warn($"beep: falha ao tocar: {ex.Message}"); }
+            finally
+            {
+                Interlocked.Exchange(ref _quietSinceTick, Environment.TickCount64);
+                Interlocked.Decrement(ref _playing);
+            }
         });
     }
 

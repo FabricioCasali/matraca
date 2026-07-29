@@ -34,7 +34,19 @@ internal sealed class SettingsForm : Form
     private readonly TextBox _stopSoundBox;
     private readonly NumericUpDown _silenceMsBox;
     private readonly NumericUpDown _phraseMaxBox;
-    private readonly NumericUpDown _vadThresholdBox;
+
+    // sensibilidade do VAD: barra ao vivo + slider. O numero cru nao dava referencia nenhuma
+    // de qual valor e' bom — aqui o usuario fala e ve a propria voz cruzar (ou nao) a marca.
+    private readonly LevelMeterControl _meter;
+    private readonly TrackBar _sensitivityBar;
+    private readonly Label _sensitivityLabel;
+    private readonly MicMonitor _micMonitor = new();
+    private readonly System.Windows.Forms.Timer _meterTimer;
+
+    /// <summary>Sensibilidade por microfone (nome -> RMS); o padrao do Windows usa a global.</summary>
+    private readonly Dictionary<string, float> _micSensitivity;
+    private float _vadThresholdGlobal;
+    private string _sensitivityKey = "";   // dispositivo cujo valor o slider esta editando
 
     // -- aba Visual --
     private readonly CheckBox _borderBox;
@@ -175,7 +187,9 @@ internal sealed class SettingsForm : Form
             if (idx < 0) idx = _inputDeviceBox.Items.Add(cfg.InputDevice + "  (desconectado)");
             _inputDeviceBox.SelectedIndex = idx;
         }
-        AddRow(gAudio, "Microfone", _inputDeviceBox);
+        _inputDeviceBox.SelectedIndexChanged += (_, _) => OnInputDeviceChanged();
+        AddRow(gAudio, "Microfone", _inputDeviceBox,
+            "A sensibilidade abaixo é guardada por microfone — trocar de mic traz o valor dele junto.");
 
         var beepPanel = NewRowPanel();
         _beepBox = new CheckBox { Text = "Sons de início/fim", Checked = cfg.Beep, AutoSize = true };
@@ -202,11 +216,39 @@ internal sealed class SettingsForm : Form
             "Passando disto numa fala contínua, uma pausa curta já encerra a frase — evita "
           + "esperar o limite de 20s e colar tudo de uma vez.");
 
-        _vadThresholdBox = NewNumeric(0.001m, 0.2m, (decimal)cfg.VadThreshold, 0.001m, 3);
-        AddRow(gAudio, "Sensibilidade VAD", _vadThresholdBox,
-            "Energia mínima p/ considerar fala. Maior = ignora mais ruído.");
+        _micSensitivity = new Dictionary<string, float>(cfg.MicSensitivity, StringComparer.OrdinalIgnoreCase);
+        _vadThresholdGlobal = cfg.VadThreshold;
+
+        var sensPanel = new FlowLayoutPanel
+        {
+            FlowDirection = FlowDirection.TopDown,
+            AutoSize = true,
+            WrapContents = false,
+            Margin = new Padding(0),
+        };
+        _meter = new LevelMeterControl { Width = 330, Height = 26, Margin = new Padding(0, 0, 0, 2) };
+        _sensitivityBar = new TrackBar
+        {
+            Minimum = 0,
+            Maximum = 1000,
+            TickStyle = TickStyle.None,
+            Width = 330,
+            Margin = new Padding(0),
+        };
+        _sensitivityLabel = new Label { AutoSize = true, Margin = new Padding(2, 0, 0, 0) };
+        _sensitivityBar.ValueChanged += (_, _) => OnSensitivityChanged();
+        sensPanel.Controls.Add(_meter);
+        sensPanel.Controls.Add(_sensitivityBar);
+        sensPanel.Controls.Add(_sensitivityLabel);
+        AddRow(gAudio, "Sensibilidade", sensPanel,
+            "Fale normalmente: a barra fica verde quando o Matraca considera que há fala. "
+          + "Arraste a marca vermelha para logo acima do seu ruído de fundo — à direita dela "
+          + "ignora mais ruído, à esquerda pega voz mais baixa.");
 
         tabs.TabPages.Add(NewTab("Áudio", gAudio));
+
+        _meterTimer = new System.Windows.Forms.Timer { Interval = 50 };
+        _meterTimer.Tick += (_, _) => _meter.SetLevel(_micMonitor.Level, _micMonitor.Peak);
 
         // ============================ VISUAL ============================
         var gVisual = NewGrid();
@@ -330,8 +372,74 @@ internal sealed class SettingsForm : Form
 
         Controls.Add(tabs);
         Controls.Add(buttons);
-        FormClosed += (_, _) => StopCapture();
+
+        _sensitivityKey = CurrentDeviceKey();
+        LoadSensitivityForDevice();
+
+        Load += (_, _) => StartMeter();
+        FormClosed += (_, _) =>
+        {
+            StopCapture();
+            _meterTimer.Stop();
+            _micMonitor.Dispose();
+        };
     }
+
+    // ---- sensibilidade (barra ao vivo + slider, por microfone) ----
+
+    /// <summary>Nome do microfone que o slider esta editando; vazio = padrao do Windows.</summary>
+    private string CurrentDeviceKey() => SelectedInputDevice() ?? "";
+
+    private void StartMeter()
+    {
+        bool ok = _micMonitor.Start(AudioDevices.Resolve(_sensitivityKey));
+        _meter.Offline = !ok;
+        _meter.Invalidate();
+        if (ok) _meterTimer.Start();
+    }
+
+    private void OnInputDeviceChanged()
+    {
+        // o valor em edicao pertence ao microfone anterior; guarda antes de trocar
+        CommitSensitivity();
+        _sensitivityKey = CurrentDeviceKey();
+        LoadSensitivityForDevice();
+
+        _meterTimer.Stop();
+        _micMonitor.Stop();
+        if (Visible) StartMeter();
+    }
+
+    /// <summary>Poe no slider a sensibilidade guardada pro microfone atual (ou a global).</summary>
+    private void LoadSensitivityForDevice()
+    {
+        float rms = _sensitivityKey.Length > 0 && _micSensitivity.TryGetValue(_sensitivityKey, out var v)
+            ? v : _vadThresholdGlobal;
+        _sensitivityBar.Value = Math.Clamp(
+            (int)Math.Round(LevelMeterControl.Frac(rms) * 1000f), _sensitivityBar.Minimum, _sensitivityBar.Maximum);
+        OnSensitivityChanged();
+    }
+
+    private void OnSensitivityChanged()
+    {
+        float rms = LevelMeterControl.Rms(_sensitivityBar.Value / 1000f);
+        rms = Math.Clamp(rms, 0.001f, 0.5f);
+        _meter.Threshold = rms;
+        _sensitivityLabel.Text = _sensitivityKey.Length > 0
+            ? $"limiar {rms:0.000} — guardado para \"{Shorten(_sensitivityKey)}\""
+            : $"limiar {rms:0.000} — vale para o dispositivo padrão";
+        CommitSensitivity();
+    }
+
+    /// <summary>Grava o valor do slider no microfone atual (ou na sensibilidade global).</summary>
+    private void CommitSensitivity()
+    {
+        float rms = Math.Clamp(LevelMeterControl.Rms(_sensitivityBar.Value / 1000f), 0.001f, 0.5f);
+        if (_sensitivityKey.Length > 0) _micSensitivity[_sensitivityKey] = rms;
+        else _vadThresholdGlobal = rms;
+    }
+
+    private static string Shorten(string s) => s.Length <= 28 ? s : s[..25] + "...";
 
     // ---- captura de tecla (serve aos dois campos: ditado e fixar janela) ----
     private void ToggleCapture(bool pin)
@@ -486,7 +594,8 @@ internal sealed class SettingsForm : Form
                 stopSound = NullIfBlank(_stopSoundBox.Text),
                 silenceMs = (int)_silenceMsBox.Value,
                 phraseMaxSeconds = (int)_phraseMaxBox.Value,
-                vadThreshold = (float)_vadThresholdBox.Value,
+                vadThreshold = _vadThresholdGlobal,
+                micSensitivity = _micSensitivity.Count == 0 ? null : _micSensitivity,
                 idleUnloadMinutes = (int)_idleUnloadBox.Value,
                 gpu = (string)_gpuBox.SelectedItem!,
                 vocabulary = ParseVocabulary(),

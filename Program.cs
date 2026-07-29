@@ -119,8 +119,8 @@ internal static class Program
                 string text = t.TranscribeAsync(seg).GetAwaiter().GetResult();
                 Logger.Info($"[LIVE-TESTE] chunk {n} (~{seg.Length / 16000.0:F1}s): \"{text.Trim()}\"");
             };
-            Logger.Info($"[LIVE-TESTE] silenceMs={cfg.SilenceMs} threshold={cfg.VadThreshold} phraseMax={cfg.PhraseMaxSeconds}s");
-            live.FeedForTest(samples, cfg.VadThreshold, cfg.SilenceMs, cfg.PhraseMaxSeconds);
+            Logger.Info($"[LIVE-TESTE] silenceMs={cfg.SilenceMs} threshold={cfg.EffectiveVadThreshold} phraseMax={cfg.PhraseMaxSeconds}s");
+            live.FeedForTest(samples, cfg.EffectiveVadThreshold, cfg.SilenceMs, cfg.PhraseMaxSeconds);
             Logger.Info($"[LIVE-TESTE] total de chunks: {idx}");
         }
         catch (Exception ex) { Logger.Error("[LIVE-TESTE] Falhou", ex); }
@@ -162,9 +162,11 @@ internal static class Program
 /// <summary>App de bandeja: liga hotkey -> grava -> transcreve -> cola.</summary>
 internal sealed class TrayApp : ApplicationContext
 {
-    private readonly Config _cfg;
+    // _cfg e os subsistemas que dependem dela nao sao readonly: salvar as configuracoes
+    // reconstroi o que precisa em vez de reiniciar o app (ver ApplyConfig).
+    private Config _cfg;
     private readonly NotifyIcon _tray;
-    private readonly HotkeyListener _hotkey;
+    private HotkeyListener _hotkey;
     private readonly AudioRecorder _recorder = new();
     private readonly SynchronizationContext _ui;
 
@@ -181,7 +183,7 @@ internal sealed class TrayApp : ApplicationContext
     private System.Threading.Timer? _idleTimer;
 
     // moldura visual na janela em foco (mostra onde o texto vai ser colado)
-    private readonly FocusBorder? _border;
+    private FocusBorder? _border;
 
     // destino fixo do ditado: enquanto != 0, o texto vai SEMPRE p/ esta janela,
     // independente de qual esta em foco na hora de falar.
@@ -189,10 +191,10 @@ internal sealed class TrayApp : ApplicationContext
     private string _pinnedTitle = "";
 
     // limpeza opcional do texto por um modelo Claude (null = desligado)
-    private readonly TextPostProcessor? _postProcessor;
+    private TextPostProcessor? _postProcessor;
 
     // transcricoes recentes guardadas em disco (null = desligado)
-    private readonly DictationHistory? _history;
+    private DictationHistory? _history;
 
     // modo live (VAD)
     private LiveDictation? _live;
@@ -230,29 +232,10 @@ internal sealed class TrayApp : ApplicationContext
             ContextMenuStrip = BuildMenu(),
         };
 
-        if (_cfg.FocusBorder)
-        {
-            try
-            {
-                var color = ColorTranslator.FromHtml(_cfg.FocusBorderColor);
-                _border = new FocusBorder(color, _cfg.FocusBorderThickness, _cfg.FocusBorderOpacity);
-            }
-            catch (Exception ex)
-            {
-                Logger.Warn($"Moldura de foco desativada (cor '{_cfg.FocusBorderColor}' invalida? {ex.Message})");
-            }
-        }
-
+        _border = BuildBorder();
         _postProcessor = TextPostProcessor.TryCreate(_cfg);
         _history = _cfg.History ? new DictationHistory(_cfg.HistoryMaxItems) : null;
-
-        _hotkey = new HotkeyListener(_cfg);
-        _hotkey.Triggered += OnTriggered;
-        _hotkey.KeyDiscovered += OnKeyDiscovered;
-        _hotkey.PinToggled += OnPinToggled;
-        _hotkey.Start();
-        if (_cfg.PinHotkeyVk != 0)
-            Logger.Info($"Fixar janela de destino: tecla {_cfg.PinHotkeyName}.");
+        _hotkey = BuildHotkey();
 
         if (_cfg.DiscoverMode)
         {
@@ -262,15 +245,49 @@ internal sealed class TrayApp : ApplicationContext
             Logger.Info("Iniciado em MODO DESCOBERTA de tecla.");
         }
 
-        if (_cfg.IdleUnloadMinutes > 0)
-        {
-            _idleTimer = new System.Threading.Timer(
-                _ => { try { UnloadModelIfIdle(); } catch (Exception ex) { Logger.Error("idle timer", ex); } },
-                null, 30_000, 30_000);
-            Logger.Info($"Auto-descarregar ocioso: {_cfg.IdleUnloadMinutes} min.");
-        }
+        RebuildIdleTimer();
 
         _ = EnsureModelLoadedAsync();   // aquece o modelo no startup
+    }
+
+    // ---- construcao dos subsistemas que dependem da config (reusado por ApplyConfig) ----
+
+    private FocusBorder? BuildBorder()
+    {
+        if (!_cfg.FocusBorder) return null;
+        try
+        {
+            var color = ColorTranslator.FromHtml(_cfg.FocusBorderColor);
+            return new FocusBorder(color, _cfg.FocusBorderThickness, _cfg.FocusBorderOpacity);
+        }
+        catch (Exception ex)
+        {
+            Logger.Warn($"Moldura de foco desativada (cor '{_cfg.FocusBorderColor}' invalida? {ex.Message})");
+            return null;
+        }
+    }
+
+    private HotkeyListener BuildHotkey()
+    {
+        var h = new HotkeyListener(_cfg);
+        h.Triggered += OnTriggered;
+        h.KeyDiscovered += OnKeyDiscovered;
+        h.PinToggled += OnPinToggled;
+        h.Start();
+        if (_cfg.PinHotkeyVk != 0)
+            Logger.Info($"Fixar janela de destino: tecla {_cfg.PinHotkeyName}.");
+        return h;
+    }
+
+    private void RebuildIdleTimer()
+    {
+        _idleTimer?.Dispose();
+        _idleTimer = null;
+        if (_cfg.IdleUnloadMinutes <= 0) return;
+        _idleTimer = new System.Threading.Timer(
+            _ => { try { UnloadModelIfIdle(); } catch (Exception ex) { Logger.Error("idle timer", ex); } },
+            null, 30_000, 30_000);
+        Logger.Info($"Auto-descarregar ocioso: {_cfg.IdleUnloadMinutes} min.");
     }
 
     private void Touch() => Interlocked.Exchange(ref _lastActivityTick, Environment.TickCount64);
@@ -402,11 +419,12 @@ internal sealed class TrayApp : ApplicationContext
             _live.SegmentReady += seg => { try { _liveQueue?.Add(seg); } catch { } };
             _liveConsumer = Task.Run(ConsumeLiveSegments);
             // idem StartRecording: toca o bip e descarta a janela em que ele soa
-            _live.Start(_cfg.VadThreshold, _cfg.SilenceMs, _cfg.PhraseMaxSeconds,
+            float threshold = _cfg.EffectiveVadThreshold;   // sensibilidade do microfone em uso
+            _live.Start(threshold, _cfg.SilenceMs, _cfg.PhraseMaxSeconds,
                         MuteWindowMs(Beep(true)), AudioDevices.Resolve(_cfg.InputDevice));
             Touch();
             SetRecording();
-            Logger.Info($"Live (VAD) iniciado. silenceMs={_cfg.SilenceMs} threshold={_cfg.VadThreshold} phraseMax={_cfg.PhraseMaxSeconds}s");
+            Logger.Info($"Live (VAD) iniciado. silenceMs={_cfg.SilenceMs} threshold={threshold} phraseMax={_cfg.PhraseMaxSeconds}s");
         }
         catch (Exception ex)
         {
@@ -687,12 +705,103 @@ internal sealed class TrayApp : ApplicationContext
         }
         using var form = new SettingsForm(_hotkey);
         if (form.ShowDialog() != DialogResult.OK) return;
+        ApplyConfig();
+    }
 
-        var r = MessageBox.Show(
-            "Configurações salvas. Reiniciar o Matraca agora para aplicá-las?",
-            "Matraca", MessageBoxButtons.YesNo, MessageBoxIcon.Question);
-        if (r == DialogResult.Yes) RestartApp();
-        else Balloon("Salvo", "As novas configurações valem a partir do próximo início.");
+    /// <summary>
+    /// Aplica a config recem-salva sem reiniciar: troca o objeto _cfg e reconstroi so' os
+    /// subsistemas cujas opcoes mudaram. Tudo o que e' lido na hora do uso (modo, sons, pausas,
+    /// sensibilidade, entrega) passa a valer sozinho.
+    ///
+    /// Unica excecao: a escolha GPU/CPU e' fixada no processo antes do 1o carregamento do
+    /// runtime do Whisper — essa ainda exige reinicio, e so' ela.
+    /// </summary>
+    private void ApplyConfig()
+    {
+        var old = _cfg;
+        try { _cfg = Config.Load(); }
+        catch (Exception ex)
+        {
+            Logger.Error("Falha ao recarregar a config", ex);
+            Balloon("Erro", "Não consegui recarregar as configurações. Veja matraca.log.", ToolTipIcon.Error);
+            return;
+        }
+
+        if (_cfg.HotkeyVk != old.HotkeyVk || _cfg.HotkeyMods != old.HotkeyMods ||
+            _cfg.PinHotkeyVk != old.PinHotkeyVk || _cfg.PinHotkeyMods != old.PinHotkeyMods ||
+            _cfg.DiscoverMode != old.DiscoverMode)
+        {
+            try { _hotkey.Dispose(); } catch { }
+            _hotkey = BuildHotkey();
+        }
+
+        if (_cfg.FocusBorder != old.FocusBorder ||
+            _cfg.FocusBorderColor != old.FocusBorderColor ||
+            _cfg.FocusBorderThickness != old.FocusBorderThickness ||
+            Math.Abs(_cfg.FocusBorderOpacity - old.FocusBorderOpacity) > 0.001f)
+        {
+            try { _border?.Dispose(); } catch { }
+            _border = BuildBorder();
+            // a moldura nova nasce sem saber da janela fixada
+            if (_pinnedHwnd != IntPtr.Zero) _border?.SetPinned(_pinnedHwnd);
+        }
+
+        if (_cfg.History != old.History || _cfg.HistoryMaxItems != old.HistoryMaxItems)
+        {
+            _history = _cfg.History ? new DictationHistory(_cfg.HistoryMaxItems) : null;
+            // o item "Histórico de ditados..." so' existe quando o recurso esta' ligado
+            var oldMenu = _tray.ContextMenuStrip;
+            _tray.ContextMenuStrip = BuildMenu();
+            try { oldMenu?.Dispose(); } catch { }
+        }
+
+        if (_cfg.PostProcess != old.PostProcess ||
+            _cfg.PostProcessModel != old.PostProcessModel ||
+            _cfg.PostProcessApiKey != old.PostProcessApiKey ||
+            _cfg.PostProcessPrompt != old.PostProcessPrompt ||
+            _cfg.PostProcessTimeoutMs != old.PostProcessTimeoutMs)
+        {
+            try { _postProcessor?.Dispose(); } catch { }
+            _postProcessor = TextPostProcessor.TryCreate(_cfg);
+        }
+
+        if (_cfg.IdleUnloadMinutes != old.IdleUnloadMinutes) RebuildIdleTimer();
+
+        // o modelo carregado carrega idioma e vocabulario dentro dele: recarrega em background
+        bool modelChanged = _cfg.ModelPath != old.ModelPath
+                         || _cfg.Language != old.Language
+                         || !_cfg.Vocabulary.SequenceEqual(old.Vocabulary, StringComparer.Ordinal);
+        if (modelChanged) ReloadTranscriber();
+
+        RefreshTrayState();
+        Logger.Info("Configuracoes aplicadas sem reiniciar.");
+
+        if (_cfg.Gpu != old.Gpu)
+        {
+            // RuntimeLibraryOrder so' tem efeito antes do 1o load do runtime nativo, que ja'
+            // aconteceu neste processo — nao da' pra trocar GPU/CPU a quente.
+            var r = MessageBox.Show(
+                "A troca entre GPU e CPU só vale reiniciando o Matraca.\n\n"
+              + "Todo o resto já foi aplicado. Reiniciar agora?",
+                "Matraca", MessageBoxButtons.YesNo, MessageBoxIcon.Question);
+            if (r == DialogResult.Yes) { RestartApp(); return; }
+        }
+
+        Balloon("Configurações aplicadas", $"Atalho: {_cfg.HotkeyName} · modo: {_cfg.Mode}.");
+    }
+
+    /// <summary>Descarta o modelo em memoria e recarrega com o idioma/vocabulario novos.</summary>
+    private void ReloadTranscriber()
+    {
+        Transcriber? toDispose;
+        lock (_gate)
+        {
+            toDispose = _transcriber;
+            _transcriber = null;
+        }
+        try { toDispose?.Dispose(); } catch { }
+        _announcedReady = true;   // ja' anunciamos "pronto" uma vez; nao repete o balao
+        _ = EnsureModelLoadedAsync();
     }
 
     private void RestartApp()
@@ -757,12 +866,12 @@ internal sealed class TrayApp : ApplicationContext
         catch { return Color.FromArgb(0xE8, 0x11, 0x23); }
     }
 
-    // Folga sobre a duracao do som: cobre a latencia entre mandar tocar e o som sair de fato
-    // no alto-falante (SoundPlayer + buffer da placa) mais o eco curto do ambiente.
-    private const int BeepGuardMs = 150;
-
-    /// <summary>Quanto de audio descartar no inicio da captura para nao gravar o proprio bip.</summary>
-    private static int MuteWindowMs(int beepMs) => beepMs > 0 ? beepMs + BeepGuardMs : 0;
+    /// <summary>
+    /// Piso da janela de descarte no inicio da captura, pela duracao nominal do som. A captura
+    /// estende isso sozinha enquanto o bip estiver soando de verdade (ver Beeper.InBeepShadow),
+    /// que e' o que cobre a latencia de decodificacao e do buffer da placa.
+    /// </summary>
+    private static int MuteWindowMs(int beepMs) => beepMs > 0 ? beepMs + Beeper.GuardMs : 0;
 
     // Sons distintos: subindo = comecou a gravar; descendo = parou.
     // Se houver um .wav configurado (startSound/stopSound), toca ele; senao, o tom.
