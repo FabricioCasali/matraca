@@ -17,11 +17,31 @@ já baixado pelo app Vibe — **não precisa do Vibe rodando**.
 3. Aperta a tecla de novo → para, transcreve (~0,3s na RTX 4070 Ti) e **cola no campo em foco**.
 4. Você revisa e dá Enter. (Não envia sozinho — config `autoEnter`.)
 
-O texto vai pra **onde quer que o cursor esteja** — o app cola via clipboard + `Ctrl+V`, preservando
-o que você já tinha copiado. Durante a gravação, uma **moldura colorida** marca a janela que vai
-receber o texto — se um pop-up roubar o foco, você vê antes de colar.
+O texto vai pra **onde quer que o cursor esteja** — por padrão o app **digita direto** (SendInput
+Unicode), sem encostar no seu clipboard; se preferir, dá pra voltar pra colagem por clipboard +
+`Ctrl+V` (config `pasteMethod`), que preserva o que você já tinha copiado. Durante a gravação, uma
+**moldura colorida** marca a janela que vai receber o texto — se um pop-up roubar o foco, você vê
+antes de colar.
 
-## Primeiro uso — descobrir sua tecla
+## Primeiro uso
+
+Se não houver um modelo Whisper configurado, o Matraca abre uma **tela de primeiro uso** que
+baixa um pra você (large-v3-turbo, small ou base — direto do repositório do whisper.cpp no
+Hugging Face) e captura sua tecla de atalho. Já tem um `.bin`? Aponte pro seu. É toda a
+configuração necessária.
+
+## Limpando o texto com o Claude (opcional, desligado por padrão)
+
+Com `postProcess` ligado e uma chave da API da Anthropic configurada, o texto transcrito passa
+por um modelo Claude que corrige pontuação e capitalização e tira as muletas de fala ("é...",
+"tipo", "né") — sem reescrever o que você disse.
+
+> Esse é o **único** recurso que manda algo pra fora da sua máquina, e só o texto, nunca o áudio.
+> Custa uma ida à rede por ditado (por *frase* nos modos `live`/`push`, o que joga contra a baixa
+> latência que esses modos buscam). Se falhar, estourar o tempo ou for recusado, você recebe a
+> transcrição original — nenhum ditado se perde por causa disso.
+
+## Primeiro uso alternativo — descobrir sua tecla
 
 O `appsettings.json` já vem com `"hotkey": "discover"`. Rode o app:
 
@@ -49,8 +69,8 @@ Baixe/gere o instalador e execute:
 
 ```powershell
 # gerar o instalador (requer .NET 8 SDK e Inno Setup 6):
-installer\build-installer.ps1 -Version 1.0.0
-# saida: installer\output\matraca-setup-1.0.0.exe
+installer\build-installer.ps1 -Version 1.1.0
+# saida: installer\output\matraca-setup-1.1.0.exe
 ```
 
 O instalador é self-contained (não precisa de .NET instalado) e oferece duas opções:
@@ -64,7 +84,9 @@ O instalador é self-contained (não precisa de .NET instalado) e oferece duas o
 
 **Menu da bandeja → Configurações...** abre a tela de parametrização: tecla de atalho (clique em
 *Capturar* e pressione a tecla), modo de ditado, idioma, moldura de foco, VAD, GPU etc. Salva em
-`%LOCALAPPDATA%\Matraca\appsettings.json` e oferece reiniciar o app para aplicar.
+`%LOCALAPPDATA%\Matraca\appsettings.json` e **aplica tudo na hora** — sem reiniciar. A única
+exceção é a troca entre GPU e CPU, que é fixada por processo; só nesse caso ele pergunta se você
+quer reiniciar.
 
 O mesmo arquivo pode ser editado na mão (`appsettings.json`):
 
@@ -72,18 +94,34 @@ O mesmo arquivo pode ser editado na mão (`appsettings.json`):
 |---|---|---|
 | `modelPath` | modelo do Vibe | Caminho do `.bin` ggml do Whisper. Aceita variáveis (`%LOCALAPPDATA%`). |
 | `language` | `pt` | Idioma do áudio. `pt` lida bem com termos em inglês embutidos. |
-| `hotkey` | `discover` | Tecla de atalho: `F13`–`F24`, media keys (`MediaPlayPause`, etc.), número (`0xB6`) ou `discover`. **Somente tecla única** — combinações como `Ctrl+Alt+X` não são suportadas; a tecla configurada é reservada pro ditado (deixa de chegar aos outros apps). |
+| `hotkey` | `discover` | Tecla de atalho: `F13`–`F24`, media keys, numpad (`NumPad0`), teclas de navegação, código cru (`0xB6`) ou combo (`Ctrl+Alt+X`). Também aceita `discover` pra descobrir sua tecla. Letras, dígitos e teclas de edição só são aceitos **com** modificador — sozinhos parariam de funcionar no sistema inteiro, já que a tecla configurada é reservada pro ditado. |
+| `pinHotkey` | `none` | Tecla que **fixa a janela de destino** (veja abaixo). `none` desliga. Precisa ser diferente da `hotkey`. |
+| `pinDelivery` | `focus` | Como a janela fixada recebe o texto. `focus`: traz pra frente, digita e devolve o foco — funciona em qualquer app. `nofocus`: entrega em silêncio — só campos Win32 clássicos. |
 | `mode` | `toggle` | `toggle` (aperta liga / aperta desliga), `hold` (segura pra falar), `live`/`push` (ver abaixo). |
 | `autoEnter` | `false` | Se `true`, pressiona Enter depois de colar (envia na hora). |
+| `pasteMethod` | `unicode` | Como o texto é entregue. `unicode`: digita direto via SendInput — **não encosta no seu clipboard**. `clipboard`: copia e manda `Ctrl+V`, restaurando o conteúdo anterior depois. Use `clipboard` se algum app não aceitar entrada Unicode sintética. |
 | `beep` | `true` | Sons de início (subindo) / fim (descendo) de gravação. |
 | `silenceMs` | `700` | (modo live) duração da pausa que finaliza uma frase. |
-| `vadThreshold` | `0.012` | (modo live) energia mínima (RMS) p/ considerar que há fala. Aumente se pegar ruído; diminua se cortar fala baixa. |
+| `vadThreshold` | `0.012` | (modo live) energia mínima (RMS) p/ considerar que há fala. É o valor de fallback, usado quando o microfone atual não tem entrada em `micSensitivity`. |
+| `micSensitivity` | `{}` | Sensibilidade por microfone (`{"Nome do mic": 0.02}`). Microfones têm níveis de saída bem diferentes, então um valor único está errado pra pelo menos um deles. Ajuste na tela de configurações: fale e arraste a marca sobre o medidor ao vivo — a barra fica verde quando o Matraca considera que é fala. |
 | `idleUnloadMinutes` | `5` | Descarrega o modelo (libera ~1,5 GB de VRAM) após N min sem uso. Recarrega sozinho no próximo ditado. `0` = nunca descarrega. |
 | `gpu` | `auto` | `auto` (GPU se houver, senão CPU), `vulkan` (força GPU) ou `cpu` (força CPU). |
 | `focusBorder` | `true` | Desenha uma moldura colorida na janela em foco enquanto grava — mostra **onde o texto vai ser colado** (útil quando um pop-up rouba o foco). A moldura segue o foco em tempo real e não interfere em cliques nem no foco. |
 | `focusBorderColor` | `#E81123` | Cor da moldura (hex HTML). |
 | `focusBorderThickness` | `4` | Espessura da moldura em pixels (1–40). |
 | `focusBorderOpacity` | `0.9` | Opacidade da moldura (0.1–1.0). |
+| `focusBorderColorBusy` | `#FFB900` | Cor da moldura enquanto transcreve. |
+| `focusBorderColorPinned` | `#0078D4` | Cor da moldura quando há uma janela de destino fixada. |
+| `phraseMaxSeconds` | `6` | (modo live) passando disto numa fala contínua, uma pausa curta já encerra a frase — o texto continua fluindo em vez de esperar o corte duro de 20s. |
+| `inputDevice` | `""` | Nome do microfone. Vazio = padrão do Windows. Guardado por nome, então plugar/desplugar outros dispositivos não muda a escolha. |
+| `vocabulary` | `[]` | Termos que o Whisper costuma errar (nomes próprios, siglas, jargão). Vão como prompt inicial do modelo. |
+| `history` | `true` | Guarda as transcrições recentes em **texto puro** em `%LOCALAPPDATA%\Matraca\history.json`. Menu da bandeja → "Histórico de ditados...". |
+| `historyMaxItems` | `100` | Quantas transcrições manter. |
+| `postProcess` | `false` | Limpa o texto transcrito com um modelo Claude (veja abaixo). |
+| `postProcessModel` | `claude-opus-5` | Modelo usado na limpeza. |
+| `postProcessApiKey` | `""` | Chave da API da Anthropic. Vazio = usa a variável de ambiente `ANTHROPIC_API_KEY`. |
+| `postProcessPrompt` | `""` | Instrução customizada de limpeza. Vazio = usa a padrão embutida. |
+| `postProcessTimeoutMs` | `8000` | Passando disso, entrega a transcrição original sem limpar. |
 
 ### Concorrência de GPU (VRAM)
 
@@ -97,6 +135,22 @@ precisa da GPU pra outra coisa:
   `cpu`/`vulkan`/`auto` exige **reiniciar o app** (o runtime nativo é fixado por processo).
 
 > Durante a transcrição o uso de GPU é só uma **rajada de ~0,3s**; não é carga contínua.
+
+### Fixando uma janela de destino
+
+Defina uma tecla em `pinHotkey` e, ao apertá-la, o Matraca **fixa a janela que está em foco naquele
+momento** como destino do ditado. A partir daí o texto vai sempre pra ela, não importa em qual janela
+você esteja — dá pra ditar no editor enquanto lê o navegador, por exemplo. Aperte a tecla de novo pra
+liberar. Enquanto fixada, a moldura marca a janela fixa e o tooltip da bandeja mostra o título dela.
+
+A entrega tem dois modos, escolhidos em `pinDelivery`:
+
+- **`focus`** (padrão) — traz a janela fixada pra frente, digita e **devolve o foco pra onde você
+  estava**. Funciona em qualquer alvo, inclusive terminal e apps Electron. O custo é a janela
+  piscar na tela por um instante.
+- **`nofocus`** — posta a mensagem direto na janela, sem trazê-la pra frente. Mais discreto, mas
+  só funciona em campos Win32 clássicos: **terminal, console e apps Chromium/Electron tratam a
+  entrada do jeito deles e ignoram mensagens postadas**, então nesses o texto não aparece.
 
 ### Modo `live` (ditado por pausa / VAD)
 
@@ -135,18 +189,23 @@ dotnet publish . -c Release -r win-x64 --self-contained false
 - A 1ª transcrição após abrir o app pode demorar alguns segundos (carga do modelo na VRAM); as
   seguintes são quase instantâneas.
 
+## Privacidade
+
+O áudio nunca sai da sua máquina e nunca é gravado em disco. Não há telemetria, analytics nem
+verificação de atualização. Dois recursos escrevem em disco (o log e o histórico de ditados,
+ambos em `%LOCALAPPDATA%\Matraca`, ambos com o texto transcrito), e um recurso opcional e
+desligado por padrão transmite texto (o pós-processamento com Claude). Detalhes completos na
+[política de privacidade](CODE_SIGNING_POLICY.md#privacy-policy).
+
 ## Code signing policy
 
 Free code signing provided by [SignPath.io](https://signpath.io), certificate by
 [SignPath Foundation](https://signpath.org).
 
 Os releases são gerados apenas pelo GitHub Actions a partir do commit da tag, e cada release exige
-aprovação manual antes de ser assinado. Os papéis do time, o processo de build e a política de
-privacidade estão na [Code Signing Policy](CODE_SIGNING_POLICY.md) completa.
-
-**Privacidade:** o áudio é transcrito localmente e nunca sai da sua máquina. O programa não
-transmite informação a nenhum sistema em rede sem pedido explícito do usuário — veja a
-[política de privacidade](CODE_SIGNING_POLICY.md#privacy-policy).
+aprovação manual antes de ser assinado. Os papéis do time, o processo de build e a
+[política de privacidade](CODE_SIGNING_POLICY.md#privacy-policy) estão na
+[Code Signing Policy](CODE_SIGNING_POLICY.md) completa.
 
 ## Licença
 

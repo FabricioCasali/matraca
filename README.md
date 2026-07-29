@@ -20,11 +20,31 @@ model already downloaded by the Vibe app — **Vibe doesn't need to be running**
    focused field**.
 4. You review and hit Enter. (It never submits on its own — see the `autoEnter` setting.)
 
-The text goes **wherever the cursor is** — the app pastes via clipboard + `Ctrl+V`, preserving
-whatever you had copied before. While recording, a **colored border** highlights the window that
-will receive the text — if a pop-up steals focus, you see it before pasting.
+The text goes **wherever the cursor is** — by default the app **types it directly** (Unicode
+SendInput), never touching your clipboard; if you prefer, you can switch back to clipboard +
+`Ctrl+V` (the `pasteMethod` setting), which preserves whatever you had copied before. While
+recording, a **colored border** highlights the window that will receive the text — if a pop-up
+steals focus, you see it before pasting.
 
-## First run — discover your key
+## First run
+
+If no Whisper model is configured, Matraca opens a **first-run screen** that downloads one for
+you (large-v3-turbo, small or base — straight from the whisper.cpp repository on Hugging Face)
+and captures your hotkey. Already have a `.bin`? Point it at yours instead. That's the whole
+setup.
+
+## Cleaning up the text with Claude (optional, off by default)
+
+With `postProcess` enabled and an Anthropic API key configured, the transcribed text is sent to a
+Claude model that fixes punctuation and capitalization and drops speech fillers ("uh", "like",
+"you know") — without rewriting what you said.
+
+> This is the **only** feature that sends anything off your machine, and only the text, never the
+> audio. It costs one network round trip per dictation (per *phrase* in `live`/`push` mode, which
+> works against the low latency those modes are built for). If it fails, times out or is refused,
+> you get the original transcription — a dictation is never lost to it.
+
+## Alternative first run — discover your key
 
 `appsettings.json` ships with `"hotkey": "discover"`. Run the app:
 
@@ -52,8 +72,8 @@ Download/build the installer and run it:
 
 ```powershell
 # build the installer (requires the .NET 8 SDK and Inno Setup 6):
-installer\build-installer.ps1 -Version 1.0.0
-# output: installer\output\matraca-setup-1.0.0.exe
+installer\build-installer.ps1 -Version 1.1.0
+# output: installer\output\matraca-setup-1.1.0.exe
 ```
 
 The installer is self-contained (no .NET runtime required) and offers two options:
@@ -67,7 +87,9 @@ The installer is self-contained (no .NET runtime required) and offers two option
 
 **Tray menu → Configurações...** opens the settings window: hotkey (click *Capture* and press the
 key), dictation mode, language, focus border, VAD, GPU, etc. It saves to
-`%LOCALAPPDATA%\Matraca\appsettings.json` and offers to restart the app to apply.
+`%LOCALAPPDATA%\Matraca\appsettings.json` and **applies everything immediately** — no restart.
+The only exception is switching between GPU and CPU, which is fixed for the life of the process;
+that one asks whether you want to restart.
 
 The same file can be edited by hand (`appsettings.json`):
 
@@ -75,18 +97,34 @@ The same file can be edited by hand (`appsettings.json`):
 |---|---|---|
 | `modelPath` | Vibe's model | Path to the Whisper ggml `.bin`. Environment variables allowed (`%LOCALAPPDATA%`). |
 | `language` | `pt` | Audio language. Use `en` for English; `pt` handles embedded English terms well. |
-| `hotkey` | `discover` | Hotkey: `F13`–`F24`, media keys (`MediaPlayPause`, etc.), a number (`0xB6`) or `discover`. **Single key only** — combos like `Ctrl+Alt+X` are not supported; the configured key is reserved for dictation (it no longer reaches other apps). |
+| `hotkey` | `discover` | Hotkey: `F13`–`F24`, media keys, numpad (`NumPad0`), navigation keys, a raw code (`0xB6`), or a combo (`Ctrl+Alt+X`). Also `discover` to find your key. Letters, digits and editing keys are only accepted **with** a modifier — alone they would stop working system-wide, since the configured key is reserved for dictation. |
+| `pinHotkey` | `none` | Key that **pins the target window** (see below). `none` disables it. Must differ from `hotkey`. |
+| `pinDelivery` | `focus` | How the pinned window receives the text. `focus`: bring it forward, type, restore focus — works anywhere. `nofocus`: post silently — classic Win32 fields only. |
 | `mode` | `toggle` | `toggle` (press on / press off), `hold` (hold to talk), `live`/`push` (see below). |
 | `autoEnter` | `false` | If `true`, presses Enter after pasting (submits immediately). |
+| `pasteMethod` | `unicode` | How the text is delivered. `unicode`: types it directly via SendInput — **doesn't touch your clipboard**. `clipboard`: copies and sends `Ctrl+V`, restoring the previous clipboard content afterwards. Use `clipboard` if some app doesn't accept synthetic Unicode input. |
 | `beep` | `true` | Start (rising) / stop (falling) recording sounds. |
 | `silenceMs` | `700` | (live mode) pause length that ends a sentence. |
-| `vadThreshold` | `0.012` | (live mode) minimum energy (RMS) to count as speech. Raise if it picks up noise; lower if it clips quiet speech. |
+| `vadThreshold` | `0.012` | (live mode) minimum energy (RMS) to count as speech. Fallback value, used when the current microphone has no entry in `micSensitivity`. |
+| `micSensitivity` | `{}` | Per-microphone sensitivity (`{"Mic name": 0.02}`). Different mics have very different output levels, so one global value is wrong for at least one of them. Set it in the settings window: speak and drag the marker on the live meter — the bar turns green when Matraca counts it as speech. |
 | `idleUnloadMinutes` | `5` | Unloads the model (frees ~1.5 GB of VRAM) after N idle minutes. Reloads automatically on the next dictation. `0` = never unload. |
 | `gpu` | `auto` | `auto` (GPU if available, else CPU), `vulkan` (force GPU) or `cpu` (force CPU). |
 | `focusBorder` | `true` | Draws a colored border around the focused window while recording — shows **where the text will be pasted** (handy when a pop-up steals focus). Follows focus in real time and never interferes with clicks or focus. |
 | `focusBorderColor` | `#E81123` | Border color (HTML hex). |
 | `focusBorderThickness` | `4` | Border thickness in pixels (1–40). |
 | `focusBorderOpacity` | `0.9` | Border opacity (0.1–1.0). |
+| `focusBorderColorBusy` | `#FFB900` | Border color while transcribing. |
+| `focusBorderColorPinned` | `#0078D4` | Border color while a target window is pinned. |
+| `phraseMaxSeconds` | `6` | (live mode) after this much continuous speech, a short pause is enough to end the phrase — keeps text flowing instead of waiting for the 20s hard cut. |
+| `inputDevice` | `""` | Microphone name. Empty = Windows default. Stored by name, so unplugging other devices doesn't change it. |
+| `vocabulary` | `[]` | Terms Whisper tends to get wrong (proper nouns, acronyms, jargon). Fed to the model as its initial prompt. |
+| `history` | `true` | Stores recent transcriptions as **plain text** in `%LOCALAPPDATA%\Matraca\history.json`. Tray menu → "Histórico de ditados...". |
+| `historyMaxItems` | `100` | How many transcriptions to keep. |
+| `postProcess` | `false` | Clean the transcribed text with a Claude model (see below). |
+| `postProcessModel` | `claude-opus-5` | Model used for the cleanup. |
+| `postProcessApiKey` | `""` | Anthropic API key. Empty = uses the `ANTHROPIC_API_KEY` environment variable. |
+| `postProcessPrompt` | `""` | Custom cleanup instruction. Empty = built-in default. |
+| `postProcessTimeoutMs` | `8000` | If the model takes longer than this, the original transcription is delivered unchanged. |
 
 ### GPU concurrency (VRAM)
 
@@ -100,6 +138,23 @@ something else:
   `cpu`/`vulkan`/`auto` requires **restarting the app** (the native runtime is fixed per process).
 
 > During transcription the GPU load is just a **~0.3s burst**; it's not continuous.
+
+### Pinning a target window
+
+Set `pinHotkey` to a key and pressing it **pins the window that's currently focused** as the fixed
+destination for your dictation. From then on the text goes to that window no matter which one you're
+actually looking at — dictate into your editor while reading a browser, for instance. Press the key
+again to release it. While pinned, the focus border marks the pinned window and the tray tooltip
+shows its title.
+
+Delivery has two modes, selected with `pinDelivery`:
+
+- **`focus`** (default) — brings the pinned window to the front, types, and **returns focus to
+  where you were**. Works with any target, terminals and Electron apps included. The cost is the
+  window flashing on screen for an instant.
+- **`nofocus`** — posts the message straight to the window without bringing it forward. Quieter,
+  but only works in classic Win32 text fields: **terminals, consoles and Chromium/Electron apps
+  handle input their own way and ignore posted messages**, so the text won't show up there.
 
 ### `live` mode (pause-based dictation / VAD)
 
@@ -138,18 +193,23 @@ dotnet publish . -c Release -r win-x64 --self-contained false
 - The first transcription after launching may take a few seconds (model load into VRAM); subsequent
   ones are near-instant.
 
+## Privacy
+
+Audio never leaves your machine and is never written to disk. There is no telemetry, no
+analytics and no update check. Two features write to disk (the log and the dictation history,
+both under `%LOCALAPPDATA%\Matraca`, both containing transcribed text), and one optional,
+off-by-default feature transmits text (Claude post-processing). Full details in the
+[privacy policy](CODE_SIGNING_POLICY.md#privacy-policy).
+
 ## Code signing policy
 
 Free code signing provided by [SignPath.io](https://signpath.io), certificate by
 [SignPath Foundation](https://signpath.org).
 
 Releases are built only by GitHub Actions from the tagged commit, and every release requires
-manual approval before it is signed. Team roles, the build process and the privacy policy are
-documented in the full [Code Signing Policy](CODE_SIGNING_POLICY.md).
-
-**Privacy:** audio is transcribed locally and never leaves your machine. The program transfers no
-information to other networked systems unless specifically requested by the user — see the
-[privacy policy](CODE_SIGNING_POLICY.md#privacy-policy).
+manual approval before it is signed. Team roles, the build process and the
+[privacy policy](CODE_SIGNING_POLICY.md#privacy-policy) are documented in the full
+[Code Signing Policy](CODE_SIGNING_POLICY.md).
 
 ## License
 

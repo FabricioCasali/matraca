@@ -12,7 +12,21 @@
     <ApplicationIcon>app.ico</ApplicationIcon>
   </PropertyGroup>
 
+  <!-- Metadados do executavel: aparecem no Explorer e sao exigidos pelo SignPath
+       (file metadata attributes) na assinatura de release. -->
+  <PropertyGroup>
+    <Version>1.1.0</Version>
+    <Product>Matraca</Product>
+    <Company>Fabricio Casali</Company>
+    <Authors>Fabricio Casali</Authors>
+    <Description>Ditado por voz (speech-to-text) para Windows, com Whisper local.</Description>
+    <Copyright>Copyright (c) Fabricio Casali</Copyright>
+    <PackageProjectUrl>https://github.com/FabricioCasali/matraca</PackageProjectUrl>
+    <RepositoryUrl>https://github.com/FabricioCasali/matraca</RepositoryUrl>
+  </PropertyGroup>
+
   <ItemGroup>
+    <PackageReference Include="Anthropic" Version="12.39.0" />
     <PackageReference Include="Whisper.net" Version="1.9.1" />
     <PackageReference Include="Whisper.net.Runtime" Version="1.9.1" />
     <PackageReference Include="Whisper.net.Runtime.Vulkan" Version="1.9.1" />

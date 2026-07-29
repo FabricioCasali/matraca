@@ -5,17 +5,37 @@ namespace Matraca;
 /// <summary>Captura do microfone padrao em 16 kHz mono PCM16 (formato nativo do Whisper).</summary>
 internal sealed class AudioRecorder : IDisposable
 {
+    private const int SampleRate = 16000;
+    private const int BytesPerMs = SampleRate * 2 / 1000;   // PCM16 mono
+
+    /// <summary>
+    /// Teto do mute dinamico (ver <see cref="StillMuted"/>). Ele existe so' p/ cobrir a latencia
+    /// entre mandar tocar e o som sair de fato — nao p/ acompanhar um som longo, que ai' comeria
+    /// fala. Tambem garante que uma reproducao travada nao mate a gravacao.
+    /// </summary>
+    private const int MaxExtraMuteMs = 400;
+
     private WaveInEvent? _waveIn;
     private MemoryStream _buffer = new();
     private TaskCompletionSource<float[]>? _stopTcs;
+    private int _muteBytesLeft;        // audio a descartar no inicio (o proprio bip de start)
+    private long _dynamicMuteDeadline; // ate' quando o mute pode se estender pelo bip real
 
     public bool IsRecording { get; private set; }
 
-    public void Start()
+    /// <param name="muteMs">
+    /// Descarta os primeiros N ms capturados. Serve p/ jogar fora o bip de inicio, que sai
+    /// pelo alto-falante e volta pelo microfone — sem isso o Whisper o transcreve como palavra.
+    /// </param>
+    /// <param name="deviceNumber">Indice do microfone; -1 = padrao do Windows.</param>
+    public void Start(int muteMs = 0, int deviceNumber = AudioDevices.DefaultDevice)
     {
         _buffer = new MemoryStream();
+        _muteBytesLeft = Math.Max(0, muteMs) * BytesPerMs;
+        _dynamicMuteDeadline = Environment.TickCount64 + Math.Max(0, muteMs) + MaxExtraMuteMs;
         _waveIn = new WaveInEvent
         {
+            DeviceNumber = deviceNumber,
             WaveFormat = new WaveFormat(16000, 16, 1),
             BufferMilliseconds = 50,
         };
@@ -38,7 +58,26 @@ internal sealed class AudioRecorder : IDisposable
     }
 
     private void OnData(object? sender, WaveInEventArgs e)
-        => _buffer.Write(e.Buffer, 0, e.BytesRecorded);
+    {
+        int offset = 0, count = e.BytesRecorded;
+        if (_muteBytesLeft > 0)
+        {
+            int skip = Math.Min(_muteBytesLeft, count);   // multiplo de 2: mantem o alinhamento PCM16
+            _muteBytesLeft -= skip;
+            offset = skip;
+            count -= skip;
+        }
+        // O muteMs e' calculado pela duracao do som, mas entre mandar tocar e o som sair de fato
+        // ha' latencia (decodificacao + buffer da placa) — com um arquivo mais longo o fim do bip
+        // caia depois da janela e vazava pro audio. Enquanto ele estiver soando de verdade,
+        // continua descartando; o deadline garante que isso nao vire um mute infinito.
+        if (count > 0 && StillMuted()) count = 0;
+
+        if (count > 0) _buffer.Write(e.Buffer, offset, count);
+    }
+
+    private bool StillMuted()
+        => Environment.TickCount64 < _dynamicMuteDeadline && Beeper.InBeepShadow(Beeper.GuardMs);
 
     private void OnStopped(object? sender, StoppedEventArgs e)
     {
