@@ -491,6 +491,13 @@ internal sealed class TrayApp : ApplicationContext
                 }
                 catch (Exception ex) { Logger.Error("[live] falha ao transcrever chunk", ex); }
             }
+
+            // Um Enter por pedaco mandaria cada frase solta; o que encerra a fala e' o fim da sessao.
+            if (_cfg.AutoEnter)
+            {
+                _ui.Post(_ => Deliver("", true), null);
+                Logger.Info("[live] fim de sessao: Enter final enviado.");
+            }
         }
         catch (Exception ex) { Logger.Error("[live] consumidor abortou", ex); }
     }

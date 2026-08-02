@@ -18,9 +18,31 @@ internal static class TextInjector
     /// <remarks>Cabe em 32 bits de proposito: IntPtr tem esse tamanho num processo x86.</remarks>
     public const int InjectionTag = 0x4D54_5243; // "MTRC"
 
+    // Toda entrega por SendInput passa por aqui, uma de cada vez. Dois Task.Run soltos iriam
+    // para workers diferentes do pool e podem se ultrapassar — no modo live isso faz o Enter
+    // final chegar antes do ultimo pedaco de texto, enviando a mensagem pela metade.
+    private static readonly object _chainGate = new();
+    private static Task _chain = Task.CompletedTask;
+
+    private static void Enqueue(Action work)
+    {
+        lock (_chainGate)
+            _chain = _chain.ContinueWith(_ =>
+            {
+                try { work(); }
+                catch (Exception ex) { Logger.Error("Falha ao entregar o texto", ex); }
+            }, CancellationToken.None, TaskContinuationOptions.None, TaskScheduler.Default);
+    }
+
     public static void PasteText(string text, bool autoEnter, string method)
     {
-        if (string.IsNullOrEmpty(text)) return;
+        if (string.IsNullOrEmpty(text))
+        {
+            // "so o Enter" nao passa pelo clipboard: Clipboard.SetText("") lanca, e a cola seria
+            // abortada antes de chegar no Enter.
+            if (autoEnter) Enqueue(SendEnter);
+            return;
+        }
 
         if (method == "clipboard")
         {
@@ -37,7 +59,7 @@ internal static class TextInjector
         // estourado o LowLevelHooksTimeout (~300ms), o Windows DESCARTA os eventos. O sintoma
         // e' texto chegando sem espacos e cortado no meio. Numa thread de fundo a UI fica
         // livre p/ servir o hook, e nada se perde.
-        Task.Run(() =>
+        Enqueue(() =>
         {
             try
             {
@@ -130,7 +152,11 @@ internal static class TextInjector
     public static bool SendToWindow(IntPtr hwnd, string text, bool autoEnter)
     {
         if (hwnd == IntPtr.Zero || !IsWindow(hwnd)) return false;
-        if (string.IsNullOrEmpty(text)) return true;
+        if (string.IsNullOrEmpty(text))
+        {
+            if (autoEnter) PostEnter(ResolveTextTarget(hwnd));
+            return true;
+        }
 
         IntPtr target = ResolveTextTarget(hwnd);
         foreach (char ch in text)
@@ -253,7 +279,7 @@ internal static class TextInjector
 
         var previous = GetForegroundWindow();
 
-        Task.Run(() =>
+        Enqueue(() =>
         {
             bool ok = false;
             try
