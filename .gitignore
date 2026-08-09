@@ -9,3 +9,6 @@ installer/output/
 
 # logs locais
 *.log
+
+# macOS
+.DS_Store
