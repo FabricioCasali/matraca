@@ -11,15 +11,20 @@ O desenho da frente 2.0 está em [`PLANO-2.0.md`](PLANO-2.0.md).
 
 ## 🔄 Fazendo
 
-_(nada em curso)_
+- **MT-002** **Fase 0 — spike de viabilidade no macOS** — event tap, AudioQueue, Whisper
+  com Metal, injeção CGEvent e uma janela WKWebView transparente e não-ativável, tudo
+  num app descartável. Nenhuma perna provada ainda. Decidido na aprovação: **sem** o
+  certificado self-signed `Matraca Dev` por enquanto, então o `pack.sh` cai para
+  assinatura ad-hoc — cujo *designated requirement* é ancorado no `cdhash`, que muda a
+  cada compilação. Consequência: **todo `dotnet build` revoga a permissão de
+  Acessibilidade**, e como a entrada obsoleta permanece na lista o macOS **não
+  reprompta** — é preciso abrir o painel, remover e adicionar de novo. Por isso o risco 6
+  fecha como **"por provar"**, não como "passou". Sem `.sln` nesta fase (ele nasce na
+  Fase 1, com os cinco projetos de verdade). O spike é commitado em `spike/mac/`, a ser
+  apagado no primeiro commit da Fase 2. · `[2.0]` · M · importante
 
 ## 📋 A fazer
 
-- **MT-002** **Fase 0 — spike de viabilidade no macOS** — event tap, AudioQueue, Whisper
-  com Metal, injeção CGEvent e uma janela WKWebView transparente e não-ativável, tudo
-  num app descartável. Inclui o bundle `.app` com id e assinatura estáveis, que é o que
-  impede o macOS de revogar a permissão de Acessibilidade a cada build. Mata os quatro
-  riscos técnicos de uma vez. · `[2.0]` · M · importante
 - **MT-003** **Fase 1 — nascimento do `Matraca.Core`** — mover o portável, extrair as
   cinco interfaces de fronteira, e criar a primeira rede de testes do projeto (hoje são
   4.710 linhas sem teste nenhum). O app Windows continua rodando sobre o Core, ainda com
@@ -60,6 +65,11 @@ _(nada em curso)_
 - **MT-012** **Decidir o destino de `.claude/agents/`** — o repositório é público. São só
   prompts, sem segredo, mas é o processo dele à vista. Só importa na hora do
   push. · `[processo]` · P · melhoria
+- **MT-014** **A cadeira `especialista-particular` não tem agente** —
+  `.claude/agents/especialista-particular.md` não existe, embora o `PLANO-2.0.md` a liste
+  como membro sob demanda e o `arquiteto.md` mande consultá-la. Sem o arquivo, quem
+  precisa da memória do projeto lê o vault na mão. Criar o agente ou tirar a cadeira das
+  duas referências. · `[processo]` · P · melhoria
 
 ## ⏸️ Pausado
 
