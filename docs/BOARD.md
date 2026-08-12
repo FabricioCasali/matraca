@@ -11,17 +11,27 @@ O desenho da frente 2.0 está em [`PLANO-2.0.md`](PLANO-2.0.md).
 
 ## 🔄 Fazendo
 
-- **MT-002** **Fase 0 — spike de viabilidade no macOS** — event tap, AudioQueue, Whisper
-  com Metal, injeção CGEvent e uma janela WKWebView transparente e não-ativável, tudo
-  num app descartável. Nenhuma perna provada ainda. Decidido na aprovação: **sem** o
-  certificado self-signed `Matraca Dev` por enquanto, então o `pack.sh` cai para
-  assinatura ad-hoc — cujo *designated requirement* é ancorado no `cdhash`, que muda a
-  cada compilação. Consequência: **todo `dotnet build` revoga a permissão de
-  Acessibilidade**, e como a entrada obsoleta permanece na lista o macOS **não
-  reprompta** — é preciso abrir o painel, remover e adicionar de novo. Por isso o risco 6
-  fecha como **"por provar"**, não como "passou". Sem `.sln` nesta fase (ele nasce na
-  Fase 1, com os cinco projetos de verdade). O spike é commitado em `spike/mac/`, a ser
-  apagado no primeiro commit da Fase 2. · `[2.0]` · M · importante
+- **MT-002** **Fase 0 — spike de viabilidade no macOS** — as seis pernas estão **escritas,
+  compilando e commitadas** em `spike/mac/` (24 arquivos), e **um só risco fechou**: o
+  **risco 3 — Whisper com Metal no arm64 — passou**. O ggml elege o `MTL0` no M4 e
+  transcreve 2,93 s de áudio em **160–230 ms**, mesma faixa da 4070 Ti do README, ou
+  abaixo. Os riscos **1, 2, 4, 5 e 6 seguem por provar**, e aqui "por provar" quer dizer
+  *escrito e compilando, nunca executado com sucesso* — não "deve funcionar". Quatro
+  deles travam em permissão que só é concedida à mão, na frente da máquina. **O que fecha
+  o cartão é o roteiro de seis passos** de [`spike/mac/README.md`](../spike/mac/README.md),
+  que é a fonte de verdade dos vereditos e dos números — o quadro não os repete.
+  Decidido na aprovação: **sem** o certificado self-signed `Matraca Dev` por enquanto,
+  então o `pack.sh` assina ad-hoc, e o *designated requirement* fica ancorado no `cdhash`
+  — que muda a cada compilação, revogando a Acessibilidade **sem o macOS reprompar**.
+  Rodar várias vezes seguidas exige `MATRACA_SKIP_PACK=1`, ou remover e readicionar o app
+  no painel. Sem `.sln` nesta fase (nasce na Fase 1). O spike é apagado no primeiro commit
+  da Fase 2. · `[2.0]` · M · importante
+  - ⏳ **Espera decisão do Fabricio:** o `Matraca.csproj` ganhou 12 linhas de
+    `Compile/None/EmbeddedResource Remove="spike/**"`, em commit isolado (`613d4ca`),
+    porque o glob padrão do SDK varre `**/*.cs` da raiz e passou a compilar os fontes e o
+    `obj/` do spike — oito `CS0579`, build cruzado do Windows quebrado. Isso **contraria a
+    premissa de "diff zero fora de `spike/`"** do desenho aprovado, e ainda não foi
+    respondido. Revertível numa linha.
 
 ## 📋 A fazer
 
@@ -31,7 +41,13 @@ O desenho da frente 2.0 está em [`PLANO-2.0.md`](PLANO-2.0.md).
   WinForms. · `[2.0]` · G · importante
 - **MT-004** **Fase 2 — o Mac dita** — `Matraca.Mac` de verdade: event tap, AudioQueue,
   injeção, NSStatusItem, e o pin + moldura por `AXUIElement`. Os quatro modos. Config
-  pelo JSON, sem tela. É o marco que importa. · `[2.0]` · G · importante
+  pelo JSON, sem tela. É o marco que importa. Dois requisitos que o spike (MT-002)
+  descobriu e que precisam ser atendidos aqui: **(a)** carregar o modelo tem dois regimes
+  — 7.232 ms na primeira vez da máquina, compilando os kernels Metal, contra 123 ms
+  depois; se o modelo for carregado sob demanda, o primeiro ditado depois de instalar vai
+  parecer travado, então é carregar na inicialização ou avisar. **(b)** o `AudioQueueStart`
+  **bloqueia** esperando a decisão do TCC sobre o microfone, logo não pode ser chamado de
+  uma thread que precise continuar respondendo. · `[2.0]` · G · importante
 - **MT-005** **Fase 3 — a UI unificada** — mockup navegável primeiro (o mockup **é** o
   app, não é descartável), depois o casco e as telas: config, microfone com espectro,
   histórico, onboarding e HUD. · `[2.0]` · G · importante
