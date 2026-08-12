@@ -12,3 +12,7 @@ installer/output/
 
 # macOS
 .DS_Store
+
+# spike do macOS: o .app montado e certificados locais
+spike/mac/Matraca.app/
+spike/mac/*.p12
