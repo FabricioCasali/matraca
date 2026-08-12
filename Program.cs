@@ -464,6 +464,7 @@ internal sealed class TrayApp : ApplicationContext
     // roda numa thread de fundo; transcreve segmentos em ordem e cola
     private void ConsumeLiveSegments()
     {
+        bool entregou = false;
         try
         {
             foreach (var seg in _liveQueue!.GetConsumingEnumerable())
@@ -486,10 +487,21 @@ internal sealed class TrayApp : ApplicationContext
                         }
                         string chunk = text.Trim() + " ";
                         _ui.Post(_ => Deliver(chunk, false), null);
+                        entregou = true;
                         Logger.Info($"[live] chunk (~{seg.Length / 16000.0:F1}s): \"{text.Trim()}\"");
                     }
                 }
                 catch (Exception ex) { Logger.Error("[live] falha ao transcrever chunk", ex); }
+            }
+
+            // Um Enter por pedaco mandaria cada frase solta; o que encerra a fala e' o fim da sessao.
+            // Sessao que nao entregou nada nao encerra fala nenhuma: no modo push um toque
+            // acidental na tecla abre e fecha a sessao sem uma palavra, e o Enter cairia na
+            // janela em foco, submetendo o que o usuario tivesse digitado ali.
+            if (entregou && _cfg.AutoEnter)
+            {
+                _ui.Post(_ => Deliver("", true), null);
+                Logger.Info("[live] fim de sessao: Enter final enviado.");
             }
         }
         catch (Exception ex) { Logger.Error("[live] consumidor abortou", ex); }
