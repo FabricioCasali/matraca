@@ -11,14 +11,15 @@ O desenho da frente 2.0 está em [`PLANO-2.0.md`](PLANO-2.0.md).
 
 ## 🔄 Fazendo
 
-_(nada em curso)_
+- **MT-001** **Fechar o PR #4** — Enter no fim da sessão no modo `live` e entregas
+  serializadas. Vem antes do Core: a fila de entrega que ele introduz é política de Core,
+  e deixá-lo aberto garante conflito. Revisado em 12/08: o Enter final saía mesmo em
+  sessão sem fala — no modo `push` um toque acidental submetia o que estivesse digitado
+  na janela em foco. Corrigido em `8f7c183`, build cruzado verde, branch publicada.
+  **Parado no teste manual do Fabricio no Windows** (roteiro de 6 passos; o passo 3 é o
+  toque sem fala). Sai do draft só depois disso. · `[2.0]` · P · importante
 
 ## 📋 A fazer
-
-- **MT-001** **Fechar o PR #4** — Enter no fim da sessão no modo `live` e entregas
-  serializadas. Build verde no CI, mergeable, em draft desde 02/08 esperando teste
-  manual. Vem antes do Core: a fila de entrega que ele introduz é política de Core, e
-  deixá-lo aberto garante conflito. · `[2.0]` · P · importante
 - **MT-002** **Fase 0 — spike de viabilidade no macOS** — event tap, AudioQueue, Whisper
   com Metal, injeção CGEvent e uma janela WKWebView transparente e não-ativável, tudo
   num app descartável. Inclui o bundle `.app` com id e assinatura estáveis, que é o que
@@ -54,6 +55,13 @@ _(nada em curso)_
   campo-a-campo já existe, é usar em vez de reescrever. · `[distribuição]` · M · melhoria
 - **MT-011** **Repositório sem description nem topics no GitHub** — custa minutos e é
   pré-requisito do MT-010. · `[distribuição]` · P · melhoria
+- **MT-013** **A cola por clipboard fica fora da cadeia de entrega** — o PR #4 serializou
+  `PasteText` (unicode) e `DeliverWithFocus` numa cadeia única, mas `PasteViaClipboard`
+  segue inline na UI thread, porque o `Clipboard` do WinForms exige STA. Hoje não dá
+  bug — os `_ui.Post` são sequenciais e a cola termina antes de o Enter ser enfileirado —
+  mas é a única entrega em pista separada, e o `SendCtrlV` ali viola a regra de não
+  injetar na thread do hook (poucos eventos, por isso passa). Resolver quando a
+  `DeliveryQueue` nascer no Core. · `[2.0]` · P · melhoria
 - **MT-012** **Decidir o destino de `.claude/agents/`** — o repositório é público. São só
   prompts, sem segredo, mas é o processo dele à vista. Só importa na hora do
   push. · `[processo]` · P · melhoria
