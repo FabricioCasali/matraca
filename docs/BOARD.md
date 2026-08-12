@@ -11,15 +11,10 @@ O desenho da frente 2.0 está em [`PLANO-2.0.md`](PLANO-2.0.md).
 
 ## 🔄 Fazendo
 
-- **MT-001** **Fechar o PR #4** — Enter no fim da sessão no modo `live` e entregas
-  serializadas. Vem antes do Core: a fila de entrega que ele introduz é política de Core,
-  e deixá-lo aberto garante conflito. Revisado em 12/08: o Enter final saía mesmo em
-  sessão sem fala — no modo `push` um toque acidental submetia o que estivesse digitado
-  na janela em foco. Corrigido em `8f7c183`, build cruzado verde, branch publicada.
-  **Parado no teste manual do Fabricio no Windows** (roteiro de 6 passos; o passo 3 é o
-  toque sem fala). Sai do draft só depois disso. · `[2.0]` · P · importante
+_(nada em curso)_
 
 ## 📋 A fazer
+
 - **MT-002** **Fase 0 — spike de viabilidade no macOS** — event tap, AudioQueue, Whisper
   com Metal, injeção CGEvent e uma janela WKWebView transparente e não-ativável, tudo
   num app descartável. Inclui o bundle `.app` com id e assinatura estáveis, que é o que
