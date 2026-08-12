@@ -1,0 +1,64 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<style>
+  /* Camada 2 da pilha de transparencia (as outras duas estao no HudWindow.cs):
+     sem isto o WKWebView pinta branco por cima de tudo. */
+  html, body {
+    margin: 0; padding: 0;
+    width: 100%; height: 100%;
+    background: transparent;
+    overflow: hidden;
+    font: 13px -apple-system, system-ui, sans-serif;
+    color: #fff;
+  }
+  #caixa {
+    box-sizing: border-box;
+    width: 100%; height: 100%;
+    border-radius: 14px;
+    background: rgba(20, 20, 24, 0.72);
+    display: flex; flex-direction: column;
+    align-items: center; justify-content: center;
+    gap: 10px;
+  }
+  #rotulo { opacity: .85; letter-spacing: .3px; }
+</style>
+</head>
+<body>
+  <div id="caixa">
+    <div id="rotulo">Matraca — HUD do spike</div>
+    <!-- Canvas ANIMADO, e nao um retangulo estatico: um retangulo parado nao distingue
+         "transparente" de "preto", e — o que mais importa — uma janela nao-ativavel de app
+         LSUIElement as vezes RENDERIZA mas nunca recebe tique de animacao. A barra andando
+         prova que o loop de render roda, que e' a metade do risco 5 que todo mundo esquece
+         de testar. -->
+    <canvas id="barra" width="260" height="26"></canvas>
+  </div>
+<script>
+  const c = document.getElementById('barra');
+  const g = c.getContext('2d');
+  let t = 0;
+
+  function quadro() {
+    g.clearRect(0, 0, c.width, c.height);
+
+    // trilho
+    g.fillStyle = 'rgba(255,255,255,0.14)';
+    g.fillRect(0, 10, c.width, 6);
+
+    // o cursor que anda de um lado para o outro
+    const x = (Math.sin(t / 28) * 0.5 + 0.5) * (c.width - 60);
+    const grad = g.createLinearGradient(x, 0, x + 60, 0);
+    grad.addColorStop(0, '#4fd1c5');
+    grad.addColorStop(1, '#63b3ed');
+    g.fillStyle = grad;
+    g.fillRect(x, 8, 60, 10);
+
+    t++;
+    requestAnimationFrame(quadro);
+  }
+  quadro();
+</script>
+</body>
+</html>
