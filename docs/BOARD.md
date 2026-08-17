@@ -12,26 +12,27 @@ O desenho da frente 2.0 está em [`PLANO-2.0.md`](PLANO-2.0.md).
 ## 🔄 Fazendo
 
 - **MT-002** **Fase 0 — spike de viabilidade no macOS** — as seis pernas estão **escritas,
-  compilando e commitadas** em `spike/mac/` (24 arquivos), e **um só risco fechou**: o
-  **risco 3 — Whisper com Metal no arm64 — passou**. O ggml elege o `MTL0` no M4 e
-  transcreve 2,93 s de áudio em **160–230 ms**, mesma faixa da 4070 Ti do README, ou
-  abaixo. Os riscos **1, 2, 4, 5 e 6 seguem por provar**, e aqui "por provar" quer dizer
-  *escrito e compilando, nunca executado com sucesso* — não "deve funcionar". Quatro
-  deles travam em permissão que só é concedida à mão, na frente da máquina. **O que fecha
-  o cartão é o roteiro de seis passos** de [`spike/mac/README.md`](../spike/mac/README.md),
-  que é a fonte de verdade dos vereditos e dos números — o quadro não os repete.
-  Decidido na aprovação: **sem** o certificado self-signed `Matraca Dev` por enquanto,
-  então o `pack.sh` assina ad-hoc, e o *designated requirement* fica ancorado no `cdhash`
-  — que muda a cada compilação, revogando a Acessibilidade **sem o macOS reprompar**.
-  Rodar várias vezes seguidas exige `MATRACA_SKIP_PACK=1`, ou remover e readicionar o app
-  no painel. Sem `.sln` nesta fase (nasce na Fase 1). O spike é apagado no primeiro commit
-  da Fase 2. · `[2.0]` · M · importante
-  - ⏳ **Espera decisão do Fabricio:** o `Matraca.csproj` ganhou 12 linhas de
-    `Compile/None/EmbeddedResource Remove="spike/**"`, em commit isolado (`613d4ca`),
-    porque o glob padrão do SDK varre `**/*.cs` da raiz e passou a compilar os fontes e o
-    `obj/` do spike — oito `CS0579`, build cruzado do Windows quebrado. Isso **contraria a
-    premissa de "diff zero fora de `spike/`"** do desenho aprovado, e ainda não foi
-    respondido. Revertível numa linha.
+  compilando e commitadas** em `spike/mac/`, e **dois riscos fecharam**: o **risco 3 —
+  Whisper com Metal no arm64** (o ggml elege o `MTL0` no M4 e transcreve 2,93 s de áudio em
+  **160–230 ms**, mesma faixa da 4070 Ti do README, ou abaixo) e o **risco 6 — assinatura
+  estável**, fechado em 17/08 com o certificado `Matraca Dev`: duas embalagens seguidas da
+  mesma fonte deram o requisito **idêntico**, ancorado no certificado em vez do `cdhash`.
+  Com isso caiu o atrito que tornava o roteiro hostil — não é mais preciso remover e
+  readicionar o app no painel entre as rodadas, nem usar `MATRACA_SKIP_PACK=1`.
+  Os riscos **1, 2, 4 e 5 seguem por provar**, e aqui "por provar" quer dizer *escrito e
+  compilando, nunca executado com sucesso* — não "deve funcionar". Todos travam em
+  permissão que só é concedida à mão, na frente da máquina. **O que fecha o cartão é o
+  roteiro de seis passos** de [`spike/mac/README.md`](../spike/mac/README.md), que é a
+  fonte de verdade dos vereditos e dos números — o quadro não os repete. Sem `.sln` nesta
+  fase (nasce na Fase 1). O spike é apagado no primeiro commit da Fase 2. · `[2.0]` · M ·
+  importante
+  - ✅ **Resolvido — o `spike/**` fica excluído do `Matraca.csproj`.** As 12 linhas de
+    `Compile/None/EmbeddedResource Remove="spike/**"` do commit `613d4ca` ficam, e com elas
+    a premissa de "diff zero fora de `spike/`" do desenho cai. Não havia escolha real: o
+    glob padrão do SDK varre `**/*.cs` da raiz e passou a compilar os fontes e o `obj/` do
+    spike — oito `CS0579`, build cruzado do Windows quebrado — e MSBuild não deixa um
+    subdiretório influenciar o glob do projeto de cima. As linhas morrem sozinhas na Fase 1,
+    quando o `Matraca.csproj` virar `Matraca.Windows`.
 
 ## 📋 A fazer
 

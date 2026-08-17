@@ -26,7 +26,7 @@ O log vai para o stdout **e** para `~/Library/Application Support/Matraca/spike.
 | 3 | Whisper com Metal no arm64 | **PASSOU** | `whisper_backend_init_gpu: using MTL0 backend` · `ggml_metal_init: picking default device: Apple M4` · **160–230 ms** para 2,93 s de áudio. |
 | 4 | injeção por CGEvent, com a marca da fonte | **por provar** | `CGEventPost` exige a mesma Acessibilidade do risco 1; sem ela o post é engolido em silêncio. Código completo, nunca exercitado. |
 | 5 | janela WKWebView transparente e não-ativável | **por provar** (com meio caminho andado) | A janela **sobe sem erro**: subclasse registrada, `WKWebView` criado, KVC aplicado, `orderFrontRegardless` chamado, `[NSApp run]` de pé por 7 s. Transparência, animação e clique-atravessa exigem olho na tela. |
-| 6 | bundle `.app` com assinatura estável | **por provar** | `codesign --verify --strict` passa. Mas o requisito é `designated => cdhash H"..."`, e **duas embalagens da mesma fonte deram cdhashes diferentes** (`0d008067…` e `b350693f…`). Sem certificado, por decisão do Fabricio. |
+| 6 | bundle `.app` com assinatura estável | **PASSOU** | Com o certificado `Matraca Dev` no chaveiro, **duas embalagens seguidas da mesma fonte deram o requisito idêntico**: `identifier "io.github.fabriciocasali.matraca" and certificate root = H"b57f05a8…"`. Ancorado no certificado, não no código. |
 
 **Por provar** aqui quer dizer *escrito e compilando, nunca executado com sucesso* — e não
 "deve funcionar". Quatro das seis pernas dependem de permissão que só é concedida à mão, na
@@ -158,10 +158,10 @@ app aberto não ressuscita o tap: tem de rodar de novo. O spike avisa isso no lo
 para `Contents/Frameworks/` (a arrumação canônica da Apple) quebra a sondagem. Isso só vira
 problema na notarização — Fase 5.
 
-**`MATRACA_SKIP_PACK=1`** existe por causa do risco 6: recompilar muda o cdhash e revoga a
-Acessibilidade. Enquanto não houver certificado, testar várias vezes seguidas exige rodar sem
-recompilar. Isso não é teoria — duas embalagens **da mesma fonte, sem nenhuma alteração**,
-produziram requisitos diferentes:
+**`MATRACA_SKIP_PACK=1` deixou de ser necessário**, mas a razão de ele existir vale para a
+Fase 2 e fica registrada. Assinatura ad-hoc ancora o *designated requirement* no `cdhash` —
+a impressão digital do próprio código —, e recompilar muda esse número. Duas embalagens **da
+mesma fonte, sem nenhuma alteração**, produziram requisitos diferentes:
 
 ```
 # designated => cdhash H"0d0080676c07389cb0e448ad17b5c4817f5abc40"
@@ -171,7 +171,15 @@ produziram requisitos diferentes:
 Toda vez que esse número muda, a concessão de Acessibilidade guardada pelo TCC deixa de casar
 com o app — **e o macOS não reprompta**, porque a entrada obsoleta continua na lista. O
 sintoma é ausência de comportamento: o tap simplesmente para de ver teclas, com o código
-certo.
+certo. Com o `Matraca Dev` o requisito passou a ser ancorado no certificado e parou de mudar:
+
+```
+# designated => identifier "io.github.fabriciocasali.matraca" and
+#               certificate root = H"b57f05a8a36495042b6da909802ad5896192cae7"
+```
+
+O mesmo mecanismo vale para o **microfone** — o TCC guarda requisito de código para todo
+serviço, não só para a Acessibilidade.
 
 ### Constantes: todas bateram
 
@@ -209,9 +217,11 @@ experimento de cinco minutos — **não trate como bloqueio, anote o resultado a
 
 ## O roteiro do Fabricio (o que falta, e é o que fecha o cartão)
 
-Antes de cada rodada, por causa do risco 6: **Ajustes do Sistema → Privacidade e Segurança →
-Acessibilidade → remover o Matraca → adicionar de novo.** Ou
-`tccutil reset Accessibility io.github.fabriciocasali.matraca`.
+**Não é mais preciso mexer na Acessibilidade entre as rodadas** — o certificado fechou o
+risco 6, e o requisito não muda mais quando se recompila. Conceder uma vez basta, e a
+concessão sobrevive a todo `pack.sh`. (Se algum dia o certificado for embora do chaveiro, o
+requisito muda junto e o sintoma volta: `tccutil reset Accessibility
+io.github.fabriciocasali.matraca` e conceder de novo.)
 
 1. `bash spike/mac/run.sh --tap` → conceder Acessibilidade, **rodar de novo**. Apertar F13 e
    outras teclas: conferir no log **o keycode do F13 nesta máquina**. Com o TextEdit na
@@ -227,15 +237,57 @@ Acessibilidade → remover o Matraca → adicionar de novo.** Ou
    se for zero, o auto-reconhecimento nunca foi exercitado.
 6. `--pipeline` → o critério de aceite: ditar nos três alvos, texto inteiro e com espaços.
 
-### Para acabar com o risco 6 de vez (uma vez só)
+### O certificado `Matraca Dev` — feito em 17/08/2026
 
-Acesso às Chaves → Assistente de Certificado → Criar um Certificado → nome **`Matraca Dev`**,
-identidade **Autoassinado raiz**, certificado **Assinatura de Código**, marcar *Permitir a
-substituição dos padrões* e pôr validade em **3650** dias (o padrão de 365 significa refazer
-daqui a um ano), chaveiro **login**.
+Gerado pela linha de comando em vez do Assistente de Certificado, para ficar reproduzível.
+Impressão digital `B57F05A8A36495042B6DA909802AD5896192CAE7`, válido até **14/08/2036**.
+O `pack.sh` o encontrou sozinho na primeira tentativa — **nada precisou mudar no script**,
+como o comentário dele em `pack.sh:23-26` previa.
 
-O `pack.sh` já procura essa identidade e usa sozinho — e também respeita
-`MATRACA_SIGN_IDENTITY`. **Nada precisa mudar no script no dia em que o certificado existir.**
+```bash
+cat > matraca-dev.cnf <<'EOF'
+[ req ]
+distinguished_name = dn
+x509_extensions    = v3
+prompt             = no
+default_md         = sha256
+[ dn ]
+CN = Matraca Dev
+O  = Matraca
+C  = BR
+[ v3 ]
+basicConstraints     = critical, CA:true
+keyUsage             = critical, digitalSignature, keyCertSign
+extendedKeyUsage     = critical, codeSigning
+subjectKeyIdentifier = hash
+EOF
+
+openssl req -x509 -newkey rsa:2048 -nodes -sha256 -days 3650 \
+  -config matraca-dev.cnf -keyout matraca-dev.key.pem -out matraca-dev.cert.pem
+openssl pkcs12 -export -legacy -inkey matraca-dev.key.pem -in matraca-dev.cert.pem \
+  -name "Matraca Dev" -out matraca-dev.p12 -passout pass:matraca
+security import matraca-dev.p12 -k "$HOME/Library/Keychains/login.keychain-db" \
+  -P matraca -T /usr/bin/codesign -T /usr/bin/security
+security add-trusted-cert -r trustRoot -p codeSign matraca-dev.cert.pem   # pede a senha
+```
+
+**Duas armadilhas, as duas encontradas na prática:**
+
+1. **Importar não basta.** Sem o `add-trusted-cert`, o `security find-identity -v -p
+   codesigning` devolve `0 valid identities found`, e sem o `-v` explica por quê:
+   `CSSMERR_TP_NOT_TRUSTED`. Certificado autoassinado nasce sem confiança para assinar
+   código. Pela GUI o efeito é o mesmo: dois cliques no certificado → **Confiar** →
+   *Assinatura de Código: Sempre Confiar*.
+2. **O `openssl` do macOS é LibreSSL**, e não tem `-ext` no `x509` nem, dependendo da
+   versão, o `-legacy` no `pkcs12`. Conferir extensões é `openssl x509 -text | grep`.
+
+Na primeira assinatura o macOS pergunta se o `codesign` pode usar a chave — **"Sempre
+Permitir"**, senão ele repete a pergunta nos 18 arquivos.
+
+**Se a chave for perdida** (chaveiro apagado, máquina nova), gerar de novo produz um
+certificado com hash **diferente**, logo um requisito diferente, logo a concessão de
+Acessibilidade quebra de novo. É reset de TCC e conceder outra vez — dois minutos, mas vale
+guardar o `.p12` se quiser evitar até isso.
 
 ---
 
