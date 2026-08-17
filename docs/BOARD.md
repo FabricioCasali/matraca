@@ -11,28 +11,7 @@ O desenho da frente 2.0 está em [`PLANO-2.0.md`](PLANO-2.0.md).
 
 ## 🔄 Fazendo
 
-- **MT-002** **Fase 0 — spike de viabilidade no macOS** — as seis pernas estão **escritas,
-  compilando e commitadas** em `spike/mac/`, e **dois riscos fecharam**: o **risco 3 —
-  Whisper com Metal no arm64** (o ggml elege o `MTL0` no M4 e transcreve 2,93 s de áudio em
-  **160–230 ms**, mesma faixa da 4070 Ti do README, ou abaixo) e o **risco 6 — assinatura
-  estável**, fechado em 17/08 com o certificado `Matraca Dev`: duas embalagens seguidas da
-  mesma fonte deram o requisito **idêntico**, ancorado no certificado em vez do `cdhash`.
-  Com isso caiu o atrito que tornava o roteiro hostil — não é mais preciso remover e
-  readicionar o app no painel entre as rodadas, nem usar `MATRACA_SKIP_PACK=1`.
-  Os riscos **1, 2, 4 e 5 seguem por provar**, e aqui "por provar" quer dizer *escrito e
-  compilando, nunca executado com sucesso* — não "deve funcionar". Todos travam em
-  permissão que só é concedida à mão, na frente da máquina. **O que fecha o cartão é o
-  roteiro de seis passos** de [`spike/mac/README.md`](../spike/mac/README.md), que é a
-  fonte de verdade dos vereditos e dos números — o quadro não os repete. Sem `.sln` nesta
-  fase (nasce na Fase 1). O spike é apagado no primeiro commit da Fase 2. · `[2.0]` · M ·
-  importante
-  - ✅ **Resolvido — o `spike/**` fica excluído do `Matraca.csproj`.** As 12 linhas de
-    `Compile/None/EmbeddedResource Remove="spike/**"` do commit `613d4ca` ficam, e com elas
-    a premissa de "diff zero fora de `spike/`" do desenho cai. Não havia escolha real: o
-    glob padrão do SDK varre `**/*.cs` da raiz e passou a compilar os fontes e o `obj/` do
-    spike — oito `CS0579`, build cruzado do Windows quebrado — e MSBuild não deixa um
-    subdiretório influenciar o glob do projeto de cima. As linhas morrem sozinhas na Fase 1,
-    quando o `Matraca.csproj` virar `Matraca.Windows`.
+_(nada em curso — a Fase 0 fechou em 17/08; a próxima é a MT-003)_
 
 ## 📋 A fazer
 
@@ -42,13 +21,39 @@ O desenho da frente 2.0 está em [`PLANO-2.0.md`](PLANO-2.0.md).
   WinForms. · `[2.0]` · G · importante
 - **MT-004** **Fase 2 — o Mac dita** — `Matraca.Mac` de verdade: event tap, AudioQueue,
   injeção, NSStatusItem, e o pin + moldura por `AXUIElement`. Os quatro modos. Config
-  pelo JSON, sem tela. É o marco que importa. Dois requisitos que o spike (MT-002)
-  descobriu e que precisam ser atendidos aqui: **(a)** carregar o modelo tem dois regimes
-  — 7.232 ms na primeira vez da máquina, compilando os kernels Metal, contra 123 ms
-  depois; se o modelo for carregado sob demanda, o primeiro ditado depois de instalar vai
-  parecer travado, então é carregar na inicialização ou avisar. **(b)** o `AudioQueueStart`
-  **bloqueia** esperando a decisão do TCC sobre o microfone, logo não pode ser chamado de
-  uma thread que precise continuar respondendo. · `[2.0]` · G · importante
+  pelo JSON, sem tela. É o marco que importa. Requisitos que o spike (MT-002) descobriu e
+  que precisam ser atendidos aqui: **(a)** o `AudioQueueStart` **bloqueia** esperando a
+  decisão do TCC sobre o microfone, logo não pode ser chamado de uma thread que precise
+  continuar respondendo. **(b)** o TCC atribui permissão ao **processo responsável** pela
+  cadeia de lançamento — um Matraca lançado por outro processo herda as permissões dele, e
+  a `TCC.db` não ganha linha própria; isso decide como o app é iniciado e como o onboarding
+  pede permissão. **(c)** não há detecção de fala no spike (`RecordSeconds = 3.0`, fixo),
+  então os quatro modos e o VAD não são luxo — são o que faz o ditado terminar quando o
+  usuário termina. A carga do modelo e o estado do Whisper viraram cartão próprio
+  (MT-016), assim como o foco (MT-015) e a entrega truncada (MT-017). · `[2.0]` · G ·
+  importante
+- **MT-015** **A política de ativação é do app, não da janela** — no spike,
+  `setActivationPolicy:` com `NSApplicationActivationPolicyAccessory` é chamado **só** em
+  `Hud/HudWindow.cs:54`. Toda perna que não passa pelo HUD sobe com a política padrão e se
+  comporta como app comum: ao ditar, a janela de destino **perde o foco** e o texto se
+  perde. É violação direta da lei 4, e foi observado na mesa. Na Fase 2 a política tem de
+  ser definida na inicialização do app, antes de qualquer janela existir. · `[2.0]` · P ·
+  importante
+- **MT-016** **O backend Metal nasce e morre a cada ditado** — o log do `--pipeline` mostra
+  `whisper_backend_init_gpu` → `ggml_metal_init: allocating` → `ggml_metal_free:
+  deallocating` nas sete rodadas, com recompilação de pipelines em algumas. A transcrição
+  varia de **175 ms a 1.098 ms** para áudios do mesmo tamanho, e é o candidato mais forte
+  para o travamento leve que o Fabricio sentiu. Junto vai a carga do modelo: mediu-se
+  7.232 ms, depois 123 ms, e depois **6.500 ms de novo** — o cache de shaders não é
+  confiável, então 6–7 s é o custo possível de *toda* inicialização, não pedágio único.
+  O estado do Whisper precisa nascer uma vez e viver enquanto o app viver. · `[2.0]` · M ·
+  importante
+- **MT-017** **O alvo recebe menos do que o injetor entrega** — o log diz `digitados 39
+  caracteres em 4 eventos, 10 ms`; na tela o texto chega lento e truncado. **Não** é a lei 5
+  violada: a injeção roda na `t4`, fora da thread do tap. A suspeita é o ritmo — blocos de
+  20 unidades UTF-16 com pausa de 2 ms —, mas é hipótese, não medição, e o alvo importa (o
+  TextEdit se comporta diferente de um TUI em terminal). Precisa de investigação própria
+  antes de virar número na Fase 2. · `[2.0]` · M · importante
 - **MT-005** **Fase 3 — a UI unificada** — mockup navegável primeiro (o mockup **é** o
   app, não é descartável), depois o casco e as telas: config, microfone com espectro,
   histórico, onboarding e HUD. · `[2.0]` · G · importante
@@ -66,7 +71,11 @@ O desenho da frente 2.0 está em [`PLANO-2.0.md`](PLANO-2.0.md).
   tinham dono; agora têm (`provador`). · `[2.0]` · P · importante
 - **MT-009** **Assinatura no macOS** — decidir se compensa conta de desenvolvedor Apple
   para notarizar. O SignPath cobre só Windows, então é uma decisão nova, não uma
-  extensão daquela. · `[distribuição]` · P · melhoria
+  extensão daquela. **Confirmado na MT-002 que não é pré-requisito da Fase 2:** o `.app`
+  autoassinado com o certificado `Matraca Dev` é lançável e obtém permissões próprias de
+  microfone e Acessibilidade. O que ele *não* faz é ser lançado programaticamente por
+  `open` — só por duplo clique no Finder ou por `launchctl`. Segue melhoria, e o que a
+  conta compra é distribuição sem atrito para terceiros. · `[distribuição]` · P · melhoria
 - **MT-010** **Reputação para aplicar no SignPath** — adiado por decisão dele: o
   formulário exige reputação verificável e hoje são 2 downloads e 0 estrelas. O rascunho
   campo-a-campo já existe, é usar em vez de reescrever. · `[distribuição]` · M · melhoria
