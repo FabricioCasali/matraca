@@ -12,7 +12,7 @@ param(
 
 $ErrorActionPreference = 'Stop'
 $proj = Split-Path $PSScriptRoot -Parent
-$csproj = Join-Path $proj 'Matraca.csproj'
+$csproj = Join-Path $proj 'Matraca.Windows\Matraca.Windows.csproj'
 
 foreach ($variant in @(
     @{ Manifest = 'app.manifest';          Out = 'standard' },

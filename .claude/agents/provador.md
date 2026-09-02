@@ -61,8 +61,8 @@ Ninguém aqui roda o Matraca no Windows. Para o lado Windows existe compilação
 CI — e mais nada. **Diga isso** sempre que reportar, em vez de deixar parecer coberto:
 
 ```bash
-dotnet build Matraca.csproj -p:EnableWindowsTargeting=true
-dotnet test
+dotnet build Matraca.sln -p:EnableWindowsTargeting=true
+dotnet test Matraca.sln
 ```
 
 ## Como você termina

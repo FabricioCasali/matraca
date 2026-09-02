@@ -2,7 +2,7 @@
 # Uso: powershell -ExecutionPolicy Bypass -File tools\make-icons.ps1
 Add-Type -AssemblyName System.Drawing
 
-$outDir = Split-Path -Parent $PSScriptRoot   # raiz do projeto
+$outDir = Join-Path (Split-Path -Parent $PSScriptRoot) 'Matraca.Windows'
 $sizes  = 16,20,24,32,48,64,128
 
 function Add-RoundRect($path, [single]$x, [single]$y, [single]$w, [single]$h, [single]$r) {

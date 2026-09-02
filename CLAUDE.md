@@ -62,8 +62,8 @@ perguntar. Publicar é decisão dele — o repositório é público.
 quebrar o Windows sem alguém ver:
 
 ```bash
-dotnet build Matraca.csproj -p:EnableWindowsTargeting=true   # o lado Windows, a partir do Mac
-dotnet test                                                   # a rede do Core
+dotnet build Matraca.sln -p:EnableWindowsTargeting=true   # os dois lados, a partir do Mac
+dotnet test Matraca.sln                                   # a rede do Core
 ```
 
 **Ninguém aqui roda o Matraca no Windows.** O Mac roda de verdade; o Windows depende do

@@ -49,7 +49,7 @@ Claude model that fixes punctuation and capitalization and drops speech fillers 
 `appsettings.json` ships with `"hotkey": "discover"`. Run the app:
 
 ```powershell
-dotnet run --project .   # from the project folder
+dotnet run --project Matraca.Windows
 # or run the compiled exe:
 # .\bin\Debug\net8.0-windows\Matraca.exe
 ```
@@ -169,9 +169,9 @@ Tip: each sentence is pasted with a trailing space, so sentences chain naturally
 ## Build / publish
 
 ```powershell
-dotnet build . -c Release
+dotnet build Matraca.sln -c Release
 # portable exe (uses an installed .NET 8 runtime):
-dotnet publish . -c Release -r win-x64 --self-contained false
+dotnet publish Matraca.Windows -c Release -r win-x64 --self-contained false
 ```
 
 ## Troubleshooting

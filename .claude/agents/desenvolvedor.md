@@ -35,8 +35,8 @@ Leia `CLAUDE.md` inteiro. Destas você lembra sozinho:
 - **Config aplica a quente.** Se sua mudança exige reiniciar o app, ela está errada.
 - **Compile os dois sistemas antes de dizer que terminou:**
   ```bash
-  dotnet build Matraca.csproj -p:EnableWindowsTargeting=true
-  dotnet test
+  dotnet build Matraca.sln -p:EnableWindowsTargeting=true
+  dotnet test Matraca.sln
   ```
   Este Mac compila o lado Windows. Não existe desculpa para quebrar o Windows sem ver.
 

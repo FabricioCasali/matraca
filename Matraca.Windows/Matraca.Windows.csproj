@@ -3,6 +3,7 @@
   <PropertyGroup>
     <OutputType>WinExe</OutputType>
     <TargetFramework>net8.0-windows</TargetFramework>
+    <EnableWindowsTargeting>true</EnableWindowsTargeting>
     <UseWindowsForms>true</UseWindowsForms>
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
@@ -25,18 +26,6 @@
     <RepositoryUrl>https://github.com/FabricioCasali/matraca</RepositoryUrl>
   </PropertyGroup>
 
-  <!-- O spike do macOS (spike/mac/) fica DENTRO da pasta deste projeto, e o glob padrao do
-       SDK varre **/*.cs a partir daqui. Sem esta exclusao o Matraca.csproj compila junto
-       os fontes do spike E o obj/ dele, e o build do Windows quebra com oito CS0579
-       ("Duplicar atributo AssemblyTitle/AssemblyVersion/..."), porque cada projeto gera o
-       proprio AssemblyInfo.cs. Os globs padrao so' excluem o bin/ e o obj/ DESTE projeto,
-       nunca os de um projeto aninhado. Sai junto com spike/ na Fase 2. -->
-  <ItemGroup>
-    <Compile Remove="spike/**" />
-    <None Remove="spike/**" />
-    <EmbeddedResource Remove="spike/**" />
-  </ItemGroup>
-
   <ItemGroup>
     <PackageReference Include="Anthropic" Version="12.39.0" />
     <PackageReference Include="Whisper.net" Version="1.9.1" />
@@ -52,6 +41,10 @@
     <None Update="app.ico;rec.ico;busy.ico">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </None>
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="../Matraca.Core/Matraca.Core.csproj" />
   </ItemGroup>
 
 </Project>

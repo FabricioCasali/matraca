@@ -29,7 +29,7 @@ SolidCompression=yes
 ArchitecturesInstallIn64BitMode=x64compatible
 ; mesmo nome criado em Program.Main: o setup pede p/ fechar o app se estiver rodando
 AppMutex=Global\MatracaAppMutex
-SetupIconFile=..\app.ico
+SetupIconFile=..\Matraca.Windows\app.ico
 UninstallDisplayIcon={app}\{#MyAppExeName}
 WizardStyle=modern
 

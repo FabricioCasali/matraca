@@ -40,6 +40,12 @@ jobs:
         with:
           dotnet-version: 8.0.x
 
+      - name: Testar Core e compilar solution
+        shell: pwsh
+        run: |
+          dotnet test Matraca.sln -c Release
+          dotnet build Matraca.sln -c Release
+
       - name: Gerar instalador
         shell: pwsh
         run: ./installer/build-installer.ps1 -Version ${{ steps.ver.outputs.version }}

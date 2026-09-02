@@ -70,7 +70,7 @@ Remove-Item $pubKeyOnly -Force -ErrorAction SilentlyContinue
 $staging = Join-Path $env:TEMP "matraca-publish"
 if (Test-Path $staging) { Remove-Item $staging -Recurse -Force }
 Write-Host "Publicando (Release, manifest uiAccess)..." -ForegroundColor Cyan
-& dotnet publish (Join-Path $proj 'Matraca.csproj') -c Release `
+& dotnet publish (Join-Path $proj 'Matraca.Windows\Matraca.Windows.csproj') -c Release `
     -p:ApplicationManifest=app.uiaccess.manifest -o $staging
 if ($LASTEXITCODE -ne 0) { throw "dotnet publish falhou (exit $LASTEXITCODE)" }
 
@@ -121,4 +121,3 @@ Write-Host "=== Pronto! ===" -ForegroundColor Cyan
 Write-Host "Inicie pelo Menu Iniciar (Matraca) — SEM 'executar como admin'." -ForegroundColor Yellow
 Write-Host "Confira o log em: $dataDir\matraca.log" -ForegroundColor Yellow
 Write-Host "Para validar o uiAccess, abra o terminal como Admin e teste o F15 la." -ForegroundColor Yellow
-

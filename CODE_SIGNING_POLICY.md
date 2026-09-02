@@ -34,11 +34,12 @@ Multi-factor authentication is enabled on the GitHub account and on the SignPath
   `installer/build-installer.ps1`, which publishes the .NET project and compiles the Inno Setup
   installer. There is no unpublished or proprietary step.
 - The installer bundles only this project's own code plus the NuGet dependencies declared in
-  `Matraca.csproj` — all open source.
+  `Matraca.Windows/Matraca.Windows.csproj` and `Matraca.Core/Matraca.Core.csproj` — all open
+  source.
 - Every release is submitted to SignPath through the trusted-build-system integration and
   **requires manual approval** before it is signed.
 - File metadata (product name, company, version, description, copyright) is set in
-  `Matraca.csproj` and stamped into the executable at build time.
+  `Matraca.Windows/Matraca.Windows.csproj` and stamped into the executable at build time.
 
 ## Privacy policy
 

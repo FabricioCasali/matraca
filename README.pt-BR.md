@@ -46,7 +46,7 @@ por um modelo Claude que corrige pontuação e capitalização e tira as muletas
 O `appsettings.json` já vem com `"hotkey": "discover"`. Rode o app:
 
 ```powershell
-dotnet run --project .   # na pasta do projeto
+dotnet run --project Matraca.Windows
 # ou rode o exe compilado:
 # .\bin\Debug\net8.0-windows\Matraca.exe
 ```
@@ -165,9 +165,9 @@ O modo `push` é igual, mas só enquanto a tecla está pressionada (push-to-talk
 ## Build / publicar
 
 ```powershell
-dotnet build . -c Release
+dotnet build Matraca.sln -c Release
 # exe portátil (usa o .NET 8 já instalado):
-dotnet publish . -c Release -r win-x64 --self-contained false
+dotnet publish Matraca.Windows -c Release -r win-x64 --self-contained false
 ```
 
 ## Diagnóstico
