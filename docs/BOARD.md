@@ -22,9 +22,9 @@ O desenho da frente 2.0 está em [`PLANO-2.0.md`](PLANO-2.0.md).
   pede permissão. **(c)** não há detecção de fala no spike (`RecordSeconds = 3.0`, fixo),
   então os quatro modos e o VAD não são luxo — são o que faz o ditado terminar quando o
   usuário termina. A carga do modelo e o estado do Whisper viraram cartão próprio
-  (MT-016), assim como o foco e a entrega truncada (MT-017). Casco, bundle assinado e
-  política Accessory estão de pé; próximo passo é config/TCC/teclado. · `[2.0]` · G ·
-  importante
+  (MT-016), assim como o foco e a entrega truncada (MT-017). Casco, bundle assinado,
+  política Accessory, config a quente, TCC e event tap estão de pé; próximo passo é a
+  entrega CGEvent e o gate MT-017. · `[2.0]` · G · importante
 
 ## 📋 A fazer
 
