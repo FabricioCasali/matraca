@@ -22,19 +22,12 @@ O desenho da frente 2.0 está em [`PLANO-2.0.md`](PLANO-2.0.md).
   pede permissão. **(c)** não há detecção de fala no spike (`RecordSeconds = 3.0`, fixo),
   então os quatro modos e o VAD não são luxo — são o que faz o ditado terminar quando o
   usuário termina. A carga do modelo e o estado do Whisper viraram cartão próprio
-  (MT-016), assim como o foco (MT-015) e a entrega truncada (MT-017). Próximo passo:
-  criar o casco `Matraca.Mac` e fechar primeiro o gate de ativação MT-015. · `[2.0]` · G ·
+  (MT-016), assim como o foco e a entrega truncada (MT-017). Casco, bundle assinado e
+  política Accessory estão de pé; próximo passo é config/TCC/teclado. · `[2.0]` · G ·
   importante
 
 ## 📋 A fazer
 
-- **MT-015** **A política de ativação é do app, não da janela** — no spike,
-  `setActivationPolicy:` com `NSApplicationActivationPolicyAccessory` é chamado **só** em
-  `Hud/HudWindow.cs:54`. Toda perna que não passa pelo HUD sobe com a política padrão e se
-  comporta como app comum: ao ditar, a janela de destino **perde o foco** e o texto se
-  perde. É violação direta da lei 4, e foi observado na mesa. Na Fase 2 a política tem de
-  ser definida na inicialização do app, antes de qualquer janela existir. · `[2.0]` · P ·
-  importante
 - **MT-016** **O backend Metal nasce e morre a cada ditado** — o log do `--pipeline` mostra
   `whisper_backend_init_gpu` → `ggml_metal_init: allocating` → `ggml_metal_free:
   deallocating` nas sete rodadas, com recompilação de pipelines em algumas. A transcrição
