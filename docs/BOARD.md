@@ -11,22 +11,12 @@ O desenho da frente 2.0 está em [`PLANO-2.0.md`](PLANO-2.0.md).
 
 ## 🔄 Fazendo
 
-- **MT-004** **Fase 2 — o Mac dita** — `Matraca.Mac` de verdade: event tap, AudioQueue,
-  injeção, NSStatusItem, e o pin + moldura por `AXUIElement`. Os quatro modos. Config
-  pelo JSON, sem tela. É o marco que importa. Requisitos que o spike (MT-002) descobriu e
-  que precisam ser atendidos aqui: **(a)** o `AudioQueueStart` **bloqueia** esperando a
-  decisão do TCC sobre o microfone, logo não pode ser chamado de uma thread que precise
-  continuar respondendo. **(b)** o TCC atribui permissão ao **processo responsável** pela
-  cadeia de lançamento — um Matraca lançado por outro processo herda as permissões dele, e
-  a `TCC.db` não ganha linha própria; isso decide como o app é iniciado e como o onboarding
-  pede permissão. **(c)** não há detecção de fala no spike (`RecordSeconds = 3.0`, fixo),
-  então os quatro modos e o VAD não são luxo — são o que faz o ditado terminar quando o
-  usuário termina. A carga do modelo e o estado do Whisper viraram cartão próprio
-  (MT-016). **Checkpoint:** fatias 1–4 verdes — casco assinado sem roubo de foco, config
-  a quente, TCC, event tap, entrega CGEvent literal e AudioQueue contínuo a 16 kHz somente
-  em memória, com cancelamento, flush e detecção de fluxo zerado. Ainda não dita. Próxima é
-  a fatia 5: conectar `toggle`, `hold`, `live` e `push` do Core ao teclado e ao AudioQueue. ·
-  `[2.0]` · G · importante
+- **MT-004** **Fase 2 — o Mac dita** — fatias 1–4 verdes: casco assinado sem roubo de
+  foco, config a quente, TCC, event tap, entrega CGEvent literal e AudioQueue contínuo a
+  16 kHz somente em memória. Ainda não dita. Próxima é a fatia 5: conectar `toggle`,
+  `hold`, `live` e `push` do Core ao teclado e ao AudioQueue. Depois faltam o backend
+  Whisper persistente (MT-016), pin/moldura e endurecimento; contrato completo em
+  [`PLANO-2.0.md`](PLANO-2.0.md). · `[2.0]` · G · importante
 
 ## 📋 A fazer
 
