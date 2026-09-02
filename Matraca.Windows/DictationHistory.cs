@@ -21,7 +21,7 @@ internal sealed class DictationHistory
     public DictationHistory(int maxItems)
     {
         _max = Math.Clamp(maxItems, 1, 5000);
-        _path = Path.Combine(Logger.DataDir, "history.json");
+        _path = AppPaths.Current().HistoryFile;
         Load();
     }
 
@@ -71,7 +71,7 @@ internal sealed class DictationHistory
     {
         try
         {
-            Directory.CreateDirectory(Logger.DataDir);
+            Directory.CreateDirectory(Path.GetDirectoryName(_path)!);
             File.WriteAllText(_path,
                 JsonSerializer.Serialize(_items, new JsonSerializerOptions { WriteIndented = true }));
         }

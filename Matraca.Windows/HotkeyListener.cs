@@ -2,17 +2,6 @@ using System.Runtime.InteropServices;
 
 namespace Matraca;
 
-/// <summary>Modificadores aceitos num atalho combinado (Ctrl+Alt+X).</summary>
-[Flags]
-internal enum KeyMods
-{
-    None = 0,
-    Ctrl = 1,
-    Alt = 2,
-    Shift = 4,
-    Win = 8,
-}
-
 /// <summary>
 /// Hook global de teclado (WH_KEYBOARD_LL). Necessario p/ capturar teclas incomuns
 /// (F13-F24, media keys) que RegisterHotKey nem sempre pega.
@@ -59,7 +48,11 @@ internal sealed class HotkeyListener : IDisposable
     public bool Suspended { get; set; }
 
     public HotkeyListener(Config cfg)
-        : this(cfg.DiscoverMode, cfg.HotkeyVk, cfg.HotkeyMods, cfg.PinHotkeyVk, cfg.PinHotkeyMods,
+        : this(cfg.DiscoverMode,
+               cfg.Hotkey == null ? 0 : WindowsHotkeyTranslator.ToVirtualKey(cfg.Hotkey),
+               cfg.Hotkey?.Modifiers ?? KeyMods.None,
+               cfg.PinHotkey == null ? 0 : WindowsHotkeyTranslator.ToVirtualKey(cfg.PinHotkey),
+               cfg.PinHotkey?.Modifiers ?? KeyMods.None,
                cfg.Mode == "hold" || cfg.Mode == "push") { }
 
     private HotkeyListener(bool discover, int targetVk, KeyMods targetMods,

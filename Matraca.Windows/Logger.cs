@@ -2,25 +2,19 @@ using System.Text;
 
 namespace Matraca;
 
-/// <summary>Log simples em arquivo ao lado do executavel (matraca.log).</summary>
+/// <summary>Log simples na pasta gravavel do usuario.</summary>
 internal static class Logger
 {
     private static readonly object _lock = new();
     private static readonly string _path = ResolvePath();
 
-    /// <summary>Pasta gravavel do usuario (%LOCALAPPDATA%\Matraca). Necessario porque, sob
-    /// uiAccess, o exe roda de Program Files em integridade media e nao escreve la.</summary>
-    public static readonly string DataDir =
-        Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "Matraca");
-
     private static string ResolvePath()
     {
         try
         {
-            var dir = Path.Combine(
-                Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "Matraca");
-            Directory.CreateDirectory(dir);
-            return Path.Combine(dir, "matraca.log");
+            var paths = AppPaths.Current();
+            Directory.CreateDirectory(paths.DataDirectory);
+            return paths.LogFile;
         }
         catch { return Path.Combine(AppContext.BaseDirectory, "matraca.log"); }
     }

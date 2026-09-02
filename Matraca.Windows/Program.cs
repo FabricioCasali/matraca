@@ -18,7 +18,7 @@ internal static class Program
             List<RuntimeLibrary>? order = gpu switch
             {
                 "cpu"    => new() { RuntimeLibrary.Cpu, RuntimeLibrary.CpuNoAvx },
-                "vulkan" => new() { RuntimeLibrary.Vulkan, RuntimeLibrary.Cpu, RuntimeLibrary.CpuNoAvx },
+                "gpu" => new() { RuntimeLibrary.Vulkan, RuntimeLibrary.Cpu, RuntimeLibrary.CpuNoAvx },
                 _        => null, // "auto": mantém a ordem padrão (GPU se houver, senão CPU)
             };
             if (order != null)
@@ -87,7 +87,7 @@ internal static class Program
     {
         try
         {
-            var modelPath = Environment.ExpandEnvironmentVariables(Config.LoadRaw().modelPath ?? "");
+            var modelPath = WindowsConfig.Load().ModelPath;
             if (modelPath.Length > 0 && File.Exists(modelPath)) return;
 
             Logger.Info($"Modelo nao encontrado ('{modelPath}'); abrindo a tela de primeiro uso.");
@@ -101,7 +101,7 @@ internal static class Program
     {
         try
         {
-            var cfg = Config.Load();
+            var cfg = WindowsConfig.Load();
             ApplyRuntimePreference(cfg.Gpu);
             using var reader = new NAudio.Wave.WaveFileReader(wavPath);
             var bytes = new byte[reader.Length];
@@ -130,7 +130,7 @@ internal static class Program
     {
         try
         {
-            var cfg = Config.Load();
+            var cfg = WindowsConfig.Load();
             ApplyRuntimePreference(cfg.Gpu);
             Whisper.net.Logger.LogProvider.AddLogger((level, msg) =>
                 Logger.Info($"[whisper:{level}] {msg?.Trim()}"));
@@ -219,7 +219,7 @@ internal sealed class TrayApp : ApplicationContext
 
     public TrayApp()
     {
-        _cfg = Config.Load();
+        _cfg = WindowsConfig.Load();
         _ui = SynchronizationContext.Current ?? new WindowsFormsSynchronizationContext();
         Program.ApplyRuntimePreference(_cfg.Gpu);
         Touch();
@@ -274,7 +274,7 @@ internal sealed class TrayApp : ApplicationContext
         h.KeyDiscovered += OnKeyDiscovered;
         h.PinToggled += OnPinToggled;
         h.Start();
-        if (_cfg.PinHotkeyVk != 0)
+        if (_cfg.PinHotkey != null)
             Logger.Info($"Fixar janela de destino: tecla {_cfg.PinHotkeyName}.");
         return h;
     }
@@ -662,7 +662,7 @@ internal sealed class TrayApp : ApplicationContext
         if (vk == _lastDiscovered && mods == _lastDiscoveredMods) return;
         _lastDiscovered = vk;
         _lastDiscoveredMods = mods;
-        string name = Config.FormatHotkey(vk, mods);
+        string name = WindowsHotkeyTranslator.Format(vk, mods);
         Logger.Info($"Tecla detectada: vk=0x{vk:X2} ({vk}) mods={mods} -> atalho sugerido: {name}");
         _ui.Post(_ => Balloon("Tecla detectada",
             $"Codigo: 0x{vk:X2} ({vk})  |  atalho: {name}\n" +
@@ -679,7 +679,7 @@ internal sealed class TrayApp : ApplicationContext
         menu.Items.Add(new ToolStripSeparator());
         menu.Items.Add("Abrir matraca.log", null, (_, _) =>
         {
-            try { System.Diagnostics.Process.Start("notepad.exe", Path.Combine(Logger.DataDir, "matraca.log")); }
+            try { System.Diagnostics.Process.Start("notepad.exe", WindowsConfig.Paths.LogFile); }
             catch { }
         });
         menu.Items.Add("Abrir pasta de config", null, (_, _) =>
@@ -688,8 +688,8 @@ internal sealed class TrayApp : ApplicationContext
             // fallback de primeira execucao (e sob uiAccess nem e' gravavel).
             try
             {
-                Directory.CreateDirectory(Logger.DataDir);
-                System.Diagnostics.Process.Start("explorer.exe", Logger.DataDir);
+                Directory.CreateDirectory(WindowsConfig.Paths.DataDirectory);
+                System.Diagnostics.Process.Start("explorer.exe", WindowsConfig.Paths.DataDirectory);
             }
             catch (Exception ex) { Logger.Warn("Falha ao abrir a pasta de config: " + ex.Message); }
         });
@@ -731,7 +731,7 @@ internal sealed class TrayApp : ApplicationContext
     private void ApplyConfig()
     {
         var old = _cfg;
-        try { _cfg = Config.Load(); }
+        try { _cfg = WindowsConfig.Load(); }
         catch (Exception ex)
         {
             Logger.Error("Falha ao recarregar a config", ex);
@@ -739,9 +739,9 @@ internal sealed class TrayApp : ApplicationContext
             return;
         }
 
-        if (_cfg.HotkeyVk != old.HotkeyVk || _cfg.HotkeyMods != old.HotkeyMods ||
-            _cfg.PinHotkeyVk != old.PinHotkeyVk || _cfg.PinHotkeyMods != old.PinHotkeyMods ||
-            _cfg.DiscoverMode != old.DiscoverMode)
+        if (_cfg.Hotkey != old.Hotkey || _cfg.PinHotkey != old.PinHotkey ||
+            _cfg.DiscoverMode != old.DiscoverMode ||
+            _cfg.HotkeyNeedsKeyUp != old.HotkeyNeedsKeyUp)
         {
             try { _hotkey.Dispose(); } catch { }
             _hotkey = BuildHotkey();

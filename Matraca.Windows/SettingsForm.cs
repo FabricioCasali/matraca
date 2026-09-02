@@ -90,12 +90,11 @@ internal sealed class SettingsForm : Form
     public SettingsForm(HotkeyListener? mainHotkey)
     {
         _mainHotkey = mainHotkey;
-        var cfg = Config.Load();
-        var raw = Config.LoadRaw();
+        var cfg = WindowsConfig.Load();
+        var raw = WindowsConfig.LoadRaw();
 
-        _hotkeyValue = cfg.DiscoverMode ? "discover" : Config.FormatHotkey(cfg.HotkeyVk, cfg.HotkeyMods);
-        _pinHotkeyValue = cfg.PinHotkeyVk == 0
-            ? "" : Config.FormatHotkey(cfg.PinHotkeyVk, cfg.PinHotkeyMods);
+        _hotkeyValue = cfg.HotkeyName;
+        _pinHotkeyValue = cfg.PinHotkeyName;
         _borderColor = ParseColorSafe(cfg.FocusBorderColor, 0xE81123);
         _borderColorBusy = ParseColorSafe(cfg.FocusBorderColorBusy, 0xFFB900);
         _borderColorPinned = ParseColorSafe(cfg.FocusBorderColorPinned, 0x0078D4);
@@ -129,7 +128,7 @@ internal sealed class SettingsForm : Form
         {
             ReadOnly = true,
             Width = 150,
-            Text = cfg.PinHotkeyVk == 0 ? PinOffLabel : cfg.PinHotkeyName,
+            Text = cfg.PinHotkey == null ? PinOffLabel : cfg.PinHotkeyName,
         };
         _pinCaptureBtn = new Button { Text = "Capturar...", AutoSize = true };
         _pinCaptureBtn.Click += (_, _) => ToggleCapture(pin: true);
@@ -287,8 +286,8 @@ internal sealed class SettingsForm : Form
         AddRow(gModel, "Modelo Whisper (.bin)", modelPanel);
 
         _gpuBox = new ComboBox { DropDownStyle = ComboBoxStyle.DropDownList, Width = 120 };
-        _gpuBox.Items.AddRange(new object[] { "auto", "vulkan", "cpu" });
-        _gpuBox.SelectedItem = cfg.Gpu is "vulkan" or "cpu" ? cfg.Gpu : "auto";
+        _gpuBox.Items.AddRange(new object[] { "auto", "gpu", "cpu" });
+        _gpuBox.SelectedItem = cfg.Gpu is "gpu" or "cpu" ? cfg.Gpu : "auto";
         AddRow(gModel, "Processamento", _gpuBox);
 
         _idleUnloadBox = NewNumeric(0m, 240m, cfg.IdleUnloadMinutes, 1m, 0);
@@ -472,18 +471,19 @@ internal sealed class SettingsForm : Form
     {
         if (_capture == null) return;   // ja' cancelada entre o hook e este ponto
 
-        Logger.Info($"Captura de tecla: vk=0x{vk:X2} ({vk}) mods={mods} -> {Config.FormatHotkey(vk, mods)}");
+        Logger.Info($"Captura de tecla: vk=0x{vk:X2} ({vk}) mods={mods} -> {WindowsHotkeyTranslator.Format(vk, mods)}");
 
         if (vk == 0x1B && mods == KeyMods.None) { RestoreDisplay(_capturingPin); StopCapture(); return; } // Esc cancela
 
-        var combo = Config.FormatHotkey(vk, mods);
+        var combo = WindowsHotkeyTranslator.Format(vk, mods);
         // revalida: letra/dígito solto é recusado, então não deixa salvar um atalho morto
-        if (Config.ParseHotkey(combo).vk == 0)
+        if (!HotkeyParser.TryParse(combo, out _) &&
+            WindowsHotkeyTranslator.ParseCompatibility(combo) == null)
         {
             MessageBox.Show(this,
                 $"'{combo}' não serve como atalho: teclas de digitação sozinhas parariam de "
               + "funcionar no sistema inteiro. Junte um modificador (ex.: Ctrl+Alt+"
-              + Config.NameForVk(vk) + ") ou use uma tecla dedicada como F13–F24.",
+              + WindowsHotkeyTranslator.NameForVirtualKey(vk) + ") ou use uma tecla dedicada como F13–F24.",
                 "Matraca", MessageBoxButtons.OK, MessageBoxIcon.Warning);
             RestoreDisplay(_capturingPin);
             StopCapture();
@@ -575,7 +575,7 @@ internal sealed class SettingsForm : Form
         using var dlg = new OpenFileDialog
         {
             Filter = "Modelo Whisper ggml (*.bin)|*.bin|Todos (*.*)|*.*",
-            FileName = Environment.ExpandEnvironmentVariables(_modelPathBox.Text),
+            FileName = WindowsConfig.Paths.ResolvePath(_modelPathBox.Text),
         };
         if (dlg.ShowDialog(this) == DialogResult.OK) _modelPathBox.Text = dlg.FileName;
     }
@@ -594,7 +594,7 @@ internal sealed class SettingsForm : Form
 
         try
         {
-            Config.SaveRaw(new Config.RawConfig
+            WindowsConfig.SaveRaw(new RawConfig
             {
                 modelPath = _modelPathBox.Text.Trim(),
                 language = string.IsNullOrWhiteSpace(_languageBox.Text) ? "pt" : _languageBox.Text.Trim(),

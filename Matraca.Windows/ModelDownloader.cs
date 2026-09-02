@@ -23,7 +23,7 @@ internal static class ModelDownloader
     };
 
     /// <summary>Onde os modelos baixados ficam: %LOCALAPPDATA%\Matraca\models.</summary>
-    public static string ModelsDir => Path.Combine(Logger.DataDir, "models");
+    public static string ModelsDir => AppPaths.Current().ModelsDirectory;
 
     public static string PathFor(ModelInfo m) => Path.Combine(ModelsDir, m.FileName);
 

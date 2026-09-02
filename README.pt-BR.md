@@ -105,7 +105,7 @@ O mesmo arquivo pode ser editado na mão (`appsettings.json`):
 | `vadThreshold` | `0.012` | (modo live) energia mínima (RMS) p/ considerar que há fala. É o valor de fallback, usado quando o microfone atual não tem entrada em `micSensitivity`. |
 | `micSensitivity` | `{}` | Sensibilidade por microfone (`{"Nome do mic": 0.02}`). Microfones têm níveis de saída bem diferentes, então um valor único está errado pra pelo menos um deles. Ajuste na tela de configurações: fale e arraste a marca sobre o medidor ao vivo — a barra fica verde quando o Matraca considera que é fala. |
 | `idleUnloadMinutes` | `5` | Descarrega o modelo (libera ~1,5 GB de VRAM) após N min sem uso. Recarrega sozinho no próximo ditado. `0` = nunca descarrega. |
-| `gpu` | `auto` | `auto` (GPU se houver, senão CPU), `vulkan` (força GPU) ou `cpu` (força CPU). |
+| `gpu` | `auto` | `auto` (GPU se houver, senão CPU), `gpu` (força o backend de GPU da plataforma) ou `cpu` (força CPU). Valores legados `vulkan` seguem aceitos no Windows. |
 | `focusBorder` | `true` | Desenha uma moldura colorida na janela em foco enquanto grava — mostra **onde o texto vai ser colado** (útil quando um pop-up rouba o foco). A moldura segue o foco em tempo real e não interfere em cliques nem no foco. |
 | `focusBorderColor` | `#E81123` | Cor da moldura (hex HTML). |
 | `focusBorderThickness` | `4` | Espessura da moldura em pixels (1–40). |
@@ -132,7 +132,7 @@ precisa da GPU pra outra coisa:
   (~2–8s) quando você voltar a ditar. É o comportamento padrão (5 min).
 - **`gpu: "cpu"`** (manual): roda **100% na CPU**, VRAM zero — porém a transcrição fica **lenta
   (~13s por frase)** com o modelo large. Bom pra quando a GPU está totalmente ocupada. Trocar entre
-  `cpu`/`vulkan`/`auto` exige **reiniciar o app** (o runtime nativo é fixado por processo).
+  `cpu`/`gpu`/`auto` exige **reiniciar o app** (o runtime nativo é fixado por processo).
 
 > Durante a transcrição o uso de GPU é só uma **rajada de ~0,3s**; não é carga contínua.
 

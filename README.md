@@ -108,7 +108,7 @@ The same file can be edited by hand (`appsettings.json`):
 | `vadThreshold` | `0.012` | (live mode) minimum energy (RMS) to count as speech. Fallback value, used when the current microphone has no entry in `micSensitivity`. |
 | `micSensitivity` | `{}` | Per-microphone sensitivity (`{"Mic name": 0.02}`). Different mics have very different output levels, so one global value is wrong for at least one of them. Set it in the settings window: speak and drag the marker on the live meter — the bar turns green when Matraca counts it as speech. |
 | `idleUnloadMinutes` | `5` | Unloads the model (frees ~1.5 GB of VRAM) after N idle minutes. Reloads automatically on the next dictation. `0` = never unload. |
-| `gpu` | `auto` | `auto` (GPU if available, else CPU), `vulkan` (force GPU) or `cpu` (force CPU). |
+| `gpu` | `auto` | `auto` (GPU if available, else CPU), `gpu` (force the platform GPU backend) or `cpu` (force CPU). Legacy `vulkan` values remain accepted on Windows. |
 | `focusBorder` | `true` | Draws a colored border around the focused window while recording — shows **where the text will be pasted** (handy when a pop-up steals focus). Follows focus in real time and never interferes with clicks or focus. |
 | `focusBorderColor` | `#E81123` | Border color (HTML hex). |
 | `focusBorderThickness` | `4` | Border thickness in pixels (1–40). |
@@ -135,7 +135,7 @@ something else:
   reloads (~2–8s) when you dictate again. This is the default (5 min).
 - **`gpu: "cpu"`** (manual): runs **100% on the CPU**, zero VRAM — but transcription becomes **slow
   (~13s per sentence)** with the large model. Good for when the GPU is fully busy. Switching between
-  `cpu`/`vulkan`/`auto` requires **restarting the app** (the native runtime is fixed per process).
+  `cpu`/`gpu`/`auto` requires **restarting the app** (the native runtime is fixed per process).
 
 > During transcription the GPU load is just a **~0.3s burst**; it's not continuous.
 

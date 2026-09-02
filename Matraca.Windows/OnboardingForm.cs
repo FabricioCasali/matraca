@@ -237,13 +237,14 @@ internal sealed class OnboardingForm : Form
     {
         if (vk == 0x1B && mods == KeyMods.None) { StopCapture(); return; }   // Esc cancela
 
-        var combo = Config.FormatHotkey(vk, mods);
-        if (Config.ParseHotkey(combo).vk == 0)
+        var combo = WindowsHotkeyTranslator.Format(vk, mods);
+        if (!HotkeyParser.TryParse(combo, out _) &&
+            WindowsHotkeyTranslator.ParseCompatibility(combo) == null)
         {
             MessageBox.Show(this,
                 $"'{combo}' não serve como atalho: teclas de digitação sozinhas parariam de "
               + "funcionar no sistema inteiro. Junte um modificador (ex.: Ctrl+Alt+"
-              + Config.NameForVk(vk) + ") ou use uma tecla dedicada como F13–F24.",
+              + WindowsHotkeyTranslator.NameForVirtualKey(vk) + ") ou use uma tecla dedicada como F13–F24.",
                 "Matraca", MessageBoxButtons.OK, MessageBoxIcon.Warning);
             StopCapture();
             return;
@@ -276,10 +277,10 @@ internal sealed class OnboardingForm : Form
         try
         {
             // preserva o que ja' existir no arquivo; so' preenche o que esta tela resolve
-            var raw = Config.LoadRaw();
+            var raw = WindowsConfig.LoadRaw();
             raw.modelPath = _modelPath;
             raw.hotkey = _hotkeyValue;
-            Config.SaveRaw(raw);
+            WindowsConfig.SaveRaw(raw);
             DialogResult = DialogResult.OK;
             Close();
         }

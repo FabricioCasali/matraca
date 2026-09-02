@@ -19,4 +19,12 @@
     <ProjectReference Include="../../Matraca.Core/Matraca.Core.csproj" />
   </ItemGroup>
 
+  <ItemGroup>
+    <Compile Include="../../Matraca.Windows/WindowsHotkeyTranslator.cs"
+             Link="Compatibility/WindowsHotkeyTranslator.cs" />
+    <None Include="../../Matraca.Windows/appsettings.json"
+          Link="packaged-appsettings.json"
+          CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
+
 </Project>
