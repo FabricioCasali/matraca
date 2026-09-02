@@ -3,12 +3,13 @@ using Matraca.Mac.Config;
 using Matraca.Mac.Platform;
 using Matraca.Mac.Platform.Interop;
 using Matraca.Mac.Platform.Keyboard;
+using Matraca.Mac.Platform.Text;
 
 namespace Matraca.Mac;
 
 internal static class Program
 {
-    private static int Main()
+    private static int Main(string[] args)
     {
         if (!OperatingSystem.IsMacOS())
             throw new PlatformNotSupportedException("Matraca.Mac requires macOS.");
@@ -16,6 +17,9 @@ internal static class Program
         Logger.Initialize(AppPaths.Current());
         try
         {
+            if (args.Length > 0 && args[0] == "--delivery-smoke")
+                return RunDeliverySmoke(args);
+
             Frameworks.EnsureLoaded();
             ObjCClasses.Warm();
             using var pool = AutoreleasePool.New();
@@ -57,6 +61,38 @@ internal static class Program
             Logger.Error("Falha fatal no Matraca.Mac", exception);
             return 1;
         }
+    }
+
+    private static int RunDeliverySmoke(string[] args)
+    {
+        if (args.Length != 5
+            || !bool.TryParse(args[2], out bool pressEnter)
+            || !int.TryParse(args[3], out int delayMs)
+            || delayMs < 0)
+        {
+            Logger.Error("Uso: --delivery-smoke <texto> <true|false> <delay-ms> <resultado>.");
+            return 2;
+        }
+
+        Frameworks.EnsureLoaded();
+        ObjCClasses.Warm();
+        using var pool = AutoreleasePool.New();
+        if (!Accessibility.IsTrusted(prompt: false))
+        {
+            File.WriteAllText(args[4], TextDeliveryResult.Failed.ToString());
+            Logger.Error("Smoke de entrega sem permissao de Acessibilidade.");
+            return 1;
+        }
+
+        Thread.Sleep(delayMs);
+        using var sink = new MacTextSink();
+        TextDeliveryResult result = sink.DeliverAsync(new TextDeliveryRequest(
+                args[1],
+                pressEnter,
+                TextDeliveryMethod.Unicode))
+            .GetAwaiter().GetResult();
+        File.WriteAllText(args[4], result.ToString());
+        return result == TextDeliveryResult.Delivered ? 0 : 1;
     }
 
     private static MacKeyboardHook? TryStartKeyboard(

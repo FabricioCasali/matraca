@@ -22,9 +22,9 @@ O desenho da frente 2.0 está em [`PLANO-2.0.md`](PLANO-2.0.md).
   pede permissão. **(c)** não há detecção de fala no spike (`RecordSeconds = 3.0`, fixo),
   então os quatro modos e o VAD não são luxo — são o que faz o ditado terminar quando o
   usuário termina. A carga do modelo e o estado do Whisper viraram cartão próprio
-  (MT-016), assim como o foco e a entrega truncada (MT-017). Casco, bundle assinado,
-  política Accessory, config a quente, TCC e event tap estão de pé; próximo passo é a
-  entrega CGEvent e o gate MT-017. · `[2.0]` · G · importante
+  (MT-016). Casco, bundle assinado, política Accessory, config a quente, TCC, event tap e
+  entrega CGEvent confiável estão de pé; próximo passo é a captura contínua por
+  AudioQueue. · `[2.0]` · G · importante
 
 ## 📋 A fazer
 
@@ -37,12 +37,6 @@ O desenho da frente 2.0 está em [`PLANO-2.0.md`](PLANO-2.0.md).
   confiável, então 6–7 s é o custo possível de *toda* inicialização, não pedágio único.
   O estado do Whisper precisa nascer uma vez e viver enquanto o app viver. · `[2.0]` · M ·
   importante
-- **MT-017** **O alvo recebe menos do que o injetor entrega** — o log diz `digitados 39
-  caracteres em 4 eventos, 10 ms`; na tela o texto chega lento e truncado. **Não** é a lei 5
-  violada: a injeção roda na `t4`, fora da thread do tap. A suspeita é o ritmo — blocos de
-  20 unidades UTF-16 com pausa de 2 ms —, mas é hipótese, não medição, e o alvo importa (o
-  TextEdit se comporta diferente de um TUI em terminal). Precisa de investigação própria
-  antes de virar número na Fase 2. · `[2.0]` · M · importante
 - **MT-005** **Fase 3 — a UI unificada** — mockup navegável primeiro (o mockup **é** o
   app, não é descartável), depois o casco e as telas: config, microfone com espectro,
   histórico, onboarding e HUD. · `[2.0]` · G · importante

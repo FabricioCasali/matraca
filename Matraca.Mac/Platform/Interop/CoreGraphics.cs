@@ -19,6 +19,9 @@ internal static unsafe class CoreGraphics
     public const uint KeyboardEventAutorepeat = 8;
     public const uint KeyboardEventKeycode = 9;
     public const uint EventSourceUserData = 42;
+    public const uint HidEventTap = 0;
+    public const int HidSystemState = 1;
+    public const ushort ReturnKey = 0x24;
     public const ulong KeyDownUpMask = (1UL << (int)KeyDown) | (1UL << (int)KeyUp);
 
     [DllImport(CoreGraphicsFramework)]
@@ -40,6 +43,27 @@ internal static unsafe class CoreGraphics
 
     [DllImport(CoreGraphicsFramework)]
     public static extern ulong CGEventGetFlags(IntPtr @event);
+
+    [DllImport(CoreGraphicsFramework)]
+    public static extern IntPtr CGEventSourceCreate(int stateId);
+
+    [DllImport(CoreGraphicsFramework)]
+    public static extern IntPtr CGEventCreateKeyboardEvent(
+        IntPtr source,
+        ushort virtualKey,
+        [MarshalAs(UnmanagedType.I1)] bool keyDown);
+
+    [DllImport(CoreGraphicsFramework)]
+    public static extern void CGEventKeyboardSetUnicodeString(
+        IntPtr @event,
+        nuint stringLength,
+        ushort* unicodeString);
+
+    [DllImport(CoreGraphicsFramework)]
+    public static extern void CGEventSetIntegerValueField(IntPtr @event, uint field, long value);
+
+    [DllImport(CoreGraphicsFramework)]
+    public static extern void CGEventPost(uint tap, IntPtr @event);
 
     [DllImport(CoreFoundationFramework)]
     public static extern IntPtr CFMachPortCreateRunLoopSource(

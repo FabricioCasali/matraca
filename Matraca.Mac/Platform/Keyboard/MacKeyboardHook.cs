@@ -6,8 +6,6 @@ namespace Matraca.Mac.Platform.Keyboard;
 
 internal sealed unsafe class MacKeyboardHook : IKeyboardHook
 {
-    public const long InjectionTag = 0x4D54_5243;
-
     private const int DictationDown = 1;
     private const int DictationUp = 2;
     private const int Pin = 3;
@@ -110,7 +108,7 @@ internal sealed unsafe class MacKeyboardHook : IKeyboardHook
     private IntPtr Process(uint type, IntPtr @event)
     {
         if (CoreGraphics.CGEventGetIntegerValueField(@event, CoreGraphics.EventSourceUserData)
-            == InjectionTag)
+            == MacInput.InjectionTag)
             return @event;
 
         if (type is CoreGraphics.TapDisabledByTimeout or CoreGraphics.TapDisabledByUserInput)
