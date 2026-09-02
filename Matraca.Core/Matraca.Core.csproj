@@ -7,4 +7,9 @@
     <RootNamespace>Matraca.Core</RootNamespace>
   </PropertyGroup>
 
+  <ItemGroup>
+    <PackageReference Include="Anthropic" Version="12.39.0" />
+    <PackageReference Include="Whisper.net" Version="1.9.1" />
+  </ItemGroup>
+
 </Project>

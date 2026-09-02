@@ -33,6 +33,8 @@ internal static class Program
     [STAThread]
     private static void Main(string[] args)
     {
+        Logger.Initialize(WindowsConfig.Paths);
+
         // Modo de teste/diagnostico: transcreve um WAV (16 kHz mono PCM16) e sai.
         // Uso: Matraca.exe --transcribe caminho.wav  -> resultado vai pro matraca.log
         if (args.Length >= 2 && args[0] == "--transcribe")
@@ -234,7 +236,7 @@ internal sealed class TrayApp : ApplicationContext
 
         _border = BuildBorder();
         _postProcessor = TextPostProcessor.TryCreate(_cfg);
-        _history = _cfg.History ? new DictationHistory(_cfg.HistoryMaxItems) : null;
+        _history = _cfg.History ? new DictationHistory(WindowsConfig.Paths, _cfg.HistoryMaxItems) : null;
         _hotkey = BuildHotkey();
 
         if (_cfg.DiscoverMode)
@@ -760,7 +762,7 @@ internal sealed class TrayApp : ApplicationContext
 
         if (_cfg.History != old.History || _cfg.HistoryMaxItems != old.HistoryMaxItems)
         {
-            _history = _cfg.History ? new DictationHistory(_cfg.HistoryMaxItems) : null;
+            _history = _cfg.History ? new DictationHistory(WindowsConfig.Paths, _cfg.HistoryMaxItems) : null;
             // o item "Histórico de ditados..." so' existe quando o recurso esta' ligado
             var oldMenu = _tray.ContextMenuStrip;
             _tray.ContextMenuStrip = BuildMenu();

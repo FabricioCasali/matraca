@@ -18,7 +18,7 @@ internal sealed class HistoryForm : Form
 
     private readonly ListBox _list;
     private readonly TextBox _detail;
-    private List<DictationHistory.Entry> _items;
+    private List<DictationHistoryEntry> _items;
 
     public HistoryForm(DictationHistory history, Config cfg, IntPtr returnTo)
     {
