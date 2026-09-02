@@ -214,6 +214,85 @@ notarização (que reabre a conversa do SignPath: o cert deles é Windows; no Ma
 com o teste do WebView2 Runtime no instalador. CI: a matriz do GitHub Actions ganha o
 runner `macos-14`.
 
+## Plano aprovado de execução — MT-003 + MT-004
+
+Registrado em 02/09/2026 para sobreviver à troca de sessão e compactação de contexto. O
+objetivo deste recorte é produzir um `.app` local, assinado e utilizável diariamente no M4,
+sem esperar a UI web, o `.dmg` ou a distribuição pública.
+
+### Decisões fixadas
+
+1. O projeto atual muda para `Matraca.Windows`; a raiz ganha `Matraca.sln`,
+   `Matraca.Core` e `tests/Matraca.Core.Tests`.
+2. As fronteiras de plataforma são exatamente cinco: `IKeyboardHook`, `IAudioCapture`,
+   `ITextSink`, `ITargetWindow` e `IShell`. Enumeração de áudio entra em
+   `IAudioCapture`; som e feedback entram em `IShell`.
+3. A configuração guarda nomes canônicos de tecla e aceleração (`auto`, `gpu`, `cpu`).
+   Valores Windows já persistidos continuam aceitos como aliases de compatibilidade.
+4. O primeiro Mac utilizável será um `.app` self-contained para `osx-arm64`, assinado com
+   `Matraca Dev`. `.dmg`, notarização e distribuição continuam na Fase 5.
+5. Uma sessão conserva o snapshot de configuração com que começou; alterações a quente
+   valem na próxima sessão. GPU↔CPU continua sendo a única troca que pode pedir reinício.
+6. MT-015, MT-016 e MT-017 são gates internos da MT-004: ela não fecha com foco roubado,
+   backend Metal recriado por ditado ou texto truncado.
+7. Cada fatia fecha com testes, build cruzado e commit local. `git push` continua proibido
+   sem pedido explícito.
+
+### MT-003 — fatias verdes
+
+1. **Estrutura:** criar a solution e os três projetos, mover o Windows sem alterar o
+   comportamento e atualizar assets, instalador e comandos de build.
+2. **Caminhos e configuração:** criar `AppPaths`, separar `Config`/`RawConfig`, fixar
+   defaults e introduzir hotkeys canônicas sem VK no Core.
+3. **Serviços portáveis:** mover logger, histórico, download de modelo, pós-processamento
+   e transcrição, eliminando tipos aninhados quando os arquivos forem tocados.
+4. **Áudio puro:** separar NAudio de RMS/VAD/FFT e caracterizar por teste o pré-roll, os
+   cortes por pausa, o corte suave, o limite duro e o flush final.
+5. **Fronteiras Windows:** implementar as cinco portas, sem `HWND`, WinForms, NAudio ou
+   P/Invoke vazando para o Core e sem callback público na thread do hook.
+6. **Pipeline:** mover os quatro modos, pin/fallback, fila única de entrega, histórico,
+   pós-processamento, `autoEnter`, lifecycle do modelo e hot reload para o Core.
+
+A MT-003 fecha somente com testes reais descobertos por `dotnet test`, Core sem dependência
+de plataforma e Windows compilando sobre ele. O teste manual Windows continua sendo do
+Fabricio; o Mac não finge essa cobertura.
+
+### MT-004 — fatias verdes
+
+1. **Casco e foco:** `Matraca.Mac`, política Accessory no bootstrap, `NSStatusItem`, bundle
+   assinado e nenhum roubo de foco (MT-015).
+2. **Config, TCC e teclado:** watcher robusto do JSON, permissões visíveis, event tap com
+   key-down/up, modificadores, auto-repeat, marca própria e religamento.
+3. **Entrega:** writer CGEvent Unicode medido em TextEdit, terminal, navegador e Electron;
+   texto e Enter serializados e comparação literal no alvo (MT-017).
+4. **Áudio:** AudioQueue contínuo em worker próprio, frames de 16 kHz somente em memória,
+   cancelamento, flush e detecção de permissão negada/fluxo de zeros.
+5. **Modos:** conectar `toggle`, `hold`, `live` e `push` do Core ao event tap e AudioQueue.
+6. **Whisper:** carregar Metal em background e manter processor/backend vivos entre
+   ditados, com reload atômico e estado visível (MT-016).
+7. **Pin e moldura:** `AXUIElement`, entrega com foco/restauração, `nofocus` somente quando
+   confirmado, overlay click-through e tratamento de alvo morto/Space/monitores.
+8. **Endurecimento:** histórico, pós-processamento, clipboard, beep, instância única,
+   sleep/wake, troca de microfone, shutdown drenando filas e soak.
+
+O fim da fatia 6 é o **marco de uso pessoal**: o Mac já dita pelos quatro modos, por JSON,
+com entrega confiável. A MT-004 só fecha após pin, moldura e endurecimento.
+
+### Gates de liberação
+
+```bash
+dotnet test Matraca.sln -c Release
+dotnet build Matraca.sln -c Release -p:EnableWindowsTargeting=true
+dotnet build Matraca.Mac/Matraca.Mac.csproj -c Release
+codesign --verify --deep --strict Matraca.app
+```
+
+O roteiro manual final cobre permissões negadas/concedidas, quatro modos, TextEdit,
+terminal, navegador e Electron, Unicode e texto longo, ditado de 60–120 s, pin/foco,
+config a quente, uma única inicialização Metal, ausência de áudio em disco/rede e vinte
+rodadas de latência quente. Log que diz “digitado” sem igualdade literal no alvo não é
+evidência.
+
 ## Arquivos que mudam
 
 O grosso é movimentação, não reescrita. Os que **atravessam sem mudar**:
