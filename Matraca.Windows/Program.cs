@@ -113,16 +113,22 @@ internal static class Program
                 samples[i] = BitConverter.ToInt16(bytes, i * 2) / 32768f;
 
             using var t = new Transcriber(cfg.ModelPath, cfg.Language, cfg.Vocabulary);
-            var live = new LiveDictation();
+            var detector = new VoiceActivityDetector();
             int idx = 0;
-            live.SegmentReady += seg =>
+            detector.SegmentReady += seg =>
             {
                 int n = ++idx;
                 string text = t.TranscribeAsync(seg).GetAwaiter().GetResult();
                 Logger.Info($"[LIVE-TESTE] chunk {n} (~{seg.Length / 16000.0:F1}s): \"{text.Trim()}\"");
             };
             Logger.Info($"[LIVE-TESTE] silenceMs={cfg.SilenceMs} threshold={cfg.EffectiveVadThreshold} phraseMax={cfg.PhraseMaxSeconds}s");
-            live.FeedForTest(samples, cfg.EffectiveVadThreshold, cfg.SilenceMs, cfg.PhraseMaxSeconds);
+            detector.Start(cfg.EffectiveVadThreshold, cfg.SilenceMs, cfg.PhraseMaxSeconds);
+            for (int offset = 0; offset < samples.Length; offset += VoiceActivityDetector.FrameSampleCount)
+            {
+                int length = Math.Min(VoiceActivityDetector.FrameSampleCount, samples.Length - offset);
+                detector.Feed(samples.AsSpan(offset, length));
+            }
+            detector.Stop();
             Logger.Info($"[LIVE-TESTE] total de chunks: {idx}");
         }
         catch (Exception ex) { Logger.Error("[LIVE-TESTE] Falhou", ex); }

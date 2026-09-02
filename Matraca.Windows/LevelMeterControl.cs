@@ -1,98 +1,6 @@
 using System.Drawing.Drawing2D;
-using NAudio.Wave;
 
 namespace Matraca;
-
-/// <summary>
-/// Escuta o microfone so' para medir o nivel (RMS), sem gravar nada. Serve a tela de
-/// configuracoes: o usuario ve a propria voz batendo na barra e escolhe o limiar olhando,
-/// em vez de adivinhar um numero.
-///
-/// O nivel fica num campo lido por um Timer da UI em vez de disparar evento por frame:
-/// sao ~33 frames por segundo e cada Invoke atravessando threads so' geraria fila.
-/// </summary>
-internal sealed class MicMonitor : IDisposable
-{
-    private const int SampleRate = 16000;
-    private const int FrameMs = 30;
-
-    /// <summary>Queda do pico por segundo (fracao da escala). Da' tempo de ver o pico da silaba.</summary>
-    private const float PeakDecayPerSecond = 0.8f;
-
-    private WaveInEvent? _waveIn;
-    private float _level;      // RMS do ultimo frame
-    private float _peak;       // pico recente, com queda suave
-    private long _lastPeakTick;
-
-    public bool IsRunning { get; private set; }
-
-    /// <summary>RMS instantaneo (0..1).</summary>
-    public float Level => Volatile.Read(ref _level);
-
-    /// <summary>Pico recente (0..1), com queda suave — o que a barra mostra como marca.</summary>
-    public float Peak => Volatile.Read(ref _peak);
-
-    /// <summary>Sobe a escuta no dispositivo informado. Falha e' silenciosa (so' log).</summary>
-    public bool Start(int deviceNumber)
-    {
-        Stop();
-        try
-        {
-            _waveIn = new WaveInEvent
-            {
-                DeviceNumber = deviceNumber,
-                WaveFormat = new WaveFormat(SampleRate, 16, 1),
-                BufferMilliseconds = FrameMs,
-            };
-            _waveIn.DataAvailable += OnData;
-            _waveIn.StartRecording();
-            _lastPeakTick = Environment.TickCount64;
-            IsRunning = true;
-            return true;
-        }
-        catch (Exception ex)
-        {
-            Logger.Warn($"Medidor de microfone nao subiu (dispositivo {deviceNumber}): {ex.Message}");
-            Stop();
-            return false;
-        }
-    }
-
-    private void OnData(object? sender, WaveInEventArgs e)
-    {
-        int n = e.BytesRecorded / 2;
-        if (n == 0) return;
-
-        double sumSq = 0;
-        for (int i = 0; i < n; i++)
-        {
-            float s = BitConverter.ToInt16(e.Buffer, i * 2) / 32768f;
-            sumSq += s * s;
-        }
-        // mesmo calculo do VAD em LiveDictation.Feed: o que a barra mostra e' o que decide
-        float rms = (float)Math.Sqrt(sumSq / n);
-        Volatile.Write(ref _level, rms);
-
-        long now = Environment.TickCount64;
-        float decayed = Volatile.Read(ref _peak) - PeakDecayPerSecond * (now - _lastPeakTick) / 1000f;
-        _lastPeakTick = now;
-        Volatile.Write(ref _peak, Math.Max(rms, Math.Max(0f, decayed)));
-    }
-
-    public void Stop()
-    {
-        IsRunning = false;
-        if (_waveIn == null) return;
-        _waveIn.DataAvailable -= OnData;
-        try { _waveIn.StopRecording(); } catch { }
-        try { _waveIn.Dispose(); } catch { }
-        _waveIn = null;
-        Volatile.Write(ref _level, 0f);
-        Volatile.Write(ref _peak, 0f);
-    }
-
-    public void Dispose() => Stop();
-}
 
 /// <summary>
 /// Barra de nivel do microfone com a marca do limiar. Verde = o VAD consideraria isto fala;
@@ -134,13 +42,13 @@ internal sealed class LevelMeterControl : Control
     public bool Offline { get; set; }
 
     /// <summary>
-    /// Escala com raiz quadrada: em escala linear tudo o que interessa (0,005–0,05) ficaria
+    /// Escala com raiz quadrada: em escala linear tudo o que interessa (0,005-0,05) ficaria
     /// espremido no canto esquerdo e a barra nao ajudaria a escolher nada.
     /// </summary>
     public static float Frac(float rms)
         => (float)Math.Sqrt(Math.Clamp(rms, 0f, FullScale) / FullScale);
 
-    /// <summary>Inversa de <see cref="Frac"/> — usada pelo slider do limiar.</summary>
+    /// <summary>Inversa de <see cref="Frac"/> - usada pelo slider do limiar.</summary>
     public static float Rms(float frac)
     {
         frac = Math.Clamp(frac, 0f, 1f);
@@ -166,7 +74,6 @@ internal sealed class LevelMeterControl : Control
                 if (fill > 2)
                 {
                     var bar = new Rectangle(track.X, track.Y, fill, track.Height);
-                    // acima do limiar o VAD abriria a frase: verde. Abaixo, cinza-azulado.
                     bool speech = _level > _threshold;
                     using var brush = new LinearGradientBrush(
                         bar,
@@ -191,7 +98,6 @@ internal sealed class LevelMeterControl : Control
             g.DrawPath(edge, path);
         }
 
-        // marca do limiar: linha cheia + pegador triangular em cima
         int tx = track.X + (int)(track.Width * Frac(_threshold));
         tx = Math.Clamp(tx, track.X, track.Right - 1);
         using (var pen = new Pen(Color.FromArgb(0xC5, 0x0F, 0x1F), 2f))
