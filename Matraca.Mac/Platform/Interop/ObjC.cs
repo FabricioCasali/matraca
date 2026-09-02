@@ -12,11 +12,28 @@ internal static class ObjC
     [DllImport(Library, CharSet = CharSet.Ansi)]
     public static extern IntPtr sel_registerName(string name);
 
+    [DllImport(Library, CharSet = CharSet.Ansi)]
+    public static extern IntPtr objc_allocateClassPair(IntPtr superclass, string name, nuint extraBytes);
+
+    [DllImport(Library)]
+    public static extern void objc_registerClassPair(IntPtr cls);
+
+    [DllImport(Library, CharSet = CharSet.Ansi)]
+    [return: MarshalAs(UnmanagedType.I1)]
+    public static extern bool class_addMethod(IntPtr cls, IntPtr selector, IntPtr implementation, string types);
+
     [DllImport(Library, EntryPoint = "objc_msgSend")]
     public static extern IntPtr Send(IntPtr receiver, IntPtr selector);
 
     [DllImport(Library, EntryPoint = "objc_msgSend")]
     public static extern IntPtr Send(IntPtr receiver, IntPtr selector, IntPtr argument);
+
+    [DllImport(Library, EntryPoint = "objc_msgSend")]
+    public static extern IntPtr Send(
+        IntPtr receiver,
+        IntPtr selector,
+        IntPtr first,
+        IntPtr second);
 
     [DllImport(Library, EntryPoint = "objc_msgSend")]
     public static extern IntPtr Send(
@@ -44,6 +61,26 @@ internal static class ObjC
     [DllImport(Library, EntryPoint = "objc_msgSend")]
     [return: MarshalAs(UnmanagedType.I1)]
     public static extern bool SendBoolNInt(IntPtr receiver, IntPtr selector, nint value);
+
+    [DllImport(Library, EntryPoint = "objc_msgSend")]
+    public static extern IntPtr SendWithBool(
+        IntPtr receiver,
+        IntPtr selector,
+        [MarshalAs(UnmanagedType.I1)] bool value);
+
+    [DllImport(Library, EntryPoint = "objc_msgSend")]
+    public static extern void SendVoidBool(
+        IntPtr receiver,
+        IntPtr selector,
+        [MarshalAs(UnmanagedType.I1)] bool value);
+
+    [DllImport(Library, EntryPoint = "objc_msgSend")]
+    public static extern void SendPerformOnMain(
+        IntPtr receiver,
+        IntPtr selector,
+        IntPtr selectorToRun,
+        IntPtr argument,
+        [MarshalAs(UnmanagedType.I1)] bool waitUntilDone);
 
     public static IntPtr New(IntPtr cls)
         => Send(Send(cls, ObjCSelectors.Alloc), ObjCSelectors.Init);

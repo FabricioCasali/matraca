@@ -35,5 +35,5 @@ while IFS= read -r -d '' file; do
 done < <(find "$APP/Contents/MacOS" -type f ! -name 'Matraca' -print0)
 
 codesign -f -s "$IDENTITY" --timestamp=none --identifier "$BUNDLE_ID" "$APP"
-codesign --verify --deep --strict --verbose=2 "$APP"
+codesign --verify --deep --strict "$APP"
 echo "$APP"

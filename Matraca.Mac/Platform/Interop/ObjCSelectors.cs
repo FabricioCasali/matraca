@@ -8,8 +8,14 @@ internal static class ObjCSelectors
     public static readonly IntPtr Init = Register("init");
     public static readonly IntPtr Release = Register("release");
     public static readonly IntPtr Drain = Register("drain");
+    public static readonly IntPtr PerformOnMainThread =
+        Register("performSelectorOnMainThread:withObject:waitUntilDone:");
+    public static readonly IntPtr Pump = Register("pump");
     public static readonly IntPtr StringWithUTF8String = Register("stringWithUTF8String:");
     public static readonly IntPtr UTF8String = Register("UTF8String");
+    public static readonly IntPtr NumberWithBool = Register("numberWithBool:");
+    public static readonly IntPtr DictionaryWithObjectForKey =
+        Register("dictionaryWithObject:forKey:");
     public static readonly IntPtr SharedApplication = Register("sharedApplication");
     public static readonly IntPtr SetActivationPolicy = Register("setActivationPolicy:");
     public static readonly IntPtr ActivationPolicy = Register("activationPolicy");
@@ -25,4 +31,6 @@ internal static class ObjCSelectors
         Register("initWithTitle:action:keyEquivalent:");
     public static readonly IntPtr SetTarget = Register("setTarget:");
     public static readonly IntPtr AddItem = Register("addItem:");
+    public static readonly IntPtr SeparatorItem = Register("separatorItem");
+    public static readonly IntPtr SetEnabled = Register("setEnabled:");
 }

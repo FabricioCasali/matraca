@@ -5,6 +5,9 @@ internal static class ObjCClasses
     static ObjCClasses() => Frameworks.EnsureLoaded();
 
     public static readonly IntPtr NSString = Get("NSString");
+    public static readonly IntPtr NSNumber = Get("NSNumber");
+    public static readonly IntPtr NSDictionary = Get("NSDictionary");
+    public static readonly IntPtr NSObject = Get("NSObject");
     public static readonly IntPtr NSAutoreleasePool = Get("NSAutoreleasePool");
     public static readonly IntPtr NSApplication = Get("NSApplication");
     public static readonly IntPtr NSStatusBar = Get("NSStatusBar");
