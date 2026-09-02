@@ -11,14 +11,6 @@ O desenho da frente 2.0 está em [`PLANO-2.0.md`](PLANO-2.0.md).
 
 ## 🔄 Fazendo
 
-_(nada em curso — a Fase 0 fechou em 17/08; a próxima é a MT-003)_
-
-## 📋 A fazer
-
-- **MT-003** **Fase 1 — nascimento do `Matraca.Core`** — mover o portável, extrair as
-  cinco interfaces de fronteira, e criar a primeira rede de testes do projeto (hoje são
-  4.710 linhas sem teste nenhum). O app Windows continua rodando sobre o Core, ainda com
-  WinForms. · `[2.0]` · G · importante
 - **MT-004** **Fase 2 — o Mac dita** — `Matraca.Mac` de verdade: event tap, AudioQueue,
   injeção, NSStatusItem, e o pin + moldura por `AXUIElement`. Os quatro modos. Config
   pelo JSON, sem tela. É o marco que importa. Requisitos que o spike (MT-002) descobriu e
@@ -30,8 +22,12 @@ _(nada em curso — a Fase 0 fechou em 17/08; a próxima é a MT-003)_
   pede permissão. **(c)** não há detecção de fala no spike (`RecordSeconds = 3.0`, fixo),
   então os quatro modos e o VAD não são luxo — são o que faz o ditado terminar quando o
   usuário termina. A carga do modelo e o estado do Whisper viraram cartão próprio
-  (MT-016), assim como o foco (MT-015) e a entrega truncada (MT-017). · `[2.0]` · G ·
+  (MT-016), assim como o foco (MT-015) e a entrega truncada (MT-017). Próximo passo:
+  criar o casco `Matraca.Mac` e fechar primeiro o gate de ativação MT-015. · `[2.0]` · G ·
   importante
+
+## 📋 A fazer
+
 - **MT-015** **A política de ativação é do app, não da janela** — no spike,
   `setActivationPolicy:` com `NSApplicationActivationPolicyAccessory` é chamado **só** em
   `Hud/HudWindow.cs:54`. Toda perna que não passa pelo HUD sobe com a política padrão e se
@@ -81,13 +77,6 @@ _(nada em curso — a Fase 0 fechou em 17/08; a próxima é a MT-003)_
   campo-a-campo já existe, é usar em vez de reescrever. · `[distribuição]` · M · melhoria
 - **MT-011** **Repositório sem description nem topics no GitHub** — custa minutos e é
   pré-requisito do MT-010. · `[distribuição]` · P · melhoria
-- **MT-013** **A cola por clipboard fica fora da cadeia de entrega** — o PR #4 serializou
-  `PasteText` (unicode) e `DeliverWithFocus` numa cadeia única, mas `PasteViaClipboard`
-  segue inline na UI thread, porque o `Clipboard` do WinForms exige STA. Hoje não dá
-  bug — os `_ui.Post` são sequenciais e a cola termina antes de o Enter ser enfileirado —
-  mas é a única entrega em pista separada, e o `SendCtrlV` ali viola a regra de não
-  injetar na thread do hook (poucos eventos, por isso passa). Resolver quando a
-  `DeliveryQueue` nascer no Core. · `[2.0]` · P · melhoria
 - **MT-012** **Decidir o destino de `.claude/agents/`** — o repositório é público. São só
   prompts, sem segredo, mas é o processo dele à vista. Só importa na hora do
   push. · `[processo]` · P · melhoria
