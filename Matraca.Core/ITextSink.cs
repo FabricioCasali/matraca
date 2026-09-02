@@ -4,7 +4,7 @@ public interface ITextSink : IDisposable
 {
     /// <summary>
     /// Completes only after text, optional Enter, and any clipboard/focus restoration have finished.
-    /// Implementations serialize deliveries so live chunks cannot overtake the final Enter.
+    /// DeliveryQueue owns cross-platform serialization; implementations perform one indivisible request.
     /// </summary>
     Task<TextDeliveryResult> DeliverAsync(
         TextDeliveryRequest request,

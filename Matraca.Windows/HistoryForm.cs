@@ -15,27 +15,28 @@ internal sealed class HistoryForm : Form
     private readonly DictationHistory _history;
     private readonly TargetToken? _returnTo;
     private readonly ITargetWindow _targetWindow;
-    private readonly ITextSink _textSink;
+    private readonly DeliveryQueue _delivery;
 
     private readonly ListBox _list;
     private readonly TextBox _detail;
     private List<DictationHistoryEntry> _items;
+    private bool _releaseReturnTarget = true;
 
     public HistoryForm(
         DictationHistory history,
         TargetToken? returnTo,
         ITargetWindow targetWindow,
-        ITextSink textSink)
+        DeliveryQueue delivery)
     {
         _history = history;
         _returnTo = returnTo;
         _targetWindow = targetWindow;
-        _textSink = textSink;
+        _delivery = delivery;
         _items = history.Snapshot();
 
         FormClosed += (_, _) =>
         {
-            if (_returnTo != null) _targetWindow.Release(_returnTo);
+            if (_releaseReturnTarget && _returnTo != null) _targetWindow.Release(_returnTo);
         };
 
         Text = "Matraca — Histórico de ditados";
@@ -146,12 +147,20 @@ internal sealed class HistoryForm : Form
         }
 
         // fecha primeiro: enquanto esta tela existir, ela e' quem tem o foco
+        _releaseReturnTarget = false;
         Close();
-        await _textSink.DeliverAsync(new TextDeliveryRequest(
-            text,
-            false,
-            TextDeliveryMethod.TargetWithFocus,
-            _returnTo));
+        try
+        {
+            await _delivery.EnqueueAsync(new TextDeliveryRequest(
+                text,
+                false,
+                TextDeliveryMethod.TargetWithFocus,
+                _returnTo));
+        }
+        finally
+        {
+            _targetWindow.Release(_returnTo);
+        }
     }
 
     private void ClearAll()

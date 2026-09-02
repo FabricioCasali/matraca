@@ -7,7 +7,7 @@ namespace Matraca;
 /// Entrega o texto ditado na janela em foco, por um de dois caminhos:
 ///  - "unicode" (padrao): digita direto via SendInput/KEYEVENTF_UNICODE, sem tocar no clipboard;
 ///  - "clipboard": copia e manda Ctrl+V, restaurando o conteudo anterior do clipboard.
-/// Chamado somente pela thread STA dedicada do WindowsTextSink. Ela nao hospeda o hook.
+/// Chamado somente pela thread STA dedicada da DeliveryQueue. Ela nao hospeda o hook.
 /// </summary>
 internal static class TextInjector
 {

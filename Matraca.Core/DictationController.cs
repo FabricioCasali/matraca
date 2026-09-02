@@ -1,0 +1,712 @@
+namespace Matraca.Core;
+
+public sealed class DictationController : IDisposable
+{
+    private const int MaximumMuteWindowMilliseconds = 900;
+
+    private readonly object _commandGate = new();
+    private readonly IAudioCapture _audio;
+    private readonly ITargetWindow _targets;
+    private readonly IShell _shell;
+    private readonly TranscriptionModelManager _models;
+    private readonly Func<Config, TextPostProcessor?> _postProcessorFactory;
+    private readonly Func<Config, DictationHistory?> _historyFactory;
+    private readonly Action<Action> _dispatch;
+    private readonly DeliveryQueue _delivery;
+    private readonly List<TextPostProcessor> _retiredPostProcessors = new();
+
+    private IKeyboardHook _keyboard;
+    private Config _config;
+    private TextPostProcessor? _postProcessor;
+    private DictationHistory? _history;
+    private volatile DictationSession? _session;
+    private Task _commandTail = Task.CompletedTask;
+    private Config? _pendingModelReload;
+    private TargetToken? _pinnedTarget;
+    private string _pinnedTitle = "";
+    private HotkeyGesture? _lastDiscovered;
+    private bool _dictationKeyDown;
+    private bool _announcedReady;
+    private bool _warnedLongBeep;
+    private int _busy;
+    private int _started;
+    private int _shuttingDown;
+    private int _disposed;
+
+    public DictationController(
+        Config config,
+        IKeyboardHook keyboard,
+        IAudioCapture audio,
+        ITextSink textSink,
+        ITargetWindow targets,
+        IShell shell,
+        TranscriptionModelManager models,
+        Func<Config, TextPostProcessor?>? postProcessorFactory = null,
+        Func<Config, DictationHistory?>? historyFactory = null,
+        Action<Action>? dispatch = null,
+        Action<Thread>? configureDeliveryThread = null)
+    {
+        _config = config ?? throw new ArgumentNullException(nameof(config));
+        _keyboard = keyboard ?? throw new ArgumentNullException(nameof(keyboard));
+        _audio = audio ?? throw new ArgumentNullException(nameof(audio));
+        _targets = targets ?? throw new ArgumentNullException(nameof(targets));
+        _shell = shell ?? throw new ArgumentNullException(nameof(shell));
+        _models = models ?? throw new ArgumentNullException(nameof(models));
+        _postProcessorFactory = postProcessorFactory ?? (_ => null);
+        _historyFactory = historyFactory ?? (_ => null);
+        _dispatch = dispatch ?? (action => action());
+        _delivery = new DeliveryQueue(textSink, configureDeliveryThread);
+        _postProcessor = CreatePostProcessor(config);
+        _history = CreateHistory(config);
+    }
+
+    public DeliveryQueue Delivery => _delivery;
+    public DictationHistory? CurrentHistory => _history;
+    public bool IsSessionActive => _session != null;
+    public bool IsBusy => Volatile.Read(ref _busy) != 0;
+    public Config CurrentConfig => _config;
+    public TargetToken? PinnedTarget => _pinnedTarget;
+
+    public void Start()
+    {
+        ObjectDisposedException.ThrowIf(Volatile.Read(ref _disposed) != 0, this);
+        if (Interlocked.Exchange(ref _started, 1) != 0) return;
+
+        SubscribeKeyboard(_keyboard);
+        _models.StateChanged += OnModelStateChanged;
+        ConfigureIndicator(_config);
+        _keyboard.Start();
+        SetIdle();
+        Observe(_models.PreloadAsync());
+    }
+
+    public Task HandleDictationKeyAsync(bool pressed)
+        => EnqueueCommand(() => HandleDictationKeyCoreAsync(pressed));
+
+    public Task TogglePinAsync()
+        => EnqueueCommand(TogglePinCoreAsync);
+
+    public Task ApplyConfigAsync(Config config)
+    {
+        ArgumentNullException.ThrowIfNull(config);
+        return EnqueueCommand(() => ApplyConfigCoreAsync(config));
+    }
+
+    public Task ReplaceKeyboardHookAsync(IKeyboardHook keyboard)
+    {
+        ArgumentNullException.ThrowIfNull(keyboard);
+        return EnqueueCommand(() =>
+        {
+            UnsubscribeKeyboard(_keyboard);
+            try { _keyboard.Dispose(); } catch { }
+            _keyboard = keyboard;
+            SubscribeKeyboard(_keyboard);
+            _keyboard.Start();
+            return Task.CompletedTask;
+        });
+    }
+
+    public Task DrainAsync()
+    {
+        lock (_commandGate) return _commandTail;
+    }
+
+    public Task ShutdownAsync(CancellationToken cancellationToken = default)
+    {
+        if (Interlocked.Exchange(ref _shuttingDown, 1) != 0) return DrainAsync();
+        return EnqueueCommand(() => ShutdownCoreAsync(cancellationToken), allowDuringShutdown: true);
+    }
+
+    private void OnDictationKeyChanged(HotkeyGesture gesture, bool pressed)
+    {
+        if (Volatile.Read(ref _shuttingDown) != 0) return;
+        bool suppressAction = IsBusy;
+        if (suppressAction && pressed) PlaySound(start: false, _config);
+        Observe(EnqueueCommand(() => HandleDictationKeyCoreAsync(pressed, suppressAction)));
+    }
+
+    private void OnPinToggled(HotkeyGesture gesture)
+    {
+        if (Volatile.Read(ref _shuttingDown) == 0) Observe(TogglePinAsync());
+    }
+
+    private void OnKeyDiscovered(HotkeyGesture gesture)
+    {
+        if (gesture == _lastDiscovered) return;
+        _lastDiscovered = gesture;
+        string name = gesture.ToString();
+        Logger.Info($"Tecla detectada: {name}");
+        Notify("Tecla detectada",
+            $"Atalho: {name}\nColoque \"hotkey\": \"{name}\" em appsettings.json.");
+    }
+
+    private async Task HandleDictationKeyCoreAsync(bool pressed, bool suppressAction = false)
+    {
+        if (_config.DiscoverMode) return;
+        _models.Touch();
+
+        if (pressed)
+        {
+            if (_dictationKeyDown) return;
+            _dictationKeyDown = true;
+        }
+        else
+        {
+            if (!_dictationKeyDown) return;
+            _dictationKeyDown = false;
+        }
+
+        if (suppressAction) return;
+
+        string mode = _session?.Config.Mode ?? _config.Mode;
+        if (mode is "hold" or "push")
+        {
+            if (pressed && _session == null) await StartSessionAsync().ConfigureAwait(false);
+            else if (!pressed && _session != null) await StopSessionAsync().ConfigureAwait(false);
+            return;
+        }
+
+        if (!pressed) return;
+        if (_session == null) await StartSessionAsync().ConfigureAwait(false);
+        else await StopSessionAsync().ConfigureAwait(false);
+    }
+
+    private async Task StartSessionAsync()
+    {
+        if (_session != null || IsBusy) return;
+
+        Config snapshot = _config;
+        bool streaming = snapshot.Mode is "live" or "push";
+        _models.BeginUse();
+        var session = new DictationSession
+        {
+            Config = snapshot,
+            Streaming = streaming,
+            Model = _models.GetModelAsync(),
+            PostProcessor = _postProcessor,
+            History = _history,
+        };
+        _session = session;
+
+        try
+        {
+            if (streaming)
+            {
+                session.Segments = new System.Collections.Concurrent.BlockingCollection<float[]>();
+                session.Detector = new VoiceActivityDetector();
+                session.Detector.SegmentReady += segment =>
+                {
+                    try { session.Segments.Add(segment); }
+                    catch (InvalidOperationException) { }
+                };
+                session.Detector.Start(
+                    snapshot.EffectiveVadThreshold,
+                    snapshot.SilenceMs,
+                    snapshot.PhraseMaxSeconds);
+                session.Consumer = Task.Run(() => ConsumeSegmentsAsync(session));
+                _audio.FrameCaptured += OnAudioFrame;
+            }
+
+            int soundMilliseconds = PlaySound(start: true, snapshot);
+            await _audio.StartAsync(
+                snapshot.InputDevice,
+                TimeSpan.FromMilliseconds(MuteWindowMilliseconds(soundMilliseconds)))
+                .ConfigureAwait(false);
+            _models.Touch();
+            SetRecording(snapshot);
+            Logger.Info(streaming
+                ? $"Live (VAD) iniciado. silenceMs={snapshot.SilenceMs} threshold={snapshot.EffectiveVadThreshold} phraseMax={snapshot.PhraseMaxSeconds}s"
+                : "Gravando...");
+        }
+        catch (Exception exception)
+        {
+            Logger.Error(streaming ? "Falha ao iniciar modo live" : "Falha ao iniciar gravacao", exception);
+            Notify("Erro", "Nao consegui acessar o microfone. Veja matraca.log.", ShellNotificationLevel.Error);
+            await AbortStartAsync(session).ConfigureAwait(false);
+            SetIdle();
+        }
+    }
+
+    private void OnAudioFrame(ReadOnlyMemory<float> frame)
+    {
+        var session = _session;
+        if (session?.Streaming != true || session.Detector == null) return;
+        try { session.Detector.Feed(frame.Span); }
+        catch (Exception exception) { Logger.Error("Falha no detector de voz", exception); }
+    }
+
+    private async Task StopSessionAsync()
+    {
+        var session = _session;
+        if (session == null) return;
+
+        Volatile.Write(ref _busy, 1);
+        SetBusy(session.Config);
+        try
+        {
+            if (session.Streaming)
+                await StopStreamingSessionAsync(session).ConfigureAwait(false);
+            else
+                await StopBufferedSessionAsync(session).ConfigureAwait(false);
+        }
+        catch (Exception exception)
+        {
+            Logger.Error("Falha na transcricao", exception);
+            Notify("Erro", "Falha ao transcrever. Veja matraca.log.", ShellNotificationLevel.Error);
+        }
+        finally
+        {
+            await FinishSessionAsync(session).ConfigureAwait(false);
+            Volatile.Write(ref _busy, 0);
+            SetIdle();
+        }
+    }
+
+    private async Task StopBufferedSessionAsync(DictationSession session)
+    {
+        float[] samples = await _audio.StopAsync().ConfigureAwait(false);
+        PlaySound(start: false, session.Config);
+        Logger.Info($"Gravacao parada: {samples.Length} amostras (~{samples.Length / 16000.0:F1}s). Transcrevendo...");
+
+        var model = await session.Model.ConfigureAwait(false);
+        if (model == null)
+        {
+            Notify("Erro", "Modelo nao carregado. Veja matraca.log.", ShellNotificationLevel.Error);
+            return;
+        }
+
+        string text = await model.TranscribeAsync(samples).ConfigureAwait(false);
+        _models.Touch();
+        Logger.Info($"Transcrito: \"{text}\"");
+        if (string.IsNullOrWhiteSpace(text))
+        {
+            Notify("Vazio", "Nao entendi nenhum audio.");
+            return;
+        }
+
+        text = await PostProcessAsync(session, text).ConfigureAwait(false);
+        session.DeliveredSpeech = await DeliverAsync(session, text, session.Config.AutoEnter)
+            .ConfigureAwait(false) == TextDeliveryResult.Delivered;
+    }
+
+    private async Task StopStreamingSessionAsync(DictationSession session)
+    {
+        _audio.FrameCaptured -= OnAudioFrame;
+        try { await _audio.StopAsync().ConfigureAwait(false); }
+        catch (Exception exception) { Logger.Error("Erro ao parar live", exception); }
+
+        try { session.Detector?.Stop(); }
+        catch (Exception exception) { Logger.Error("Erro ao finalizar VAD", exception); }
+        PlaySound(start: false, session.Config);
+        session.Segments?.CompleteAdding();
+        if (session.Consumer != null) await session.Consumer.ConfigureAwait(false);
+
+        if (session.DeliveredSpeech && session.Config.AutoEnter)
+        {
+            await DeliverAsync(session, "", pressEnter: true, addToHistory: false)
+                .ConfigureAwait(false);
+            Logger.Info("[live] fim de sessao: Enter final enviado.");
+        }
+        Logger.Info("Live (VAD) parado.");
+    }
+
+    private async Task ConsumeSegmentsAsync(DictationSession session)
+    {
+        try
+        {
+            foreach (float[] segment in session.Segments!.GetConsumingEnumerable())
+            {
+                try
+                {
+                    var model = await session.Model.ConfigureAwait(false);
+                    if (model == null) continue;
+                    _models.Touch();
+                    string text = await model.TranscribeAsync(segment).ConfigureAwait(false);
+                    _models.Touch();
+                    if (string.IsNullOrWhiteSpace(text)) continue;
+
+                    text = await PostProcessAsync(session, text).ConfigureAwait(false);
+                    string chunk = text.Trim() + " ";
+                    if (await DeliverAsync(session, chunk, pressEnter: false).ConfigureAwait(false)
+                        == TextDeliveryResult.Delivered)
+                        session.DeliveredSpeech = true;
+                    Logger.Info($"[live] chunk (~{segment.Length / 16000.0:F1}s): \"{text.Trim()}\"");
+                }
+                catch (Exception exception)
+                {
+                    Logger.Error("[live] falha ao transcrever chunk", exception);
+                }
+            }
+        }
+        catch (Exception exception)
+        {
+            Logger.Error("[live] consumidor abortou", exception);
+        }
+    }
+
+    private static async Task<string> PostProcessAsync(DictationSession session, string text)
+        => session.PostProcessor == null
+            ? text
+            : await session.PostProcessor.CleanAsync(text).ConfigureAwait(false);
+
+    private async Task<TextDeliveryResult> DeliverAsync(
+        DictationSession session,
+        string text,
+        bool pressEnter,
+        bool addToHistory = true)
+    {
+        if (addToHistory) session.History?.Add(text);
+
+        if (_pinnedTarget != null)
+        {
+            if (!_targets.IsAlive(_pinnedTarget))
+            {
+                Unpin("Janela fixada sumiu", "Ela foi fechada; o ditado volta pra janela em foco.");
+            }
+            else
+            {
+                bool noFocus = session.Config.PinDelivery == "nofocus";
+                var result = await _delivery.EnqueueAsync(new TextDeliveryRequest(
+                    text,
+                    pressEnter,
+                    noFocus ? TextDeliveryMethod.TargetWithoutFocus : TextDeliveryMethod.TargetWithFocus,
+                    _pinnedTarget)).ConfigureAwait(false);
+                if (result == TextDeliveryResult.Delivered || noFocus) return result;
+            }
+        }
+
+        var fallbackMethod = session.Config.PasteMethod == "clipboard"
+            ? TextDeliveryMethod.Clipboard
+            : TextDeliveryMethod.Unicode;
+        return await _delivery.EnqueueAsync(new TextDeliveryRequest(
+            text,
+            pressEnter,
+            fallbackMethod)).ConfigureAwait(false);
+    }
+
+    private Task TogglePinCoreAsync()
+    {
+        if (_config.DiscoverMode) return Task.CompletedTask;
+        if (_pinnedTarget != null)
+        {
+            Unpin("Destino liberado", "O ditado volta pra janela em foco.");
+            return Task.CompletedTask;
+        }
+
+        var target = _targets.CaptureActive();
+        if (target == null)
+        {
+            Notify("Nada pra fixar", "Nao consegui identificar a janela em foco.", ShellNotificationLevel.Warning);
+            return Task.CompletedTask;
+        }
+
+        _pinnedTarget = target;
+        _pinnedTitle = _targets.GetTitle(target);
+        Logger.Info($"Destino fixado: token={target.Value} \"{_pinnedTitle}\"");
+        Notify("Destino fixado", $"O ditado vai sempre para: {ShortTitle(_pinnedTitle)}\n" +
+            $"Aperte {_config.PinHotkeyName} de novo para liberar.");
+        RefreshState();
+        return Task.CompletedTask;
+    }
+
+    private void Unpin(string title, string message)
+    {
+        if (_pinnedTarget != null) _targets.Release(_pinnedTarget);
+        _pinnedTarget = null;
+        _pinnedTitle = "";
+        Logger.Info("Destino fixo liberado.");
+        Notify(title, message);
+        RefreshState();
+    }
+
+    private Task ApplyConfigCoreAsync(Config config)
+    {
+        Config old = _config;
+        _config = config;
+        _models.SetIdleUnloadMinutes(config.IdleUnloadMinutes);
+
+        if (PostProcessorChanged(old, config))
+        {
+            var previous = _postProcessor;
+            _postProcessor = CreatePostProcessor(config);
+            RetirePostProcessor(previous);
+        }
+        if (old.History != config.History || old.HistoryMaxItems != config.HistoryMaxItems)
+            _history = CreateHistory(config);
+
+        if (ModelChanged(old, config))
+        {
+            if (_session != null) _pendingModelReload = config;
+            else Observe(_models.ReloadAsync(config));
+        }
+
+        if (_session == null)
+        {
+            ConfigureIndicator(config);
+            SetIdle();
+        }
+        Logger.Info("Configuracoes aplicadas sem reiniciar.");
+        return Task.CompletedTask;
+    }
+
+    private Task FinishSessionAsync(DictationSession session)
+    {
+        if (ReferenceEquals(_session, session)) _session = null;
+        session.Segments?.Dispose();
+        _models.EndUse();
+        DisposeRetiredPostProcessors();
+
+        if (_pendingModelReload != null)
+        {
+            Config pending = _pendingModelReload;
+            _pendingModelReload = null;
+            Observe(_models.ReloadAsync(pending));
+        }
+        ConfigureIndicator(_config);
+        return Task.CompletedTask;
+    }
+
+    private async Task AbortStartAsync(DictationSession session)
+    {
+        _audio.FrameCaptured -= OnAudioFrame;
+        try { if (_audio.IsCapturing) await _audio.StopAsync().ConfigureAwait(false); } catch { }
+        try { session.Detector?.Stop(); } catch { }
+        session.Segments?.CompleteAdding();
+        try { if (session.Consumer != null) await session.Consumer.ConfigureAwait(false); } catch { }
+        await FinishSessionAsync(session).ConfigureAwait(false);
+    }
+
+    private void OnModelStateChanged(TranscriptionModelState state)
+    {
+        if (_session != null || IsBusy || _config.DiscoverMode) return;
+        switch (state)
+        {
+            case TranscriptionModelState.Loading:
+                SetShellState(ShellState.Busy, "Matraca — carregando modelo...");
+                break;
+            case TranscriptionModelState.Ready:
+                SetIdle();
+                if (!_announcedReady)
+                {
+                    _announcedReady = true;
+                    Notify("Pronto", $"Atalho: {_config.HotkeyName} · modo: {_config.Mode} · {_config.Gpu}.");
+                }
+                break;
+            case TranscriptionModelState.Failed:
+                SetShellState(ShellState.Error, "Matraca — ERRO ao carregar modelo");
+                Notify("Erro", "Nao consegui carregar o modelo Whisper. Veja matraca.log.", ShellNotificationLevel.Error);
+                break;
+            case TranscriptionModelState.Unloaded:
+                SetShellState(ShellState.Idle, $"Matraca — ocioso, VRAM liberada ({_config.HotkeyName})");
+                break;
+        }
+    }
+
+    private void RefreshState()
+    {
+        var session = _session;
+        if (session != null) SetRecording(session.Config);
+        else if (IsBusy) SetBusy(_config);
+        else SetIdle();
+    }
+
+    private void SetIdle()
+    {
+        string text = _config.DiscoverMode
+            ? "Matraca — MODO DESCOBERTA"
+            : _pinnedTarget != null
+                ? $"Matraca — fixado em: {ShortTitle(_pinnedTitle)}"
+                : $"Matraca — pronto ({_config.HotkeyName})";
+        SetShellState(ShellState.Idle, text);
+        Dispatch(() =>
+        {
+            if (_pinnedTarget != null)
+                _targets.ShowIndicator(_pinnedTarget, _config.FocusBorderColorPinned);
+            else
+                _targets.HideIndicator();
+        });
+    }
+
+    private void SetRecording(Config config)
+    {
+        SetShellState(ShellState.Recording, "Matraca — GRAVANDO (aperte de novo p/ parar)");
+        Dispatch(() => _targets.ShowIndicator(
+            _pinnedTarget,
+            _pinnedTarget != null ? config.FocusBorderColorPinned : config.FocusBorderColor));
+    }
+
+    private void SetBusy(Config config)
+    {
+        SetShellState(ShellState.Busy, "Matraca — transcrevendo...");
+        Dispatch(() => _targets.ShowIndicator(
+            _pinnedTarget,
+            _pinnedTarget != null ? config.FocusBorderColorPinned : config.FocusBorderColorBusy));
+    }
+
+    private void ConfigureIndicator(Config config)
+        => Dispatch(() => _targets.ConfigureIndicator(
+            config.FocusBorder,
+            config.FocusBorderColor,
+            config.FocusBorderThickness,
+            config.FocusBorderOpacity));
+
+    private int PlaySound(bool start, Config config)
+    {
+        if (!config.Beep) return 0;
+        string file = start ? config.StartSound : config.StopSound;
+        return _shell.PlaySound(start, file, config.BeepVolume);
+    }
+
+    private int MuteWindowMilliseconds(int soundMilliseconds)
+    {
+        if (soundMilliseconds <= 0) return 0;
+        int window = soundMilliseconds + 150;
+        if (window <= MaximumMuteWindowMilliseconds) return window;
+        if (!_warnedLongBeep)
+        {
+            _warnedLongBeep = true;
+            Logger.Warn($"Som de inicio longo ({soundMilliseconds}ms): a captura so' descarta {MaximumMuteWindowMilliseconds}ms.");
+        }
+        return MaximumMuteWindowMilliseconds;
+    }
+
+    private TextPostProcessor? CreatePostProcessor(Config config)
+    {
+        try { return _postProcessorFactory(config); }
+        catch (Exception exception)
+        {
+            Logger.Error("Falha ao iniciar o pos-processamento; seguindo sem ele", exception);
+            return null;
+        }
+    }
+
+    private DictationHistory? CreateHistory(Config config)
+    {
+        try { return _historyFactory(config); }
+        catch (Exception exception)
+        {
+            Logger.Error("Falha ao iniciar o historico; seguindo sem ele", exception);
+            return null;
+        }
+    }
+
+    private void RetirePostProcessor(TextPostProcessor? processor)
+    {
+        if (processor == null || ReferenceEquals(processor, _postProcessor)) return;
+        if (_session != null) _retiredPostProcessors.Add(processor);
+        else processor.Dispose();
+    }
+
+    private void DisposeRetiredPostProcessors()
+    {
+        foreach (var processor in _retiredPostProcessors)
+        {
+            try { processor.Dispose(); } catch { }
+        }
+        _retiredPostProcessors.Clear();
+    }
+
+    private void SubscribeKeyboard(IKeyboardHook keyboard)
+    {
+        keyboard.DictationKeyChanged += OnDictationKeyChanged;
+        keyboard.PinToggled += OnPinToggled;
+        keyboard.KeyDiscovered += OnKeyDiscovered;
+    }
+
+    private void UnsubscribeKeyboard(IKeyboardHook keyboard)
+    {
+        keyboard.DictationKeyChanged -= OnDictationKeyChanged;
+        keyboard.PinToggled -= OnPinToggled;
+        keyboard.KeyDiscovered -= OnKeyDiscovered;
+    }
+
+    private Task EnqueueCommand(Func<Task> command, bool allowDuringShutdown = false)
+    {
+        if (!allowDuringShutdown && Volatile.Read(ref _shuttingDown) != 0)
+            return Task.CompletedTask;
+        lock (_commandGate)
+        {
+            _commandTail = RunAfterAsync(_commandTail, command);
+            return _commandTail;
+        }
+    }
+
+    private static async Task RunAfterAsync(Task previous, Func<Task> command)
+    {
+        try { await previous.ConfigureAwait(false); } catch { }
+        await command().ConfigureAwait(false);
+    }
+
+    private void Observe(Task task)
+        => _ = task.ContinueWith(
+            failed => Logger.Error("Falha no pipeline de ditado", failed.Exception!.GetBaseException()),
+            CancellationToken.None,
+            TaskContinuationOptions.OnlyOnFaulted,
+            TaskScheduler.Default);
+
+    private void Dispatch(Action action)
+    {
+        try { _dispatch(action); }
+        catch (Exception exception) { Logger.Error("Falha ao atualizar a interface", exception); }
+    }
+
+    private void SetShellState(ShellState state, string text)
+        => Dispatch(() => _shell.SetState(state, text));
+
+    private void Notify(
+        string title,
+        string message,
+        ShellNotificationLevel level = ShellNotificationLevel.Info)
+        => Dispatch(() => _shell.ShowNotification(title, message, level));
+
+    private static string ShortTitle(string title)
+    {
+        if (string.IsNullOrWhiteSpace(title)) return "(janela sem titulo)";
+        return title.Length <= 60 ? title : title[..57] + "...";
+    }
+
+    private static bool ModelChanged(Config first, Config second)
+        => first.ModelPath != second.ModelPath
+            || first.Language != second.Language
+            || !first.Vocabulary.SequenceEqual(second.Vocabulary, StringComparer.Ordinal);
+
+    private static bool PostProcessorChanged(Config first, Config second)
+        => first.PostProcess != second.PostProcess
+            || first.PostProcessModel != second.PostProcessModel
+            || first.PostProcessApiKey != second.PostProcessApiKey
+            || first.PostProcessPrompt != second.PostProcessPrompt
+            || first.PostProcessTimeoutMs != second.PostProcessTimeoutMs;
+
+    private async Task ShutdownCoreAsync(CancellationToken cancellationToken)
+    {
+        using var cancellationRegistration = cancellationToken.Register(() =>
+            Observe(_delivery.ShutdownAsync(cancelPending: true)));
+        if (_session != null) await StopSessionAsync().ConfigureAwait(false);
+        UnsubscribeKeyboard(_keyboard);
+        _models.StateChanged -= OnModelStateChanged;
+        try
+        {
+            await _delivery.ShutdownAsync(cancelPending: false, cancellationToken).ConfigureAwait(false);
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+            await _delivery.ShutdownAsync(cancelPending: true).ConfigureAwait(false);
+        }
+        _delivery.Dispose();
+        _models.Dispose();
+        _postProcessor?.Dispose();
+        DisposeRetiredPostProcessors();
+        if (_pinnedTarget != null) _targets.Release(_pinnedTarget);
+        try { _keyboard.Dispose(); } catch { }
+        try { _audio.Dispose(); } catch { }
+        try { _targets.Dispose(); } catch { }
+        try { _shell.Dispose(); } catch { }
+        Interlocked.Exchange(ref _disposed, 1);
+    }
+
+    public void Dispose()
+    {
+        if (Volatile.Read(ref _disposed) != 0) return;
+        ShutdownAsync().GetAwaiter().GetResult();
+    }
+}

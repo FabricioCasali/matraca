@@ -31,7 +31,6 @@ internal sealed class WindowsKeyboardHook : IKeyboardHook
     private readonly HotkeyGesture? _pinGesture;
     private readonly int _pinVk;
     private readonly KeyMods _pinMods;
-    private readonly bool _needsKeyUp;
 
     private IntPtr _hook;
     private bool _isDown;
@@ -47,16 +46,14 @@ internal sealed class WindowsKeyboardHook : IKeyboardHook
         : this(
             config.DiscoverMode,
             config.Hotkey,
-            config.PinHotkey,
-            config.HotkeyNeedsKeyUp)
+            config.PinHotkey)
     {
     }
 
     private WindowsKeyboardHook(
         bool discover,
         HotkeyGesture? target,
-        HotkeyGesture? pin,
-        bool needsKeyUp)
+        HotkeyGesture? pin)
     {
         _discover = discover;
         _targetGesture = target;
@@ -65,7 +62,6 @@ internal sealed class WindowsKeyboardHook : IKeyboardHook
         _pinGesture = pin;
         _pinVk = pin == null ? 0 : WindowsHotkeyTranslator.ToVirtualKey(pin);
         _pinMods = pin?.Modifiers ?? KeyMods.None;
-        _needsKeyUp = needsKeyUp;
         _proc = HookCallback;
         _callbacks = new AsyncCallbackQueue<(int, int, KeyMods)>(
             Publish,
@@ -73,7 +69,7 @@ internal sealed class WindowsKeyboardHook : IKeyboardHook
     }
 
     public static IKeyboardHook CreateDiscovery()
-        => new WindowsKeyboardHook(true, null, null, false);
+        => new WindowsKeyboardHook(true, null, null);
 
     public void Start()
     {
@@ -132,8 +128,7 @@ internal sealed class WindowsKeyboardHook : IKeyboardHook
                 if (_isDown && virtualKey == _targetVk)
                 {
                     _isDown = false;
-                    if (_needsKeyUp)
-                        _callbacks.TryPost((DictationUp, virtualKey, KeyMods.None));
+                    _callbacks.TryPost((DictationUp, virtualKey, KeyMods.None));
                     return (IntPtr)1;
                 }
             }
