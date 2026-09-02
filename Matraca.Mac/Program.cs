@@ -1,6 +1,8 @@
+using System.Text.Json;
 using Matraca.Core;
 using Matraca.Mac.Config;
 using Matraca.Mac.Platform;
+using Matraca.Mac.Platform.Audio;
 using Matraca.Mac.Platform.Interop;
 using Matraca.Mac.Platform.Keyboard;
 using Matraca.Mac.Platform.Text;
@@ -19,6 +21,8 @@ internal static class Program
         {
             if (args.Length > 0 && args[0] == "--delivery-smoke")
                 return RunDeliverySmoke(args);
+            if (args.Length > 0 && args[0] == "--audio-smoke")
+                return RunAudioSmoke(args).GetAwaiter().GetResult();
 
             Frameworks.EnsureLoaded();
             ObjCClasses.Warm();
@@ -93,6 +97,80 @@ internal static class Program
             .GetAwaiter().GetResult();
         File.WriteAllText(args[4], result.ToString());
         return result == TextDeliveryResult.Delivered ? 0 : 1;
+    }
+
+    private static async Task<int> RunAudioSmoke(string[] args)
+    {
+        if (args.Length != 3
+            || !int.TryParse(args[1], out int durationMilliseconds)
+            || durationMilliseconds is < 250 or > 10000)
+        {
+            Logger.Error("Uso: --audio-smoke <duracao-ms: 250..10000> <resultado-json>.");
+            return 2;
+        }
+
+        string resultPath = args[2];
+        try
+        {
+            Frameworks.EnsureLoaded();
+            using var capture = new MacAudioCapture();
+            int frameCount = 0;
+            long streamedSamples = 0;
+            capture.FrameCaptured += frame =>
+            {
+                Interlocked.Increment(ref frameCount);
+                Interlocked.Add(ref streamedSamples, frame.Length);
+            };
+
+            await capture.StartAsync(null, TimeSpan.Zero).ConfigureAwait(false);
+            await Task.Delay(durationMilliseconds).ConfigureAwait(false);
+            float[] samples = await capture.StopAsync().ConfigureAwait(false);
+            float rms = AudioLevelAnalyzer.CalculateRms(samples);
+            float peak = samples.Length == 0 ? 0 : samples.Max(Math.Abs);
+            int firstFrameCount = frameCount;
+            long firstStreamedSamples = streamedSamples;
+
+            Interlocked.Exchange(ref frameCount, 0);
+            Interlocked.Exchange(ref streamedSamples, 0);
+            await capture.StartAsync(null, TimeSpan.FromMilliseconds(200)).ConfigureAwait(false);
+            await Task.Delay(600).ConfigureAwait(false);
+            float[] restartSamples = await capture.StopAsync().ConfigureAwait(false);
+            bool success = samples.Length > 0
+                && firstFrameCount > 0
+                && firstStreamedSamples == samples.Length
+                && rms > 0
+                && restartSamples.Length > 0
+                && frameCount > 0
+                && streamedSamples == restartSamples.Length
+                && !capture.IsCapturing;
+
+            File.WriteAllText(resultPath, JsonSerializer.Serialize(new
+            {
+                success,
+                sampleRate = IAudioCapture.RequiredSampleRate,
+                sampleCount = samples.Length,
+                streamedSamples = firstStreamedSamples,
+                frameCount = firstFrameCount,
+                rms,
+                peak,
+                restartSampleCount = restartSamples.Length,
+                restartStreamedSamples = streamedSamples,
+                restartFrameCount = frameCount,
+                isCapturingAfterStop = capture.IsCapturing,
+            }));
+            return success ? 0 : 1;
+        }
+        catch (Exception exception)
+        {
+            File.WriteAllText(resultPath, JsonSerializer.Serialize(new
+            {
+                success = false,
+                error = exception.GetType().Name,
+                exception.Message,
+            }));
+            Logger.Error("Smoke de audio falhou", exception);
+            return 1;
+        }
     }
 
     private static MacKeyboardHook? TryStartKeyboard(

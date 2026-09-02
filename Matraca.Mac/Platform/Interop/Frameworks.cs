@@ -6,6 +6,7 @@ internal static class Frameworks
 {
     private const string Foundation = "/System/Library/Frameworks/Foundation.framework/Foundation";
     private const string AppKit = "/System/Library/Frameworks/AppKit.framework/AppKit";
+    private const string AudioToolbox = "/System/Library/Frameworks/AudioToolbox.framework/AudioToolbox";
     private const string CoreFoundation = "/System/Library/Frameworks/CoreFoundation.framework/CoreFoundation";
     private const string CoreGraphics = "/System/Library/Frameworks/CoreGraphics.framework/CoreGraphics";
 
@@ -22,6 +23,7 @@ internal static class Frameworks
             CoreFoundationHandle = Load(CoreFoundation);
             Load(Foundation);
             Load(AppKit);
+            Load(AudioToolbox);
             Load(CoreGraphics);
             _loaded = true;
         }

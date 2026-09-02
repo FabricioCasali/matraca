@@ -22,11 +22,11 @@ O desenho da frente 2.0 está em [`PLANO-2.0.md`](PLANO-2.0.md).
   pede permissão. **(c)** não há detecção de fala no spike (`RecordSeconds = 3.0`, fixo),
   então os quatro modos e o VAD não são luxo — são o que faz o ditado terminar quando o
   usuário termina. A carga do modelo e o estado do Whisper viraram cartão próprio
-  (MT-016). **Checkpoint:** fatias 1–3 verdes — casco assinado sem roubo de foco, config
-  a quente, TCC, event tap e entrega CGEvent literal. Ainda não dita. Próxima é a fatia 4:
-  AudioQueue contínuo em worker próprio, frames de 16 kHz somente em memória,
-  cancelamento/flush e detecção de permissão negada ou fluxo de zeros. · `[2.0]` · G ·
-  importante
+  (MT-016). **Checkpoint:** fatias 1–4 verdes — casco assinado sem roubo de foco, config
+  a quente, TCC, event tap, entrega CGEvent literal e AudioQueue contínuo a 16 kHz somente
+  em memória, com cancelamento, flush e detecção de fluxo zerado. Ainda não dita. Próxima é
+  a fatia 5: conectar `toggle`, `hold`, `live` e `push` do Core ao teclado e ao AudioQueue. ·
+  `[2.0]` · G · importante
 
 ## 📋 A fazer
 
