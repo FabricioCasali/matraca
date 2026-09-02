@@ -82,6 +82,9 @@ public sealed class TranscriptionModelManagerTests
         Assert.Equal(TranscriptionModelState.Ready, manager.State);
         Assert.NotNull(manager.LastError);
         Assert.Equal("old", await (await manager.GetModelAsync())!.TranscribeAsync([]));
+
+        manager.Unload();
+        Assert.Equal("old", await (await manager.GetModelAsync())!.TranscribeAsync([]));
     }
 
     [Fact]
@@ -127,6 +130,59 @@ public sealed class TranscriptionModelManagerTests
         Assert.Null(await stale);
         Assert.False(manager.IsLoaded);
         Assert.Equal(TranscriptionModelState.Unloaded, manager.State);
+    }
+
+    [Fact]
+    public async Task ConsecutiveTranscriptionsKeepTheLoadedModelResident()
+    {
+        int loads = 0;
+        int transcriptions = 0;
+        int disposals = 0;
+        var manager = new TranscriptionModelManager(
+            NewConfig("one"),
+            (_, _) =>
+            {
+                loads++;
+                return Task.FromResult(new TranscriptionModel(
+                    (_, _) => Task.FromResult($"text-{++transcriptions}"),
+                    () => disposals++));
+            },
+            startIdleTimer: false);
+
+        var first = await manager.PreloadAsync();
+        Assert.Equal("text-1", await first!.TranscribeAsync([]));
+        var second = await manager.GetModelAsync();
+        Assert.Same(first, second);
+        Assert.Equal("text-2", await second!.TranscribeAsync([]));
+        Assert.Equal(1, loads);
+        Assert.Equal(0, disposals);
+
+        manager.Dispose();
+        Assert.Equal(1, disposals);
+    }
+
+    [Fact]
+    public async Task AtomicReloadRetiresTheOldModelUntilItsUseEnds()
+    {
+        int oldDisposals = 0;
+        int newDisposals = 0;
+        using var manager = new TranscriptionModelManager(
+            NewConfig("old"),
+            (config, _) => Task.FromResult(new TranscriptionModel(
+                (_, _) => Task.FromResult(config.ModelPath),
+                config.ModelPath == "old" ? () => oldDisposals++ : () => newDisposals++)),
+            startIdleTimer: false);
+        var old = await manager.PreloadAsync();
+        manager.BeginUse();
+
+        var current = await manager.ReloadAsync(NewConfig("new"));
+
+        Assert.Equal("old", await old!.TranscribeAsync([]));
+        Assert.Equal("new", await current!.TranscribeAsync([]));
+        Assert.Equal(0, oldDisposals);
+        manager.EndUse();
+        Assert.Equal(1, oldDisposals);
+        Assert.Equal(0, newDisposals);
     }
 
     private static Config NewConfig(string modelPath, int idleMinutes = 0) => new()

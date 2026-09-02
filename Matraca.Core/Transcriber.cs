@@ -21,7 +21,9 @@ public sealed class Transcriber : IDisposable
                   + (_prompt.Length > 0 ? $" (vocabulario: {vocabulary!.Length} termos)" : ""));
     }
 
-    public async Task<string> TranscribeAsync(float[] samples)
+    public async Task<string> TranscribeAsync(
+        float[] samples,
+        CancellationToken cancellationToken = default)
     {
         if (samples.Length == 0) return "";
 
@@ -30,7 +32,7 @@ public sealed class Transcriber : IDisposable
 
         await using var processor = builder.Build();
         var text = new StringBuilder();
-        await foreach (var segment in processor.ProcessAsync(samples))
+        await foreach (var segment in processor.ProcessAsync(samples, cancellationToken))
             text.Append(segment.Text);
 
         return text.ToString().Trim();

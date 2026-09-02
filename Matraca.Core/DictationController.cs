@@ -13,6 +13,7 @@ public sealed class DictationController : IDisposable
     private readonly Func<Config, DictationHistory?> _historyFactory;
     private readonly Action<Action> _dispatch;
     private readonly DeliveryQueue _delivery;
+    private readonly CancellationTokenSource _shutdownCancellation = new();
     private readonly List<TextPostProcessor> _retiredPostProcessors = new();
 
     private IKeyboardHook _keyboard;
@@ -22,6 +23,7 @@ public sealed class DictationController : IDisposable
     private volatile DictationSession? _session;
     private Task _commandTail = Task.CompletedTask;
     private Config? _pendingModelReload;
+    private TaskCompletionSource? _pendingModelReloadCompletion;
     private TargetToken? _pinnedTarget;
     private string _pinnedTitle = "";
     private HotkeyGesture? _lastDiscovered;
@@ -80,7 +82,7 @@ public sealed class DictationController : IDisposable
         ConfigureIndicator(_config);
         _keyboard.Start();
         SetIdle();
-        Observe(_models.PreloadAsync());
+        Observe(_models.PreloadAsync(_shutdownCancellation.Token));
     }
 
     public Task HandleDictationKeyAsync(bool pressed)
@@ -89,14 +91,13 @@ public sealed class DictationController : IDisposable
     public Task TogglePinAsync()
         => EnqueueCommand(TogglePinCoreAsync);
 
-    public Task ApplyConfigAsync(Config config)
+    public async Task ApplyConfigAsync(Config config)
     {
         ArgumentNullException.ThrowIfNull(config);
-        return EnqueueCommand(() =>
-        {
-            ApplyConfigCore(config);
-            return Task.CompletedTask;
-        });
+        TaskCompletionSource? deferred = null;
+        await EnqueueCommand(() => ApplyConfigCoreAsync(config, value => deferred = value))
+            .ConfigureAwait(false);
+        if (deferred != null) await deferred.Task.ConfigureAwait(false);
     }
 
     public Task ApplyConfigAsync(Config config, IKeyboardHook keyboard)
@@ -116,7 +117,7 @@ public sealed class DictationController : IDisposable
     {
         var completion = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
         bool accepted = false;
-        await EnqueueCommand(() =>
+        await EnqueueCommand(async () =>
         {
             accepted = true;
             if (_pendingKeyboard != null)
@@ -128,8 +129,7 @@ public sealed class DictationController : IDisposable
             _pendingKeyboard = keyboard;
             _pendingKeyboardConfig = config;
             _pendingKeyboardCompletion = completion;
-            ApplyPendingKeyboardIfSafe();
-            return Task.CompletedTask;
+            await ApplyPendingKeyboardIfSafeAsync().ConfigureAwait(false);
         }).ConfigureAwait(false);
         if (!accepted)
         {
@@ -147,6 +147,8 @@ public sealed class DictationController : IDisposable
     public Task ShutdownAsync(CancellationToken cancellationToken = default)
     {
         if (Interlocked.Exchange(ref _shuttingDown, 1) != 0) return DrainAsync();
+        _shutdownCancellation.Cancel();
+        try { _session?.Cancellation.Cancel(); } catch (ObjectDisposedException) { }
         return EnqueueCommand(() => ShutdownCoreAsync(cancellationToken), allowDuringShutdown: true);
     }
 
@@ -207,7 +209,7 @@ public sealed class DictationController : IDisposable
         }
         finally
         {
-            ApplyPendingKeyboardIfSafe();
+            await ApplyPendingKeyboardIfSafeAsync().ConfigureAwait(false);
         }
     }
 
@@ -218,13 +220,15 @@ public sealed class DictationController : IDisposable
         Config snapshot = _config;
         bool streaming = snapshot.Mode is "live" or "push";
         _models.BeginUse();
+        var sessionCancellation = new CancellationTokenSource();
         var session = new DictationSession
         {
             Config = snapshot,
             Streaming = streaming,
-            Model = _models.GetModelAsync(),
+            Model = _models.GetModelAsync(sessionCancellation.Token),
             PostProcessor = _postProcessor,
             History = _history,
+            Cancellation = sessionCancellation,
         };
         _session = session;
 
@@ -291,6 +295,8 @@ public sealed class DictationController : IDisposable
         }
         catch (Exception exception)
         {
+            if (exception is OperationCanceledException && Volatile.Read(ref _shuttingDown) != 0)
+                return;
             Logger.Error("Falha na transcricao", exception);
             Notify("Erro", "Falha ao transcrever. Veja matraca.log.", ShellNotificationLevel.Error);
         }
@@ -315,7 +321,7 @@ public sealed class DictationController : IDisposable
             return;
         }
 
-        string text = await model.TranscribeAsync(samples).ConfigureAwait(false);
+        string text = await model.TranscribeAsync(samples, session.Cancellation.Token).ConfigureAwait(false);
         _models.Touch();
         Logger.Info($"Transcrito: \"{text}\"");
         if (string.IsNullOrWhiteSpace(text))
@@ -361,7 +367,7 @@ public sealed class DictationController : IDisposable
                     var model = await session.Model.ConfigureAwait(false);
                     if (model == null) continue;
                     _models.Touch();
-                    string text = await model.TranscribeAsync(segment).ConfigureAwait(false);
+                    string text = await model.TranscribeAsync(segment, session.Cancellation.Token).ConfigureAwait(false);
                     _models.Touch();
                     if (string.IsNullOrWhiteSpace(text)) continue;
 
@@ -462,9 +468,37 @@ public sealed class DictationController : IDisposable
         RefreshState();
     }
 
-    private void ApplyConfigCore(Config config)
+    private async Task ApplyConfigCoreAsync(
+        Config config,
+        Action<TaskCompletionSource>? deferred = null)
     {
         Config old = _config;
+        if (_session != null && ModelChanged(old, config))
+        {
+            _pendingModelReloadCompletion?.TrySetException(
+                new InvalidOperationException("Model reload was superseded."));
+            var completion = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+            _pendingModelReload = config;
+            _pendingModelReloadCompletion = completion;
+            deferred?.Invoke(completion);
+            Logger.Info("Reload do modelo agendado para o fim da sessao atual.");
+            return;
+        }
+        if (_session != null && _pendingModelReload != null)
+        {
+            _pendingModelReload = null;
+            _pendingModelReloadCompletion?.TrySetException(
+                new InvalidOperationException("Model reload was superseded."));
+            _pendingModelReloadCompletion = null;
+        }
+
+        if (ModelChanged(old, config))
+        {
+            var model = await _models.ReloadAsync(config, _shutdownCancellation.Token).ConfigureAwait(false);
+            if (model == null)
+                throw new InvalidOperationException("O novo modelo Whisper nao ficou pronto; configuracao anterior preservada.");
+        }
+
         _config = config;
         _models.SetIdleUnloadMinutes(config.IdleUnloadMinutes);
 
@@ -477,12 +511,6 @@ public sealed class DictationController : IDisposable
         if (old.History != config.History || old.HistoryMaxItems != config.HistoryMaxItems)
             _history = CreateHistory(config);
 
-        if (ModelChanged(old, config))
-        {
-            if (_session != null) _pendingModelReload = config;
-            else Observe(_models.ReloadAsync(config));
-        }
-
         if (_session == null)
         {
             ConfigureIndicator(config);
@@ -491,21 +519,37 @@ public sealed class DictationController : IDisposable
         Logger.Info("Configuracoes aplicadas sem reiniciar.");
     }
 
-    private Task FinishSessionAsync(DictationSession session)
+    private async Task FinishSessionAsync(DictationSession session)
     {
         if (ReferenceEquals(_session, session)) _session = null;
         session.Segments?.Dispose();
+        session.Cancellation.Dispose();
         _models.EndUse();
         DisposeRetiredPostProcessors();
 
         if (_pendingModelReload != null)
         {
             Config pending = _pendingModelReload;
+            TaskCompletionSource? completion = _pendingModelReloadCompletion;
             _pendingModelReload = null;
-            Observe(_models.ReloadAsync(pending));
+            _pendingModelReloadCompletion = null;
+            if (Volatile.Read(ref _shuttingDown) != 0)
+            {
+                completion?.TrySetException(new ObjectDisposedException(nameof(DictationController)));
+            }
+            else try
+            {
+                await ApplyConfigCoreAsync(pending).ConfigureAwait(false);
+                completion?.TrySetResult();
+            }
+            catch (Exception exception)
+            {
+                completion?.TrySetException(exception);
+                Logger.Error("Falha ao aplicar reload agendado do modelo", exception);
+                Notify("Erro", "O novo modelo nao carregou; mantive a configuracao anterior.", ShellNotificationLevel.Error);
+            }
         }
         ConfigureIndicator(_config);
-        return Task.CompletedTask;
     }
 
     private async Task AbortStartAsync(DictationSession session)
@@ -665,7 +709,7 @@ public sealed class DictationController : IDisposable
         keyboard.KeyDiscovered -= OnKeyDiscovered;
     }
 
-    private void ApplyPendingKeyboardIfSafe()
+    private async Task ApplyPendingKeyboardIfSafeAsync()
     {
         if (_pendingKeyboard == null || _session != null || IsBusy || _dictationKeyDown) return;
 
@@ -682,7 +726,7 @@ public sealed class DictationController : IDisposable
             _keyboard = keyboard;
             SubscribeKeyboard(_keyboard);
             _keyboard.Start();
-            if (config != null) ApplyConfigCore(config);
+            if (config != null) await ApplyConfigCoreAsync(config).ConfigureAwait(false);
             completion?.TrySetResult();
         }
         catch (Exception exception)
@@ -752,7 +796,11 @@ public sealed class DictationController : IDisposable
     {
         using var cancellationRegistration = cancellationToken.Register(() =>
             Observe(_delivery.ShutdownAsync(cancelPending: true)));
-        if (_session != null) await StopSessionAsync().ConfigureAwait(false);
+        if (_session != null)
+        {
+            _session.Cancellation.Cancel();
+            await StopSessionAsync().ConfigureAwait(false);
+        }
         UnsubscribeKeyboard(_keyboard);
         _models.StateChanged -= OnModelStateChanged;
         try
@@ -765,6 +813,7 @@ public sealed class DictationController : IDisposable
         }
         _delivery.Dispose();
         _models.Dispose();
+        _shutdownCancellation.Dispose();
         _postProcessor?.Dispose();
         DisposeRetiredPostProcessors();
         if (_pendingKeyboard != null)

@@ -64,6 +64,44 @@ public sealed class Config
             : VadThreshold;
     }
 
+    public Config WithGpu(string gpu) => new()
+    {
+        ModelPath = ModelPath,
+        Language = Language,
+        DiscoverMode = DiscoverMode,
+        Hotkey = Hotkey,
+        PinHotkey = PinHotkey,
+        PinDelivery = PinDelivery,
+        Mode = Mode,
+        AutoEnter = AutoEnter,
+        Beep = Beep,
+        BeepVolume = BeepVolume,
+        StartSound = StartSound,
+        StopSound = StopSound,
+        SilenceMs = SilenceMs,
+        VadThreshold = VadThreshold,
+        MicSensitivity = MicSensitivity,
+        PhraseMaxSeconds = PhraseMaxSeconds,
+        InputDevice = InputDevice,
+        Vocabulary = Vocabulary,
+        History = History,
+        HistoryMaxItems = HistoryMaxItems,
+        PostProcess = PostProcess,
+        PostProcessModel = PostProcessModel,
+        PostProcessApiKey = PostProcessApiKey,
+        PostProcessPrompt = PostProcessPrompt,
+        PostProcessTimeoutMs = PostProcessTimeoutMs,
+        IdleUnloadMinutes = IdleUnloadMinutes,
+        Gpu = gpu,
+        FocusBorder = FocusBorder,
+        FocusBorderColor = FocusBorderColor,
+        FocusBorderColorBusy = FocusBorderColorBusy,
+        FocusBorderColorPinned = FocusBorderColorPinned,
+        FocusBorderThickness = FocusBorderThickness,
+        FocusBorderOpacity = FocusBorderOpacity,
+        PasteMethod = PasteMethod,
+    };
+
     public static Config Load(
         AppPaths paths,
         string packagedConfigFile,

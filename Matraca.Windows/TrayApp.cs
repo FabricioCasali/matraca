@@ -129,15 +129,37 @@ internal sealed class TrayApp : ApplicationContext
             return;
         }
 
-        if (next.Hotkey != previous.Hotkey || next.PinHotkey != previous.PinHotkey ||
-            next.DiscoverMode != previous.DiscoverMode)
+        try
         {
-            IKeyboardHook keyboard = BuildKeyboard(next);
-            await _controller.ApplyConfigAsync(next, keyboard);
-            _keyboard = keyboard;
+            if (next.Hotkey != previous.Hotkey || next.PinHotkey != previous.PinHotkey ||
+                next.DiscoverMode != previous.DiscoverMode)
+            {
+                IKeyboardHook keyboard = BuildKeyboard(next);
+                try
+                {
+                    await _controller.ApplyConfigAsync(next, keyboard);
+                    _keyboard = keyboard;
+                }
+                catch
+                {
+                    IKeyboardHook fallback = BuildKeyboard(previous);
+                    await _controller.ApplyConfigAsync(previous, fallback);
+                    _keyboard = fallback;
+                    throw;
+                }
+            }
+            else
+                await _controller.ApplyConfigAsync(next);
         }
-        else
-            await _controller.ApplyConfigAsync(next);
+        catch (Exception exception)
+        {
+            Logger.Error("Configuracao rejeitada; estado anterior preservado", exception);
+            _shell.ShowNotification(
+                "Configuracao rejeitada",
+                "O novo modelo nao carregou; mantive a configuracao anterior. Veja matraca.log.",
+                ShellNotificationLevel.Error);
+            return;
+        }
 
         _config = next;
         if (next.History != previous.History || next.HistoryMaxItems != previous.HistoryMaxItems)

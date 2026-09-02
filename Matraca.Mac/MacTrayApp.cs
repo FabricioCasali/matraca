@@ -4,6 +4,7 @@ using Matraca.Mac.Platform;
 using Matraca.Mac.Platform.Audio;
 using Matraca.Mac.Platform.Interop;
 using Matraca.Mac.Platform.Keyboard;
+using Matraca.Mac.Platform.Speech;
 using Matraca.Mac.Platform.Text;
 using CoreConfig = Matraca.Core.Config;
 
@@ -14,6 +15,7 @@ internal sealed class MacTrayApp : IDisposable
     private readonly DictationController _controller;
     private readonly SemaphoreSlim _configGate = new(1, 1);
     private readonly MacShell _shell;
+    private readonly string _runtimeGpu;
     private CoreConfig _config;
     private MacConfigWatcher? _configWatcher;
     private int _stopping;
@@ -21,6 +23,7 @@ internal sealed class MacTrayApp : IDisposable
     public MacTrayApp(CoreConfig config, MacStatusItem statusItem)
     {
         _config = config ?? throw new ArgumentNullException(nameof(config));
+        _runtimeGpu = config.Gpu;
         ArgumentNullException.ThrowIfNull(statusItem);
 
         var keyboard = new MacKeyboardHook(config);
@@ -34,7 +37,7 @@ internal sealed class MacTrayApp : IDisposable
             new MacTextSink(),
             targets,
             _shell,
-            new TranscriptionModelManager(config),
+            new TranscriptionModelManager(config, MacWhisperTranscriber.CreateModelAsync),
             TextPostProcessor.TryCreate,
             next => next.History
                 ? new DictationHistory(MacConfig.Paths, next.HistoryMaxItems)
@@ -62,6 +65,8 @@ internal sealed class MacTrayApp : IDisposable
         {
             if (Volatile.Read(ref _stopping) != 0) return;
             CoreConfig previous = _config;
+            bool accelerationChanged = config.Gpu != previous.Gpu;
+            CoreConfig applicable = config.Gpu == _runtimeGpu ? config : config.WithGpu(_runtimeGpu);
             bool keyboardChanged = config.Hotkey != previous.Hotkey
                 || config.PinHotkey != previous.PinHotkey
                 || config.DiscoverMode != previous.DiscoverMode;
@@ -69,7 +74,7 @@ internal sealed class MacTrayApp : IDisposable
             {
                 try
                 {
-                    await _controller.ApplyConfigAsync(config, new MacKeyboardHook(config))
+                    await _controller.ApplyConfigAsync(applicable, new MacKeyboardHook(applicable))
                         .ConfigureAwait(false);
                 }
                 catch
@@ -91,9 +96,22 @@ internal sealed class MacTrayApp : IDisposable
             }
             else
             {
-                await _controller.ApplyConfigAsync(config).ConfigureAwait(false);
+                await _controller.ApplyConfigAsync(applicable).ConfigureAwait(false);
             }
             _config = config;
+            if (accelerationChanged)
+                MainThread.Post(() => _shell.ShowNotification(
+                    "Reinicie o Matraca",
+                    "A troca entre GPU e CPU passa a valer na proxima inicializacao.",
+                    ShellNotificationLevel.Warning));
+        }
+        catch (Exception exception)
+        {
+            MainThread.Post(() => _shell.ShowNotification(
+                "Configuracao rejeitada",
+                exception.Message,
+                ShellNotificationLevel.Error));
+            throw;
         }
         finally
         {

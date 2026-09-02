@@ -4,6 +4,7 @@ using Matraca.Mac.Config;
 using Matraca.Mac.Platform;
 using Matraca.Mac.Platform.Audio;
 using Matraca.Mac.Platform.Interop;
+using Matraca.Mac.Platform.Speech;
 using Matraca.Mac.Platform.Text;
 
 namespace Matraca.Mac;
@@ -22,6 +23,8 @@ internal static class Program
                 return RunDeliverySmoke(args);
             if (args.Length > 0 && args[0] == "--audio-smoke")
                 return RunAudioSmoke(args).GetAwaiter().GetResult();
+            if (args.Length > 0 && args[0] == "--whisper-smoke")
+                return RunWhisperSmoke(args).GetAwaiter().GetResult();
 
             Frameworks.EnsureLoaded();
             ObjCClasses.Warm();
@@ -163,4 +166,58 @@ internal static class Program
         }
     }
 
+    private static async Task<int> RunWhisperSmoke(string[] args)
+    {
+        if (args.Length != 3 || !File.Exists(args[1]))
+        {
+            Logger.Error("Uso: --whisper-smoke <modelo> <resultado-json>.");
+            return 2;
+        }
+
+        string resultPath = args[2];
+        try
+        {
+            MacWhisperNative.ResetCounters();
+            var config = new Matraca.Core.Config
+            {
+                ModelPath = args[1],
+                Language = "pt",
+                IdleUnloadMinutes = 0,
+            };
+            var transcriber = new MacWhisperTranscriber(config);
+            int initializationsAfterLoad = MacWhisperNative.BackendInitializations;
+            await transcriber.TranscribeAsync(new float[16000]).ConfigureAwait(false);
+            int releasesAfterFirst = MacWhisperNative.BackendReleases;
+            await transcriber.TranscribeAsync(new float[16000]).ConfigureAwait(false);
+            ulong runCount = transcriber.RunCount;
+            int releasesAfterSecond = MacWhisperNative.BackendReleases;
+            transcriber.Dispose();
+            int releasesAfterDispose = MacWhisperNative.BackendReleases;
+            bool success = initializationsAfterLoad == 1
+                && releasesAfterFirst == 0
+                && releasesAfterSecond == 0
+                && releasesAfterDispose == 1
+                && runCount == 2;
+            File.WriteAllText(resultPath, JsonSerializer.Serialize(new
+            {
+                success,
+                initializationsAfterLoad,
+                releasesAfterFirst,
+                releasesAfterSecond,
+                releasesAfterDispose,
+                runCount,
+            }));
+            return success ? 0 : 1;
+        }
+        catch (Exception exception)
+        {
+            Logger.Error("Whisper smoke falhou", exception);
+            File.WriteAllText(resultPath, JsonSerializer.Serialize(new
+            {
+                success = false,
+                error = exception.Message,
+            }));
+            return 1;
+        }
+    }
 }

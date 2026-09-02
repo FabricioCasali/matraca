@@ -72,7 +72,6 @@ public sealed class TranscriptionModelManager : IDisposable
         lock (_gate)
         {
             ThrowIfDisposed();
-            _config = config;
             _version++;
             _lastActivity = _clock();
             load = StartLoadLocked(_version, config);
@@ -182,8 +181,8 @@ public sealed class TranscriptionModelManager : IDisposable
         lock (_gate)
         {
             if (version != _version || State != TranscriptionModelState.Loading) return;
+            StateChanged?.Invoke(TranscriptionModelState.Loading);
         }
-        StateChanged?.Invoke(TranscriptionModelState.Loading);
     }
 
     private async Task CompleteLoadAsync(
@@ -210,6 +209,7 @@ public sealed class TranscriptionModelManager : IDisposable
 
                 replaced = _model;
                 _model = created;
+                _config = config;
                 created = null;
                 if (replaced != null && _activeUsers > 0)
                 {
@@ -250,7 +250,13 @@ public sealed class TranscriptionModelManager : IDisposable
             {
                 if (_loadVersion == version) _loadTask = null;
             }
-            if (notification != null) StateChanged?.Invoke(notification.Value);
+            lock (_gate)
+            {
+                if (notification != null
+                    && version == _version
+                    && State == notification.Value)
+                    StateChanged?.Invoke(notification.Value);
+            }
         }
     }
 
@@ -277,7 +283,7 @@ public sealed class TranscriptionModelManager : IDisposable
             cancellationToken.ThrowIfCancellationRequested();
             var transcriber = new Transcriber(config.ModelPath, config.Language, config.Vocabulary);
             return new TranscriptionModel(
-                (samples, _) => transcriber.TranscribeAsync(samples),
+                transcriber.TranscribeAsync,
                 transcriber.Dispose);
         }, cancellationToken);
 

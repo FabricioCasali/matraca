@@ -1,0 +1,8 @@
+#ifndef MATRACA_WHISPER_ALIGNMENT_HEADS_PRESET_H
+#define MATRACA_WHISPER_ALIGNMENT_HEADS_PRESET_H
+
+enum whisper_alignment_heads_preset {
+    WHISPER_AHEADS_NONE,
+};
+
+#endif

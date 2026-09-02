@@ -11,24 +11,16 @@ O desenho da frente 2.0 está em [`PLANO-2.0.md`](PLANO-2.0.md).
 
 ## 🔄 Fazendo
 
-- **MT-004** **Fase 2 — o Mac dita** — fatias 1–5 verdes: casco assinado, config a
+- **MT-004** **Fase 2 — o Mac dita** — fatias 1–6 verdes: casco assinado, config a
   quente, TCC, event tap, entrega CGEvent, AudioQueue somente em memória e os quatro
-  modos conectados ao pipeline do Core. Próxima é a fatia 6: manter o backend Whisper
-  vivo entre ditados (MT-016), marco de uso pessoal. Depois faltam pin/moldura e
-  endurecimento; contrato completo em
+  modos conectados ao pipeline do Core. O estado nativo do Whisper agora nasce no
+  preload e permanece vivo entre ditados; a prova real fez duas inferências com uma
+  inicialização Metal e nenhuma liberação intermediária (MT-016). Este é o marco de uso
+  pessoal. Próxima é a fatia 7: pin e moldura; depois falta o endurecimento. Contrato em
   [`PLANO-2.0.md`](PLANO-2.0.md). · `[2.0]` · G · importante
 
 ## 📋 A fazer
 
-- **MT-016** **O backend Metal nasce e morre a cada ditado** — o log do `--pipeline` mostra
-  `whisper_backend_init_gpu` → `ggml_metal_init: allocating` → `ggml_metal_free:
-  deallocating` nas sete rodadas, com recompilação de pipelines em algumas. A transcrição
-  varia de **175 ms a 1.098 ms** para áudios do mesmo tamanho, e é o candidato mais forte
-  para o travamento leve que o Fabricio sentiu. Junto vai a carga do modelo: mediu-se
-  7.232 ms, depois 123 ms, e depois **6.500 ms de novo** — o cache de shaders não é
-  confiável, então 6–7 s é o custo possível de *toda* inicialização, não pedágio único.
-  O estado do Whisper precisa nascer uma vez e viver enquanto o app viver. · `[2.0]` · M ·
-  importante
 - **MT-005** **Fase 3 — a UI unificada** — mockup navegável primeiro (o mockup **é** o
   app, não é descartável), depois o casco e as telas: config, microfone com espectro,
   histórico, onboarding e HUD. · `[2.0]` · G · importante

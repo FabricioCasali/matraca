@@ -27,6 +27,8 @@ internal sealed class MacShell : IShell
         ShellNotificationLevel level = ShellNotificationLevel.Info)
     {
         string text = $"{title}: {message}";
+        if (level is ShellNotificationLevel.Warning or ShellNotificationLevel.Error)
+            _statusItem.SetState("Matraca !", text);
         if (level == ShellNotificationLevel.Error) Logger.Error(text);
         else if (level == ShellNotificationLevel.Warning) Logger.Warn(text);
         else Logger.Info(text);

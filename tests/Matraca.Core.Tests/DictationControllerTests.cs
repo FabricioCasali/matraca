@@ -404,6 +404,104 @@ public sealed class DictationControllerTests
         await setup.Controller.ShutdownAsync();
     }
 
+    [Fact]
+    public async Task ModelConfigBecomesVisibleOnlyAfterAtomicReloadCompletes()
+    {
+        var reloadStarted = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var reload = new TaskCompletionSource<TranscriptionModel>(TaskCreationOptions.RunContinuationsAsynchronously);
+        Config first = NewConfig("toggle", modelPath: "old-model");
+        Config second = NewConfig("hold", modelPath: "new-model");
+        var setup = CreateController(first, [], modelFactory: (config, _) =>
+        {
+            if (config.ModelPath == "old-model")
+                return Task.FromResult(new TranscriptionModel((_, _) => Task.FromResult("old")));
+            reloadStarted.SetResult();
+            return reload.Task;
+        });
+        setup.Controller.Start();
+        await setup.Controller.DrainAsync();
+
+        Task apply = setup.Controller.ApplyConfigAsync(second);
+        await reloadStarted.Task;
+        Assert.False(apply.IsCompleted);
+        Assert.Equal("old-model", setup.Controller.CurrentConfig.ModelPath);
+        Assert.Equal("toggle", setup.Controller.CurrentConfig.Mode);
+
+        reload.SetResult(new TranscriptionModel((_, _) => Task.FromResult("new")));
+        await apply;
+        Assert.Equal("new-model", setup.Controller.CurrentConfig.ModelPath);
+        Assert.Equal("hold", setup.Controller.CurrentConfig.Mode);
+        await setup.Controller.ShutdownAsync();
+    }
+
+    [Fact]
+    public async Task ShutdownCancelsAnActiveTranscription()
+    {
+        var transcriptionStarted = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var setup = CreateController(NewConfig("hold"), [], modelFactory: (_, _) =>
+            Task.FromResult(new TranscriptionModel(async (_, cancellationToken) =>
+            {
+                transcriptionStarted.SetResult();
+                await Task.Delay(Timeout.InfiniteTimeSpan, cancellationToken);
+                return "never";
+            })));
+        setup.Controller.Start();
+        await setup.Controller.HandleDictationKeyAsync(true);
+        Task stop = setup.Controller.HandleDictationKeyAsync(false);
+        await transcriptionStarted.Task;
+
+        Task shutdown = setup.Controller.ShutdownAsync();
+
+        await Task.WhenAll(stop, shutdown).WaitAsync(TimeSpan.FromSeconds(2));
+        Assert.Empty(setup.Sink.Requests);
+    }
+
+    [Fact]
+    public async Task ModelReloadDuringSessionCompletesOnlyAfterTheNewModelIsReady()
+    {
+        var reload = new TaskCompletionSource<TranscriptionModel>(TaskCreationOptions.RunContinuationsAsynchronously);
+        Config first = NewConfig("hold", modelPath: "old-model");
+        Config second = NewConfig("hold", modelPath: "new-model");
+        var setup = CreateController(first, [], modelFactory: (config, _) =>
+            config.ModelPath == "old-model"
+                ? Task.FromResult(new TranscriptionModel((_, _) => Task.FromResult("old")))
+                : reload.Task);
+        setup.Controller.Start();
+        await setup.Controller.HandleDictationKeyAsync(true);
+
+        Task apply = setup.Controller.ApplyConfigAsync(second);
+        await setup.Controller.DrainAsync();
+        Assert.False(apply.IsCompleted);
+        Assert.Equal("old-model", setup.Controller.CurrentConfig.ModelPath);
+
+        Task stop = setup.Controller.HandleDictationKeyAsync(false);
+        reload.SetResult(new TranscriptionModel((_, _) => Task.FromResult("new")));
+        await Task.WhenAll(stop, apply);
+        Assert.Equal("new-model", setup.Controller.CurrentConfig.ModelPath);
+        await setup.Controller.ShutdownAsync();
+    }
+
+    [Fact]
+    public async Task FailedModelReloadDuringSessionPreservesThePreviousConfig()
+    {
+        Config first = NewConfig("hold", modelPath: "old-model");
+        Config second = NewConfig("hold", modelPath: "broken-model");
+        var setup = CreateController(first, [], modelFactory: (config, _) =>
+            config.ModelPath == "old-model"
+                ? Task.FromResult(new TranscriptionModel((_, _) => Task.FromResult("old")))
+                : Task.FromException<TranscriptionModel>(new IOException("broken")));
+        setup.Controller.Start();
+        await setup.Controller.HandleDictationKeyAsync(true);
+        Task apply = setup.Controller.ApplyConfigAsync(second);
+        await setup.Controller.DrainAsync();
+
+        await setup.Controller.HandleDictationKeyAsync(false);
+
+        await Assert.ThrowsAsync<InvalidOperationException>(() => apply);
+        Assert.Equal("old-model", setup.Controller.CurrentConfig.ModelPath);
+        await setup.Controller.ShutdownAsync();
+    }
+
     private static void EmitPhrase(FakeAudioCapture audio)
     {
         audio.Emit(0.2f, 10);
@@ -415,16 +513,18 @@ public sealed class DictationControllerTests
         IEnumerable<string> responses,
         RecordingTextSink? sink = null,
         Func<Config, TextPostProcessor?>? postProcessorFactory = null,
-        Func<Config, DictationHistory?>? historyFactory = null)
+        Func<Config, DictationHistory?>? historyFactory = null,
+        Func<Config, CancellationToken, Task<TranscriptionModel>>? modelFactory = null)
         => CreateController(config, new ConcurrentQueue<string>(responses), sink,
-            postProcessorFactory, historyFactory);
+            postProcessorFactory, historyFactory, modelFactory);
 
     private static (DictationController Controller, FakeKeyboardHook Keyboard, FakeAudioCapture Audio, RecordingTextSink Sink, FakeTargetWindow Targets, FakeShell Shell) CreateController(
         Config config,
         ConcurrentQueue<string> responses,
         RecordingTextSink? sink = null,
         Func<Config, TextPostProcessor?>? postProcessorFactory = null,
-        Func<Config, DictationHistory?>? historyFactory = null)
+        Func<Config, DictationHistory?>? historyFactory = null,
+        Func<Config, CancellationToken, Task<TranscriptionModel>>? modelFactory = null)
     {
         var keyboard = new FakeKeyboardHook();
         var audio = new FakeAudioCapture();
@@ -433,8 +533,8 @@ public sealed class DictationControllerTests
         var shell = new FakeShell();
         var manager = new TranscriptionModelManager(
             config,
-            (_, _) => Task.FromResult(new TranscriptionModel(
-                (_, _) => Task.FromResult(responses.TryDequeue(out string? text) ? text : ""))),
+            modelFactory ?? ((_, _) => Task.FromResult(new TranscriptionModel(
+                (_, _) => Task.FromResult(responses.TryDequeue(out string? text) ? text : "")))),
             startIdleTimer: false);
         var controller = new DictationController(
             config,
@@ -452,9 +552,10 @@ public sealed class DictationControllerTests
     private static Config NewConfig(
         string mode,
         bool autoEnter = false,
-        string inputDevice = "") => new()
+        string inputDevice = "",
+        string modelPath = "fake-model") => new()
     {
-        ModelPath = "fake-model",
+        ModelPath = modelPath,
         Mode = mode,
         AutoEnter = autoEnter,
         InputDevice = inputDevice,
