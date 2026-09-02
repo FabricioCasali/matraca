@@ -25,6 +25,9 @@ public sealed class DictationController : IDisposable
     private TargetToken? _pinnedTarget;
     private string _pinnedTitle = "";
     private HotkeyGesture? _lastDiscovered;
+    private IKeyboardHook? _pendingKeyboard;
+    private Config? _pendingKeyboardConfig;
+    private TaskCompletionSource? _pendingKeyboardCompletion;
     private bool _dictationKeyDown;
     private bool _announcedReady;
     private bool _warnedLongBeep;
@@ -89,21 +92,51 @@ public sealed class DictationController : IDisposable
     public Task ApplyConfigAsync(Config config)
     {
         ArgumentNullException.ThrowIfNull(config);
-        return EnqueueCommand(() => ApplyConfigCoreAsync(config));
+        return EnqueueCommand(() =>
+        {
+            ApplyConfigCore(config);
+            return Task.CompletedTask;
+        });
+    }
+
+    public Task ApplyConfigAsync(Config config, IKeyboardHook keyboard)
+    {
+        ArgumentNullException.ThrowIfNull(config);
+        ArgumentNullException.ThrowIfNull(keyboard);
+        return QueueKeyboardReplacementAsync(keyboard, config);
     }
 
     public Task ReplaceKeyboardHookAsync(IKeyboardHook keyboard)
     {
         ArgumentNullException.ThrowIfNull(keyboard);
-        return EnqueueCommand(() =>
+        return QueueKeyboardReplacementAsync(keyboard, config: null);
+    }
+
+    private async Task QueueKeyboardReplacementAsync(IKeyboardHook keyboard, Config? config)
+    {
+        var completion = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        bool accepted = false;
+        await EnqueueCommand(() =>
         {
-            UnsubscribeKeyboard(_keyboard);
-            try { _keyboard.Dispose(); } catch { }
-            _keyboard = keyboard;
-            SubscribeKeyboard(_keyboard);
-            _keyboard.Start();
+            accepted = true;
+            if (_pendingKeyboard != null)
+            {
+                try { _pendingKeyboard.Dispose(); } catch { }
+                _pendingKeyboardCompletion?.TrySetException(
+                    new InvalidOperationException("Keyboard replacement was superseded."));
+            }
+            _pendingKeyboard = keyboard;
+            _pendingKeyboardConfig = config;
+            _pendingKeyboardCompletion = completion;
+            ApplyPendingKeyboardIfSafe();
             return Task.CompletedTask;
-        });
+        }).ConfigureAwait(false);
+        if (!accepted)
+        {
+            try { keyboard.Dispose(); } catch { }
+            return;
+        }
+        await completion.Task.ConfigureAwait(false);
     }
 
     public Task DrainAsync()
@@ -142,33 +175,40 @@ public sealed class DictationController : IDisposable
 
     private async Task HandleDictationKeyCoreAsync(bool pressed, bool suppressAction = false)
     {
-        if (_config.DiscoverMode) return;
-        _models.Touch();
-
-        if (pressed)
+        try
         {
-            if (_dictationKeyDown) return;
-            _dictationKeyDown = true;
+            if (_config.DiscoverMode) return;
+            _models.Touch();
+
+            if (pressed)
+            {
+                if (_dictationKeyDown) return;
+                _dictationKeyDown = true;
+            }
+            else
+            {
+                if (!_dictationKeyDown) return;
+                _dictationKeyDown = false;
+            }
+
+            if (suppressAction) return;
+
+            string mode = _session?.Config.Mode ?? _config.Mode;
+            if (mode is "hold" or "push")
+            {
+                if (pressed && _session == null) await StartSessionAsync().ConfigureAwait(false);
+                else if (!pressed && _session != null) await StopSessionAsync().ConfigureAwait(false);
+                return;
+            }
+
+            if (!pressed) return;
+            if (_session == null) await StartSessionAsync().ConfigureAwait(false);
+            else await StopSessionAsync().ConfigureAwait(false);
         }
-        else
+        finally
         {
-            if (!_dictationKeyDown) return;
-            _dictationKeyDown = false;
+            ApplyPendingKeyboardIfSafe();
         }
-
-        if (suppressAction) return;
-
-        string mode = _session?.Config.Mode ?? _config.Mode;
-        if (mode is "hold" or "push")
-        {
-            if (pressed && _session == null) await StartSessionAsync().ConfigureAwait(false);
-            else if (!pressed && _session != null) await StopSessionAsync().ConfigureAwait(false);
-            return;
-        }
-
-        if (!pressed) return;
-        if (_session == null) await StartSessionAsync().ConfigureAwait(false);
-        else await StopSessionAsync().ConfigureAwait(false);
     }
 
     private async Task StartSessionAsync()
@@ -301,7 +341,7 @@ public sealed class DictationController : IDisposable
         session.Segments?.CompleteAdding();
         if (session.Consumer != null) await session.Consumer.ConfigureAwait(false);
 
-        if (session.DeliveredSpeech && session.Config.AutoEnter)
+        if (session.DeliveredSpeech && !session.DeliveryFailed && session.Config.AutoEnter)
         {
             await DeliverAsync(session, "", pressEnter: true, addToHistory: false)
                 .ConfigureAwait(false);
@@ -330,10 +370,13 @@ public sealed class DictationController : IDisposable
                     if (await DeliverAsync(session, chunk, pressEnter: false).ConfigureAwait(false)
                         == TextDeliveryResult.Delivered)
                         session.DeliveredSpeech = true;
+                    else
+                        session.DeliveryFailed = true;
                     Logger.Info($"[live] chunk (~{segment.Length / 16000.0:F1}s): \"{text.Trim()}\"");
                 }
                 catch (Exception exception)
                 {
+                    session.DeliveryFailed = true;
                     Logger.Error("[live] falha ao transcrever chunk", exception);
                 }
             }
@@ -419,7 +462,7 @@ public sealed class DictationController : IDisposable
         RefreshState();
     }
 
-    private Task ApplyConfigCoreAsync(Config config)
+    private void ApplyConfigCore(Config config)
     {
         Config old = _config;
         _config = config;
@@ -446,7 +489,6 @@ public sealed class DictationController : IDisposable
             SetIdle();
         }
         Logger.Info("Configuracoes aplicadas sem reiniciar.");
-        return Task.CompletedTask;
     }
 
     private Task FinishSessionAsync(DictationSession session)
@@ -529,7 +571,10 @@ public sealed class DictationController : IDisposable
 
     private void SetRecording(Config config)
     {
-        SetShellState(ShellState.Recording, "Matraca — GRAVANDO (aperte de novo p/ parar)");
+        string instruction = config.HotkeyNeedsKeyUp
+            ? "solte para parar"
+            : "aperte de novo p/ parar";
+        SetShellState(ShellState.Recording, $"Matraca — GRAVANDO ({instruction})");
         Dispatch(() => _targets.ShowIndicator(
             _pinnedTarget,
             _pinnedTarget != null ? config.FocusBorderColorPinned : config.FocusBorderColor));
@@ -620,6 +665,32 @@ public sealed class DictationController : IDisposable
         keyboard.KeyDiscovered -= OnKeyDiscovered;
     }
 
+    private void ApplyPendingKeyboardIfSafe()
+    {
+        if (_pendingKeyboard == null || _session != null || IsBusy || _dictationKeyDown) return;
+
+        IKeyboardHook keyboard = _pendingKeyboard;
+        Config? config = _pendingKeyboardConfig;
+        TaskCompletionSource? completion = _pendingKeyboardCompletion;
+        _pendingKeyboard = null;
+        _pendingKeyboardConfig = null;
+        _pendingKeyboardCompletion = null;
+        try
+        {
+            UnsubscribeKeyboard(_keyboard);
+            try { _keyboard.Dispose(); } catch { }
+            _keyboard = keyboard;
+            SubscribeKeyboard(_keyboard);
+            _keyboard.Start();
+            if (config != null) ApplyConfigCore(config);
+            completion?.TrySetResult();
+        }
+        catch (Exception exception)
+        {
+            completion?.TrySetException(exception);
+        }
+    }
+
     private Task EnqueueCommand(Func<Task> command, bool allowDuringShutdown = false)
     {
         if (!allowDuringShutdown && Volatile.Read(ref _shuttingDown) != 0)
@@ -696,6 +767,15 @@ public sealed class DictationController : IDisposable
         _models.Dispose();
         _postProcessor?.Dispose();
         DisposeRetiredPostProcessors();
+        if (_pendingKeyboard != null)
+        {
+            try { _pendingKeyboard.Dispose(); } catch { }
+            _pendingKeyboard = null;
+            _pendingKeyboardConfig = null;
+            _pendingKeyboardCompletion?.TrySetException(
+                new ObjectDisposedException(nameof(DictationController)));
+            _pendingKeyboardCompletion = null;
+        }
         if (_pinnedTarget != null) _targets.Release(_pinnedTarget);
         try { _keyboard.Dispose(); } catch { }
         try { _audio.Dispose(); } catch { }

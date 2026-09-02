@@ -11,11 +11,11 @@ O desenho da frente 2.0 está em [`PLANO-2.0.md`](PLANO-2.0.md).
 
 ## 🔄 Fazendo
 
-- **MT-004** **Fase 2 — o Mac dita** — fatias 1–4 verdes: casco assinado sem roubo de
-  foco, config a quente, TCC, event tap, entrega CGEvent literal e AudioQueue contínuo a
-  16 kHz somente em memória. Ainda não dita. Próxima é a fatia 5: conectar `toggle`,
-  `hold`, `live` e `push` do Core ao teclado e ao AudioQueue. Depois faltam o backend
-  Whisper persistente (MT-016), pin/moldura e endurecimento; contrato completo em
+- **MT-004** **Fase 2 — o Mac dita** — fatias 1–5 verdes: casco assinado, config a
+  quente, TCC, event tap, entrega CGEvent, AudioQueue somente em memória e os quatro
+  modos conectados ao pipeline do Core. Próxima é a fatia 6: manter o backend Whisper
+  vivo entre ditados (MT-016), marco de uso pessoal. Depois faltam pin/moldura e
+  endurecimento; contrato completo em
   [`PLANO-2.0.md`](PLANO-2.0.md). · `[2.0]` · G · importante
 
 ## 📋 A fazer

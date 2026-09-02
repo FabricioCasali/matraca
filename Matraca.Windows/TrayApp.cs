@@ -132,12 +132,14 @@ internal sealed class TrayApp : ApplicationContext
         if (next.Hotkey != previous.Hotkey || next.PinHotkey != previous.PinHotkey ||
             next.DiscoverMode != previous.DiscoverMode)
         {
-            _keyboard = BuildKeyboard(next);
-            await _controller.ReplaceKeyboardHookAsync(_keyboard);
+            IKeyboardHook keyboard = BuildKeyboard(next);
+            await _controller.ApplyConfigAsync(next, keyboard);
+            _keyboard = keyboard;
         }
+        else
+            await _controller.ApplyConfigAsync(next);
 
         _config = next;
-        await _controller.ApplyConfigAsync(next);
         if (next.History != previous.History || next.HistoryMaxItems != previous.HistoryMaxItems)
             RebuildMenu();
 

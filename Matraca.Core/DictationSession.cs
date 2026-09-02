@@ -13,4 +13,5 @@ internal sealed class DictationSession
     public BlockingCollection<float[]>? Segments { get; set; }
     public Task? Consumer { get; set; }
     public bool DeliveredSpeech { get; set; }
+    public bool DeliveryFailed { get; set; }
 }

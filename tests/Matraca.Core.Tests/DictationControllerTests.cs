@@ -14,18 +14,24 @@ public sealed class DictationControllerTests
     public async Task AllFourModesRunTheSharedPipeline(string mode, bool streaming)
     {
         Config config = NewConfig(mode, autoEnter: true);
-        var (controller, _, audio, sink, _, _) = CreateController(config, ["spoken"]);
+        var (controller, keyboard, audio, sink, _, shell) = CreateController(config, ["spoken"]);
         controller.Start();
 
-        await controller.HandleDictationKeyAsync(true);
+        keyboard.RaiseDictation(true);
+        await controller.DrainAsync();
+        string recordingText = shell.States.Last(item => item.State == ShellState.Recording).Text;
+        Assert.Contains(mode is "hold" or "push" ? "solte" : "aperte de novo", recordingText);
         audio.Emit(0.2f, 10);
         if (mode is "hold" or "push")
-            await controller.HandleDictationKeyAsync(false);
+        {
+            keyboard.RaiseDictation(false);
+        }
         else
         {
-            await controller.HandleDictationKeyAsync(false);
-            await controller.HandleDictationKeyAsync(true);
+            keyboard.RaiseDictation(false);
+            keyboard.RaiseDictation(true);
         }
+        await controller.DrainAsync();
 
         TextDeliveryRequest[] requests = sink.Requests.ToArray();
         if (streaming)
@@ -66,6 +72,114 @@ public sealed class DictationControllerTests
         Assert.False(controller.IsSessionActive);
         Assert.Equal(1, audio.StopCount);
         await controller.ShutdownAsync();
+    }
+
+    [Fact]
+    public async Task ReplacedKeyboardOwnsEventsAfterHotReload()
+    {
+        var setup = CreateController(NewConfig("toggle"), ["text"]);
+        var replacement = new FakeKeyboardHook();
+        setup.Controller.Start();
+
+        await setup.Controller.ReplaceKeyboardHookAsync(replacement);
+        setup.Keyboard.RaiseDictation(true);
+        await setup.Controller.DrainAsync();
+
+        Assert.True(setup.Keyboard.Disposed);
+        Assert.True(replacement.Started);
+        Assert.False(setup.Controller.IsSessionActive);
+
+        replacement.RaiseDictation(true);
+        await setup.Controller.DrainAsync();
+        Assert.True(setup.Controller.IsSessionActive);
+        await setup.Controller.ShutdownAsync();
+    }
+
+    [Fact]
+    public async Task KeyboardReplacementWaitsForHoldSessionKeyUp()
+    {
+        var setup = CreateController(NewConfig("hold"), ["text"]);
+        var replacement = new FakeKeyboardHook();
+        setup.Controller.Start();
+        setup.Keyboard.RaiseDictation(true);
+        await setup.Controller.DrainAsync();
+
+        Task replace = setup.Controller.ReplaceKeyboardHookAsync(replacement);
+        await setup.Controller.DrainAsync();
+        Assert.False(replace.IsCompleted);
+        Assert.False(setup.Keyboard.Disposed);
+
+        setup.Keyboard.RaiseDictation(false);
+        await setup.Controller.DrainAsync();
+        await replace;
+        Assert.True(setup.Keyboard.Disposed);
+        Assert.True(replacement.Started);
+        Assert.False(setup.Controller.IsSessionActive);
+        await setup.Controller.ShutdownAsync();
+    }
+
+    [Fact]
+    public async Task KeyboardReplacementWaitsForToggleKeyUpAfterStop()
+    {
+        var setup = CreateController(NewConfig("toggle"), ["text"]);
+        var replacement = new FakeKeyboardHook();
+        setup.Controller.Start();
+        setup.Keyboard.RaiseDictation(true);
+        setup.Keyboard.RaiseDictation(false);
+        await setup.Controller.DrainAsync();
+        setup.Keyboard.RaiseDictation(true);
+        await setup.Controller.DrainAsync();
+        Assert.False(setup.Controller.IsSessionActive);
+
+        Task replace = setup.Controller.ReplaceKeyboardHookAsync(replacement);
+        await setup.Controller.DrainAsync();
+        Assert.False(replace.IsCompleted);
+
+        setup.Keyboard.RaiseDictation(false);
+        await setup.Controller.DrainAsync();
+        await replace;
+        Assert.True(replacement.Started);
+        await setup.Controller.ShutdownAsync();
+    }
+
+    [Fact]
+    public async Task ConfigAndKeyboardReplacementBecomeVisibleTogetherAfterKeyUp()
+    {
+        var setup = CreateController(NewConfig("hold"), ["text"]);
+        var replacement = new FakeKeyboardHook();
+        setup.Controller.Start();
+        setup.Keyboard.RaiseDictation(true);
+        await setup.Controller.DrainAsync();
+
+        Task apply = setup.Controller.ApplyConfigAsync(NewConfig("toggle"), replacement);
+        await setup.Controller.DrainAsync();
+        Assert.False(apply.IsCompleted);
+        Assert.Equal("hold", setup.Controller.CurrentConfig.Mode);
+        Assert.False(replacement.Started);
+
+        setup.Keyboard.RaiseDictation(false);
+        await setup.Controller.DrainAsync();
+        await apply;
+        Assert.Equal("toggle", setup.Controller.CurrentConfig.Mode);
+        Assert.True(replacement.Started);
+        await setup.Controller.ShutdownAsync();
+    }
+
+    [Fact]
+    public async Task ShutdownReleasesPendingKeyboardReplacement()
+    {
+        var setup = CreateController(NewConfig("hold"), ["text"]);
+        var replacement = new FakeKeyboardHook();
+        setup.Controller.Start();
+        setup.Keyboard.RaiseDictation(true);
+        await setup.Controller.DrainAsync();
+        Task replace = setup.Controller.ReplaceKeyboardHookAsync(replacement);
+        await setup.Controller.DrainAsync();
+
+        await setup.Controller.ShutdownAsync();
+
+        await Assert.ThrowsAsync<ObjectDisposedException>(() => replace);
+        Assert.True(replacement.Disposed);
     }
 
     [Fact]
@@ -167,6 +281,25 @@ public sealed class DictationControllerTests
         var request = Assert.Single(sink.Requests);
         Assert.Equal("spoken ", request.Text);
         Assert.False(request.PressEnter);
+        await setup.Controller.ShutdownAsync();
+    }
+
+    [Fact]
+    public async Task FailedLaterStreamingChunkDoesNotSubmitPartialText()
+    {
+        var sink = new RecordingTextSink((_, call, _) => Task.FromResult(
+            call == 1 ? TextDeliveryResult.Delivered : TextDeliveryResult.Failed));
+        var setup = CreateController(NewConfig("live", autoEnter: true), ["one", "two"], sink);
+        setup.Controller.Start();
+
+        await setup.Controller.HandleDictationKeyAsync(true);
+        EmitPhrase(setup.Audio);
+        EmitPhrase(setup.Audio);
+        await setup.Controller.HandleDictationKeyAsync(false);
+        await setup.Controller.HandleDictationKeyAsync(true);
+
+        Assert.Equal(["one ", "two "], sink.Requests.Select(request => request.Text));
+        Assert.All(sink.Requests, request => Assert.False(request.PressEnter));
         await setup.Controller.ShutdownAsync();
     }
 
