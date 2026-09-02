@@ -7,7 +7,7 @@ namespace Matraca;
 /// Entrega o texto ditado na janela em foco, por um de dois caminhos:
 ///  - "unicode" (padrao): digita direto via SendInput/KEYEVENTF_UNICODE, sem tocar no clipboard;
 ///  - "clipboard": copia e manda Ctrl+V, restaurando o conteudo anterior do clipboard.
-/// IMPORTANTE: chamar na UI thread (STA), por causa do Clipboard do WinForms.
+/// Chamado somente pela thread STA dedicada do WindowsTextSink. Ela nao hospeda o hook.
 /// </summary>
 internal static class TextInjector
 {
@@ -18,59 +18,20 @@ internal static class TextInjector
     /// <remarks>Cabe em 32 bits de proposito: IntPtr tem esse tamanho num processo x86.</remarks>
     public const int InjectionTag = 0x4D54_5243; // "MTRC"
 
-    // Toda entrega por SendInput passa por aqui, uma de cada vez. Dois Task.Run soltos iriam
-    // para workers diferentes do pool e podem se ultrapassar — no modo live isso faz o Enter
-    // final chegar antes do ultimo pedaco de texto, enviando a mensagem pela metade.
-    private static readonly object _chainGate = new();
-    private static Task _chain = Task.CompletedTask;
-
-    private static void Enqueue(Action work)
-    {
-        lock (_chainGate)
-            _chain = _chain.ContinueWith(_ =>
-            {
-                try { work(); }
-                catch (Exception ex) { Logger.Error("Falha ao entregar o texto", ex); }
-            }, CancellationToken.None, TaskContinuationOptions.None, TaskScheduler.Default);
-    }
-
-    public static void PasteText(string text, bool autoEnter, string method)
+    public static bool PasteText(string text, bool autoEnter, string method)
     {
         if (string.IsNullOrEmpty(text))
         {
-            // "so o Enter" nao passa pelo clipboard: Clipboard.SetText("") lanca, e a cola seria
-            // abortada antes de chegar no Enter.
-            if (autoEnter) Enqueue(SendEnter);
-            return;
+            return !autoEnter || SendEnter();
         }
 
         if (method == "clipboard")
-        {
-            // precisa da UI thread (STA): o Clipboard do WinForms exige
-            PasteViaClipboard(text, autoEnter);
-            return;
-        }
+            return PasteViaClipboard(text, autoEnter);
 
-        // ATENCAO: NAO digitar na UI thread.
-        //
-        // O hook global de teclado (WH_KEYBOARD_LL) vive na UI thread, e TODO evento que a
-        // gente injeta passa por ele. Digitando aqui, a thread fica presa dentro do SendInput
-        // e nao consegue atender os callbacks dos eventos que ela mesma esta' injetando —
-        // estourado o LowLevelHooksTimeout (~300ms), o Windows DESCARTA os eventos. O sintoma
-        // e' texto chegando sem espacos e cortado no meio. Numa thread de fundo a UI fica
-        // livre p/ servir o hook, e nada se perde.
-        Enqueue(() =>
-        {
-            try
-            {
-                SendUnicode(text);
-                if (autoEnter) SendEnter();
-            }
-            catch (Exception ex) { Logger.Error("Falha ao digitar o texto", ex); }
-        });
+        return SendUnicode(text) && (!autoEnter || SendEnter());
     }
 
-    private static void PasteViaClipboard(string text, bool autoEnter)
+    private static bool PasteViaClipboard(string text, bool autoEnter)
     {
         string? previous = null;
         try { if (Clipboard.ContainsText()) previous = Clipboard.GetText(); }
@@ -79,26 +40,18 @@ internal static class TextInjector
         if (!TrySetClipboard(text))
         {
             Logger.Error("Nao consegui escrever no clipboard; abortando cola.");
-            return;
+            return false;
         }
 
-        SendCtrlV();
-        if (autoEnter) SendEnter();
-
-        // restaura o clipboard anterior depois de um tempinho (na UI thread)
-        var timer = new System.Windows.Forms.Timer { Interval = 500 };
-        timer.Tick += (s, e) =>
+        bool delivered = SendCtrlV() && (!autoEnter || SendEnter());
+        Thread.Sleep(500);
+        try
         {
-            timer.Stop();
-            timer.Dispose();
-            try
-            {
-                if (previous != null) Clipboard.SetText(previous);
-                else Clipboard.Clear();
-            }
-            catch { /* ignora */ }
-        };
-        timer.Start();
+            if (previous != null) Clipboard.SetText(previous);
+            else Clipboard.Clear();
+        }
+        catch { }
+        return delivered;
     }
 
     // Rajada grande de KEYEVENTF_UNICODE estoura a fila de mensagens de alguns alvos
@@ -106,8 +59,9 @@ internal static class TextInjector
     private const int UnicodeChunkChars = 40;
     private const int UnicodeChunkPauseMs = 2;
 
-    private static void SendUnicode(string text)
+    private static bool SendUnicode(string text)
     {
+        bool sentAll = true;
         for (int start = 0; start < text.Length; start += UnicodeChunkChars)
         {
             int len = Math.Min(UnicodeChunkChars, text.Length - start);
@@ -118,9 +72,10 @@ internal static class TextInjector
                 inputs[i * 2]     = UnicodeKey(ch, keyUp: false);
                 inputs[i * 2 + 1] = UnicodeKey(ch, keyUp: true);
             }
-            Send(inputs);
+            sentAll &= Send(inputs);
             if (start + len < text.Length) Thread.Sleep(UnicodeChunkPauseMs);
         }
+        return sentAll;
     }
 
     private static INPUT UnicodeKey(ushort ch, bool keyUp) => new()
@@ -272,49 +227,33 @@ internal static class TextInjector
     /// sempre via SendInput, mesmo com pasteMethod=clipboard — o Clipboard do WinForms exigiria
     /// a UI thread, que e' justamente a que precisa ficar livre aqui.
     /// </summary>
-    public static void DeliverWithFocus(IntPtr hwnd, string text, bool autoEnter,
-                                        Action<bool> onDone)
+    public static bool DeliverWithFocus(IntPtr hwnd, string text, bool autoEnter)
     {
-        if (!IsWindowAlive(hwnd)) { onDone(false); return; }
+        if (!IsWindowAlive(hwnd)) return false;
 
         var previous = GetForegroundWindow();
-
-        Enqueue(() =>
+        bool delivered = false;
+        try
         {
-            bool ok = false;
-            try
+            FocusWindow(hwnd);
+            if (!WaitForForeground(hwnd, 800))
             {
-                FocusWindow(hwnd);
-
-                // Sem esperar a troca efetivar, o SendInput cairia na janela antiga: o
-                // SetForegroundWindow retorna antes de o Windows concluir a mudanca.
-                if (!WaitForForeground(hwnd, 800))
-                {
-                    Logger.Warn("A janela fixada nao veio pro primeiro plano a tempo; nao "
-                              + "entreguei o texto p/ nao colar na janela errada.");
-                }
-                else
-                {
-                    SendUnicode(text);
-                    if (autoEnter) SendEnter();
-
-                    // O SendInput e' assincrono: enfileira os eventos e volta na hora, sem
-                    // esperar o app alvo consumi-los. Devolver o foco aqui cortaria o fim do
-                    // texto — os ultimos caracteres chegariam com a janela ja' trocada.
-                    Thread.Sleep(SettleMsFor(text));
-                    ok = true;
-                }
+                Logger.Warn("A janela fixada nao veio pro primeiro plano a tempo; nao "
+                          + "entreguei o texto p/ nao colar na janela errada.");
             }
-            catch (Exception ex) { Logger.Error("Falha ao entregar na janela fixada", ex); }
-            finally
+            else
             {
-                // devolve o foco mesmo se a digitacao falhou, p/ nao largar o usuario na
-                // janela errada
-                try { if (previous != hwnd && IsWindowAlive(previous)) FocusWindow(previous); }
-                catch (Exception ex) { Logger.Warn("Falha ao devolver o foco: " + ex.Message); }
-                onDone(ok);
+                delivered = SendUnicode(text) && (!autoEnter || SendEnter());
+                Thread.Sleep(SettleMsFor(text));
             }
-        });
+        }
+        catch (Exception ex) { Logger.Error("Falha ao entregar na janela fixada", ex); }
+        finally
+        {
+            try { if (previous != hwnd && IsWindowAlive(previous)) FocusWindow(previous); }
+            catch (Exception ex) { Logger.Warn("Falha ao devolver o foco: " + ex.Message); }
+        }
+        return delivered;
     }
 
     /// <summary>
@@ -366,7 +305,7 @@ internal static class TextInjector
     private const ushort VK_V = 0x56;
     private const ushort VK_RETURN = 0x0D;
 
-    private static void SendCtrlV() => Send(new[]
+    private static bool SendCtrlV() => Send(new[]
     {
         Key(VK_CONTROL, false),
         Key(VK_V, false),
@@ -374,17 +313,18 @@ internal static class TextInjector
         Key(VK_CONTROL, true),
     });
 
-    private static void SendEnter() => Send(new[]
+    private static bool SendEnter() => Send(new[]
     {
         Key(VK_RETURN, false),
         Key(VK_RETURN, true),
     });
 
-    private static void Send(INPUT[] inputs)
+    private static bool Send(INPUT[] inputs)
     {
         uint sent = SendInput((uint)inputs.Length, inputs, Marshal.SizeOf<INPUT>());
         if (sent != inputs.Length)
             Logger.Warn($"SendInput enviou {sent}/{inputs.Length} eventos (err {Marshal.GetLastWin32Error()}).");
+        return sent == inputs.Length;
     }
 
     private static INPUT Key(ushort vk, bool keyUp) => new()

@@ -12,8 +12,10 @@ namespace Matraca;
 /// </summary>
 internal sealed class SettingsForm : Form
 {
-    private readonly HotkeyListener? _mainHotkey;   // p/ suspender durante a captura
-    private HotkeyListener? _capture;               // hook de descoberta temporario
+    private readonly IKeyboardHook? _mainHotkey;
+    private readonly IAudioCapture _audioCapture;
+    private readonly IShell _shell;
+    private IKeyboardHook? _capture;
 
     // -- aba Ditado --
     private readonly TextBox _hotkeyBox;
@@ -87,9 +89,11 @@ internal sealed class SettingsForm : Form
         ("push",   "push — segura a tecla, cola a cada pausa"),
     };
 
-    public SettingsForm(HotkeyListener? mainHotkey)
+    public SettingsForm(IKeyboardHook? mainHotkey, IAudioCapture audioCapture, IShell shell)
     {
         _mainHotkey = mainHotkey;
+        _audioCapture = audioCapture;
+        _shell = shell;
         var cfg = WindowsConfig.Load();
         var raw = WindowsConfig.LoadRaw();
 
@@ -177,7 +181,7 @@ internal sealed class SettingsForm : Form
 
         _inputDeviceBox = new ComboBox { DropDownStyle = ComboBoxStyle.DropDownList, Width = 320 };
         _inputDeviceBox.Items.Add("(padrão do Windows)");
-        foreach (var name in AudioDevices.ListNames()) _inputDeviceBox.Items.Add(name);
+        foreach (var name in _audioCapture.ListDevices()) _inputDeviceBox.Items.Add(name);
         _inputDeviceBox.SelectedIndex = 0;
         if (cfg.InputDevice.Length > 0)
         {
@@ -447,7 +451,7 @@ internal sealed class SettingsForm : Form
 
         _capturingPin = pin;
         if (_mainHotkey != null) _mainHotkey.Suspended = true;
-        _capture = HotkeyListener.CreateDiscovery();
+        _capture = WindowsKeyboardHook.CreateDiscovery();
         _capture.KeyDiscovered += OnKeyCaptured;
         _capture.Start();
         (pin ? _pinHotkeyBox : _hotkeyBox).Text = CapturingLabel;
@@ -461,21 +465,26 @@ internal sealed class SettingsForm : Form
     /// de tecla fazia — trava o callback pelo tempo que a caixa ficar aberta. Entao so' re-posta
     /// pra fila de mensagens e retorna na hora.
     /// </summary>
-    private void OnKeyCaptured(int vk, KeyMods mods)
+    private void OnKeyCaptured(HotkeyGesture gesture)
     {
-        try { BeginInvoke(new Action(() => HandleKeyCaptured(vk, mods))); }
+        try { BeginInvoke(new Action(() => HandleKeyCaptured(gesture))); }
         catch (Exception ex) { Logger.Warn("captura de tecla: falha ao repostar: " + ex.Message); }
     }
 
-    private void HandleKeyCaptured(int vk, KeyMods mods)
+    private void HandleKeyCaptured(HotkeyGesture gesture)
     {
         if (_capture == null) return;   // ja' cancelada entre o hook e este ponto
 
-        Logger.Info($"Captura de tecla: vk=0x{vk:X2} ({vk}) mods={mods} -> {WindowsHotkeyTranslator.Format(vk, mods)}");
+        var combo = gesture.ToString();
+        Logger.Info($"Captura de tecla: {combo}");
 
-        if (vk == 0x1B && mods == KeyMods.None) { RestoreDisplay(_capturingPin); StopCapture(); return; } // Esc cancela
+        if (gesture.Key == "Esc" && gesture.Modifiers == KeyMods.None)
+        {
+            RestoreDisplay(_capturingPin);
+            StopCapture();
+            return;
+        }
 
-        var combo = WindowsHotkeyTranslator.Format(vk, mods);
         // revalida: letra/dígito solto é recusado, então não deixa salvar um atalho morto
         if (!HotkeyParser.TryParse(combo, out _) &&
             WindowsHotkeyTranslator.ParseCompatibility(combo) == null)
@@ -483,7 +492,7 @@ internal sealed class SettingsForm : Form
             MessageBox.Show(this,
                 $"'{combo}' não serve como atalho: teclas de digitação sozinhas parariam de "
               + "funcionar no sistema inteiro. Junte um modificador (ex.: Ctrl+Alt+"
-              + WindowsHotkeyTranslator.NameForVirtualKey(vk) + ") ou use uma tecla dedicada como F13–F24.",
+              + gesture.Key + ") ou use uma tecla dedicada como F13–F24.",
                 "Matraca", MessageBoxButtons.OK, MessageBoxIcon.Warning);
             RestoreDisplay(_capturingPin);
             StopCapture();
@@ -559,7 +568,7 @@ internal sealed class SettingsForm : Form
                     "Matraca", MessageBoxButtons.OK, MessageBoxIcon.Information);
                 return;
             }
-            Beeper.PlaySoundFile(path, (float)_beepVolumeBox.Value);
+            _shell.PlaySound(true, path, (float)_beepVolumeBox.Value);
         };
         var clear = new Button { Text = "Limpar", AutoSize = true };
         clear.Click += (_, _) => box.Text = "";

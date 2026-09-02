@@ -13,19 +13,30 @@ namespace Matraca;
 internal sealed class HistoryForm : Form
 {
     private readonly DictationHistory _history;
-    private readonly Config _cfg;
-    private readonly IntPtr _returnTo;      // janela que tinha o foco antes desta tela abrir
+    private readonly TargetToken? _returnTo;
+    private readonly ITargetWindow _targetWindow;
+    private readonly ITextSink _textSink;
 
     private readonly ListBox _list;
     private readonly TextBox _detail;
     private List<DictationHistoryEntry> _items;
 
-    public HistoryForm(DictationHistory history, Config cfg, IntPtr returnTo)
+    public HistoryForm(
+        DictationHistory history,
+        TargetToken? returnTo,
+        ITargetWindow targetWindow,
+        ITextSink textSink)
     {
         _history = history;
-        _cfg = cfg;
         _returnTo = returnTo;
+        _targetWindow = targetWindow;
+        _textSink = textSink;
         _items = history.Snapshot();
+
+        FormClosed += (_, _) =>
+        {
+            if (_returnTo != null) _targetWindow.Release(_returnTo);
+        };
 
         Text = "Matraca — Histórico de ditados";
         StartPosition = FormStartPosition.CenterScreen;
@@ -67,7 +78,7 @@ internal sealed class HistoryForm : Form
         var pasteBtn = new Button { Text = "Colar na janela anterior", AutoSize = true };
         clearBtn.Click += (_, _) => ClearAll();
         copyBtn.Click += (_, _) => CopySelected();
-        pasteBtn.Click += (_, _) => PasteSelected();
+        pasteBtn.Click += async (_, _) => await PasteSelected();
         buttons.Controls.Add(closeBtn);
         buttons.Controls.Add(clearBtn);
         buttons.Controls.Add(copyBtn);
@@ -121,12 +132,12 @@ internal sealed class HistoryForm : Form
         }
     }
 
-    private void PasteSelected()
+    private async Task PasteSelected()
     {
         var text = Selected();
         if (text == null) return;
 
-        if (!TextInjector.IsWindowAlive(_returnTo))
+        if (_returnTo == null || !_targetWindow.IsAlive(_returnTo))
         {
             MessageBox.Show(this,
                 "A janela que estava em foco não existe mais. Use Copiar e cole você mesmo.",
@@ -136,7 +147,11 @@ internal sealed class HistoryForm : Form
 
         // fecha primeiro: enquanto esta tela existir, ela e' quem tem o foco
         Close();
-        TextInjector.DeliverWithFocus(_returnTo, text, autoEnter: false, onDone: _ => { });
+        await _textSink.DeliverAsync(new TextDeliveryRequest(
+            text,
+            false,
+            TextDeliveryMethod.TargetWithFocus,
+            _returnTo));
     }
 
     private void ClearAll()

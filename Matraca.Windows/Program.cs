@@ -1,5 +1,4 @@
 using System.Collections.Concurrent;
-using System.Media;
 using System.Windows.Forms;
 using Whisper.net.LibraryLoader;
 
@@ -174,8 +173,11 @@ internal sealed class TrayApp : ApplicationContext
     // reconstroi o que precisa em vez de reiniciar o app (ver ApplyConfig).
     private Config _cfg;
     private readonly NotifyIcon _tray;
-    private HotkeyListener _hotkey;
-    private readonly AudioRecorder _recorder = new();
+    private IKeyboardHook _hotkey;
+    private readonly IAudioCapture _recorder;
+    private readonly ITextSink _textSink;
+    private readonly ITargetWindow _targetWindow;
+    private readonly IShell _shell;
     private readonly SynchronizationContext _ui;
 
     private Transcriber? _transcriber;
@@ -183,19 +185,15 @@ internal sealed class TrayApp : ApplicationContext
     private readonly object _gate = new();        // protege _transcriber/_loadTask
     private bool _announcedReady;                  // balão "Pronto" só na 1ª carga
     private bool _busy;          // transcrevendo (modos toggle/hold)
-    private int _lastDiscovered; // evita spam de balao no modo descoberta
-    private KeyMods _lastDiscoveredMods;
+    private HotkeyGesture? _lastDiscovered;
 
     // auto-descarregar por inatividade (libera VRAM)
     private long _lastActivityTick;
     private System.Threading.Timer? _idleTimer;
 
-    // moldura visual na janela em foco (mostra onde o texto vai ser colado)
-    private FocusBorder? _border;
-
-    // destino fixo do ditado: enquanto != 0, o texto vai SEMPRE p/ esta janela,
+    // destino fixo do ditado: enquanto != null, o texto vai SEMPRE p/ esta janela,
     // independente de qual esta em foco na hora de falar.
-    private IntPtr _pinnedHwnd;
+    private TargetToken? _pinnedTarget;
     private string _pinnedTitle = "";
 
     // limpeza opcional do texto por um modelo Claude (null = desligado)
@@ -205,7 +203,7 @@ internal sealed class TrayApp : ApplicationContext
     private DictationHistory? _history;
 
     // modo live (VAD)
-    private LiveDictation? _live;
+    private VoiceActivityDetector? _live;
     private BlockingCollection<float[]>? _liveQueue;
     private Task? _liveConsumer;
     private bool _liveActive;
@@ -237,17 +235,26 @@ internal sealed class TrayApp : ApplicationContext
             Icon = _icoIdle,
             Visible = true,
             Text = "Matraca — iniciando...",
-            ContextMenuStrip = BuildMenu(),
         };
 
-        _border = BuildBorder();
+        _shell = new WindowsShell(_tray, _icoIdle, _icoRec, _icoBusy);
+        var windowsTarget = new WindowsTargetWindow();
+        _targetWindow = windowsTarget;
+        _targetWindow.ConfigureIndicator(
+            _cfg.FocusBorder,
+            _cfg.FocusBorderColor,
+            _cfg.FocusBorderThickness,
+            _cfg.FocusBorderOpacity);
+        _textSink = new WindowsTextSink(windowsTarget);
+        _recorder = new WindowsAudioCapture(_shell);
         _postProcessor = TextPostProcessor.TryCreate(_cfg);
         _history = _cfg.History ? new DictationHistory(WindowsConfig.Paths, _cfg.HistoryMaxItems) : null;
+        _tray.ContextMenuStrip = BuildMenu();
         _hotkey = BuildHotkey();
 
         if (_cfg.DiscoverMode)
         {
-            _tray.Text = "Matraca — MODO DESCOBERTA";
+            _shell.SetState(ShellState.Idle, "Matraca — MODO DESCOBERTA");
             Balloon("Modo descoberta", "Aperte sua tecla custom. O codigo aparece aqui e no matraca.log. " +
                                        "Depois coloque-o em appsettings.json (campo \"hotkey\").");
             Logger.Info("Iniciado em MODO DESCOBERTA de tecla.");
@@ -260,25 +267,10 @@ internal sealed class TrayApp : ApplicationContext
 
     // ---- construcao dos subsistemas que dependem da config (reusado por ApplyConfig) ----
 
-    private FocusBorder? BuildBorder()
+    private IKeyboardHook BuildHotkey()
     {
-        if (!_cfg.FocusBorder) return null;
-        try
-        {
-            var color = ColorTranslator.FromHtml(_cfg.FocusBorderColor);
-            return new FocusBorder(color, _cfg.FocusBorderThickness, _cfg.FocusBorderOpacity);
-        }
-        catch (Exception ex)
-        {
-            Logger.Warn($"Moldura de foco desativada (cor '{_cfg.FocusBorderColor}' invalida? {ex.Message})");
-            return null;
-        }
-    }
-
-    private HotkeyListener BuildHotkey()
-    {
-        var h = new HotkeyListener(_cfg);
-        h.Triggered += OnTriggered;
+        IKeyboardHook h = new WindowsKeyboardHook(_cfg);
+        h.DictationKeyChanged += OnTriggered;
         h.KeyDiscovered += OnKeyDiscovered;
         h.PinToggled += OnPinToggled;
         h.Start();
@@ -310,10 +302,9 @@ internal sealed class TrayApp : ApplicationContext
 
             _ui.Post(_ =>
             {
-                if (!_cfg.DiscoverMode && !_recorder.IsRecording && !_liveActive && !_busy)
+                if (!_cfg.DiscoverMode && !_recorder.IsCapturing && !_liveActive && !_busy)
                 {
-                    _tray.Icon = _icoBusy;
-                    _tray.Text = "Matraca — carregando modelo...";
+                    _shell.SetState(ShellState.Busy, "Matraca — carregando modelo...");
                 }
             }, null);
 
@@ -325,7 +316,7 @@ internal sealed class TrayApp : ApplicationContext
                     lock (_gate) { _transcriber = t; }
                     _ui.Post(_ =>
                     {
-                        if (!_recorder.IsRecording && !_liveActive && !_busy) SetIdle();
+                        if (!_recorder.IsCapturing && !_liveActive && !_busy) SetIdle();
                         if (!_announcedReady && !_cfg.DiscoverMode)
                         {
                             _announcedReady = true;
@@ -340,7 +331,7 @@ internal sealed class TrayApp : ApplicationContext
                     Logger.Error("Falha ao carregar o modelo", ex);
                     _ui.Post(_ =>
                     {
-                        _tray.Text = "Matraca — ERRO ao carregar modelo";
+                        _shell.SetState(ShellState.Error, "Matraca — ERRO ao carregar modelo");
                         Balloon("Erro", "Nao consegui carregar o modelo Whisper. Veja matraca.log.",
                             ToolTipIcon.Error);
                     }, null);
@@ -363,7 +354,7 @@ internal sealed class TrayApp : ApplicationContext
         lock (_gate)
         {
             if (_transcriber == null || _loadTask != null) return;     // nada carregado / carregando
-            if (_busy || _liveActive || _recorder.IsRecording) return;  // em uso
+            if (_busy || _liveActive || _recorder.IsCapturing) return;  // em uso
             toDispose = _transcriber;
             _transcriber = null;
         }
@@ -371,16 +362,14 @@ internal sealed class TrayApp : ApplicationContext
         Logger.Info($"Modelo descarregado por inatividade ({_cfg.IdleUnloadMinutes} min). VRAM liberada.");
         _ui.Post(_ =>
         {
-            if (!_cfg.DiscoverMode && !_recorder.IsRecording && !_liveActive && !_busy)
-                _tray.Text = $"Matraca — ocioso, VRAM liberada ({_cfg.HotkeyName})";
+            if (!_cfg.DiscoverMode && !_recorder.IsCapturing && !_liveActive && !_busy)
+                _shell.SetState(ShellState.Idle, $"Matraca — ocioso, VRAM liberada ({_cfg.HotkeyName})");
         }, null);
     }
 
-    // O hook chama isto na propria thread do hook (UI thread). NAO pode bloquear: se o
-    // callback do hook demora > LowLevelHooksTimeout (~300ms) o Windows remove o hook
-    // silenciosamente e o atalho "morre". Entao apenas re-posta p/ a fila de mensagens e
-    // retorna na hora — OnTriggeredCore roda depois, ainda na UI thread (Set* sao seguros).
-    private void OnTriggered(bool pressed)
+    // A porta de teclado ja publica fora da thread nativa; a UI ainda e' o lugar correto
+    // para alterar WinForms e o estado atual, que so sera movido ao Core na fatia 6.
+    private void OnTriggered(HotkeyGesture gesture, bool pressed)
         => _ui.Post(_ => OnTriggeredCore(pressed), null);
 
     private void OnTriggeredCore(bool pressed)
@@ -394,14 +383,14 @@ internal sealed class TrayApp : ApplicationContext
             if (_cfg.Mode == "push")
             {
                 // push-to-talk: streaming VAD enquanto a tecla esta pressionada.
-                if (pressed) { if (!_liveActive && _liveConsumer == null) StartLive(); }
+                if (pressed) { if (!_liveActive && _liveConsumer == null) _ = StartLive(); }
                 else if (_liveActive) { _ = StopLive(); }
             }
             else // live (toggle): aperta p/ comecar, aperta de novo p/ parar
             {
                 if (!pressed) return;
                 if (_liveActive) { _ = StopLive(); }
-                else if (_liveConsumer == null) StartLive();
+                else if (_liveConsumer == null) _ = StartLive();
             }
             return;
         }
@@ -409,27 +398,29 @@ internal sealed class TrayApp : ApplicationContext
         if (_busy) { Beep(false); return; }
 
         // toggle: cada 'pressed==true' alterna. hold: pressed true=start, false=stop.
-        bool start = _cfg.Mode == "hold" ? pressed : !_recorder.IsRecording;
-        bool stop  = _cfg.Mode == "hold" ? !pressed : _recorder.IsRecording && !start;
+        bool start = _cfg.Mode == "hold" ? pressed : !_recorder.IsCapturing;
+        bool stop  = _cfg.Mode == "hold" ? !pressed : _recorder.IsCapturing && !start;
 
-        if (start && !_recorder.IsRecording) StartRecording();
-        else if (stop && _recorder.IsRecording) _ = StopAndTranscribe();
+        if (start && !_recorder.IsCapturing) _ = StartRecording();
+        else if (stop && _recorder.IsCapturing) _ = StopAndTranscribe();
     }
 
     // ---- Modo live (VAD por pausa) ----
-    private void StartLive()
+    private async Task StartLive()
     {
         try
         {
             _liveActive = true;
             _liveQueue = new BlockingCollection<float[]>();
-            _live = new LiveDictation();
+            _live = new VoiceActivityDetector();
             _live.SegmentReady += seg => { try { _liveQueue?.Add(seg); } catch { } };
             _liveConsumer = Task.Run(ConsumeLiveSegments);
-            // idem StartRecording: toca o bip e descarta a janela em que ele soa
             float threshold = _cfg.EffectiveVadThreshold;   // sensibilidade do microfone em uso
-            _live.Start(threshold, _cfg.SilenceMs, _cfg.PhraseMaxSeconds,
-                        MuteWindowMs(Beep(true)), AudioDevices.Resolve(_cfg.InputDevice));
+            _live.Start(threshold, _cfg.SilenceMs, _cfg.PhraseMaxSeconds);
+            _recorder.FrameCaptured += OnLiveFrame;
+            await _recorder.StartAsync(
+                _cfg.InputDevice,
+                TimeSpan.FromMilliseconds(MuteWindowMs(Beep(true))));
             Touch();
             SetRecording();
             Logger.Info($"Live (VAD) iniciado. silenceMs={_cfg.SilenceMs} threshold={threshold} phraseMax={_cfg.PhraseMaxSeconds}s");
@@ -441,14 +432,18 @@ internal sealed class TrayApp : ApplicationContext
             // limpa TODO o estado: senao _liveConsumer fica != null e o atalho cai no
             // "caminho morto" (nem inicia nem para) ate reiniciar o app.
             _liveActive = false;
+            _recorder.FrameCaptured -= OnLiveFrame;
+            try { if (_recorder.IsCapturing) await _recorder.StopAsync(); } catch { }
             try { _live?.Stop(); } catch { }
-            _live?.Dispose(); _live = null;
+            _live = null;
             _liveQueue?.CompleteAdding();
             _liveQueue?.Dispose(); _liveQueue = null;
             _liveConsumer = null;
             SetIdle();
         }
     }
+
+    private void OnLiveFrame(ReadOnlyMemory<float> frame) => _live?.Feed(frame.Span);
 
     private async Task StopLive()
     {
@@ -457,12 +452,14 @@ internal sealed class TrayApp : ApplicationContext
         Touch();
         SetBusy();
         // para a captura ANTES do bip de fim, senao ele vira um segmento transcrito
-        try { _live?.Stop(); } catch (Exception ex) { Logger.Error("Erro ao parar live", ex); }
+        _recorder.FrameCaptured -= OnLiveFrame;
+        try { await _recorder.StopAsync(); } catch (Exception ex) { Logger.Error("Erro ao parar live", ex); }
+        try { _live?.Stop(); } catch (Exception ex) { Logger.Error("Erro ao finalizar VAD", ex); }
         Beep(false);
         _liveQueue?.CompleteAdding();                 // sinaliza fim ao consumidor
         try { if (_liveConsumer != null) await _liveConsumer; } catch { }
 
-        _live?.Dispose(); _live = null;
+        _live = null;
         _liveQueue?.Dispose(); _liveQueue = null;
         _liveConsumer = null;
         SetIdle();
@@ -494,7 +491,7 @@ internal sealed class TrayApp : ApplicationContext
                             Touch();
                         }
                         string chunk = text.Trim() + " ";
-                        _ui.Post(_ => Deliver(chunk, false), null);
+                        _ui.Post(_ => _ = DeliverAsync(chunk, false), null);
                         entregou = true;
                         Logger.Info($"[live] chunk (~{seg.Length / 16000.0:F1}s): \"{text.Trim()}\"");
                     }
@@ -508,21 +505,23 @@ internal sealed class TrayApp : ApplicationContext
             // janela em foco, submetendo o que o usuario tivesse digitado ali.
             if (entregou && _cfg.AutoEnter)
             {
-                _ui.Post(_ => Deliver("", true), null);
+                _ui.Post(_ => _ = DeliverAsync("", true), null);
                 Logger.Info("[live] fim de sessao: Enter final enviado.");
             }
         }
         catch (Exception ex) { Logger.Error("[live] consumidor abortou", ex); }
     }
 
-    private void StartRecording()
+    private async Task StartRecording()
     {
         try
         {
             // O bip sai pelo alto-falante e volta pelo microfone: sem descartar esse trecho,
             // o Whisper transcreve o proprio som como palavra. Toca primeiro (assincrono) e
             // arma a captura ignorando a janela em que o bip ainda esta soando.
-            _recorder.Start(MuteWindowMs(Beep(true)), AudioDevices.Resolve(_cfg.InputDevice));
+            await _recorder.StartAsync(
+                _cfg.InputDevice,
+                TimeSpan.FromMilliseconds(MuteWindowMs(Beep(true))));
             Touch();
             SetRecording();
             Logger.Info("Gravando...");
@@ -564,7 +563,7 @@ internal sealed class TrayApp : ApplicationContext
             {
                 if (_postProcessor != null) text = await _postProcessor.CleanAsync(text);
                 Touch();
-                _ui.Post(_ => Deliver(text, _cfg.AutoEnter), null);
+                await DeliverAsync(text, _cfg.AutoEnter);
             }
         }
         catch (Exception ex)
@@ -580,26 +579,25 @@ internal sealed class TrayApp : ApplicationContext
     }
 
     // ---- destino fixo (pin de janela) ----
-    // O hook chama na thread dele; re-posta p/ a UI thread pelo mesmo motivo do OnTriggered.
-    private void OnPinToggled() => _ui.Post(_ => OnPinToggledCore(), null);
+    // A porta publica num worker; a mutacao de UI continua repostada para WinForms.
+    private void OnPinToggled(HotkeyGesture gesture) => _ui.Post(_ => OnPinToggledCore(), null);
 
     private void OnPinToggledCore()
     {
         if (_cfg.DiscoverMode) return;
 
-        if (_pinnedHwnd != IntPtr.Zero) { Unpin("Destino liberado", "O ditado volta pra janela em foco."); return; }
+        if (_pinnedTarget != null) { Unpin("Destino liberado", "O ditado volta pra janela em foco."); return; }
 
-        var hwnd = TextInjector.GetForegroundWindowHandle();
-        if (hwnd == IntPtr.Zero)
+        var target = _targetWindow.CaptureActive();
+        if (target == null)
         {
             Balloon("Nada pra fixar", "Nao consegui identificar a janela em foco.", ToolTipIcon.Warning);
             return;
         }
 
-        _pinnedHwnd = hwnd;
-        _pinnedTitle = TextInjector.GetWindowTitle(hwnd);
-        _border?.SetPinned(hwnd);
-        Logger.Info($"Destino fixado: hwnd=0x{hwnd.ToInt64():X} \"{_pinnedTitle}\"");
+        _pinnedTarget = target;
+        _pinnedTitle = _targetWindow.GetTitle(target);
+        Logger.Info($"Destino fixado: token={target.Value} \"{_pinnedTitle}\"");
         Balloon("Destino fixado", $"O ditado vai sempre para: {ShortTitle(_pinnedTitle)}\n" +
                                   $"Aperte {_cfg.PinHotkeyName} de novo para liberar.");
         RefreshTrayState();
@@ -607,9 +605,9 @@ internal sealed class TrayApp : ApplicationContext
 
     private void Unpin(string balloonTitle, string balloonText)
     {
-        _pinnedHwnd = IntPtr.Zero;
+        if (_pinnedTarget != null) _targetWindow.Release(_pinnedTarget);
+        _pinnedTarget = null;
         _pinnedTitle = "";
-        _border?.SetPinned(IntPtr.Zero);
         Logger.Info("Destino fixo liberado.");
         Balloon(balloonTitle, balloonText);
         RefreshTrayState();
@@ -621,7 +619,7 @@ internal sealed class TrayApp : ApplicationContext
     /// </summary>
     private void RefreshTrayState()
     {
-        if (_recorder.IsRecording || _liveActive) SetRecording();
+        if (_recorder.IsCapturing || _liveActive) SetRecording();
         else if (_busy) SetBusy();
         else SetIdle();
     }
@@ -635,46 +633,41 @@ internal sealed class TrayApp : ApplicationContext
     /// <summary>
     /// Entrega o texto: na janela fixada, se houver uma valida; senao na janela em foco.
     /// </summary>
-    private void Deliver(string text, bool autoEnter)
+    private async Task DeliverAsync(string text, bool autoEnter)
     {
         _history?.Add(text);
 
-        if (_pinnedHwnd != IntPtr.Zero)
+        if (_pinnedTarget != null)
         {
-            if (!TextInjector.IsWindowAlive(_pinnedHwnd))
+            if (!_targetWindow.IsAlive(_pinnedTarget))
             {
                 Unpin("Janela fixada sumiu", "Ela foi fechada; o ditado volta pra janela em foco.");
-                // segue adiante e entrega na janela em foco, p/ nao perder a transcricao
-            }
-            else if (_cfg.PinDelivery == "nofocus")
-            {
-                TextInjector.SendToWindow(_pinnedHwnd, text, autoEnter);
-                return;
             }
             else
             {
-                // assincrono: se nao conseguir entregar na janela fixada, cai na janela atual
-                // em vez de perder o ditado
-                TextInjector.DeliverWithFocus(_pinnedHwnd, text, autoEnter, ok =>
-                {
-                    if (!ok) _ui.Post(_ => TextInjector.PasteText(text, autoEnter, _cfg.PasteMethod), null);
-                });
-                return;
+                var method = _cfg.PinDelivery == "nofocus"
+                    ? TextDeliveryMethod.TargetWithoutFocus
+                    : TextDeliveryMethod.TargetWithFocus;
+                var result = await _textSink.DeliverAsync(
+                    new TextDeliveryRequest(text, autoEnter, method, _pinnedTarget));
+                if (result == TextDeliveryResult.Delivered || _cfg.PinDelivery == "nofocus") return;
             }
         }
-        TextInjector.PasteText(text, autoEnter, _cfg.PasteMethod);
+
+        var fallbackMethod = _cfg.PasteMethod == "clipboard"
+            ? TextDeliveryMethod.Clipboard
+            : TextDeliveryMethod.Unicode;
+        await _textSink.DeliverAsync(new TextDeliveryRequest(text, autoEnter, fallbackMethod));
     }
 
-    private void OnKeyDiscovered(int vk, KeyMods mods)
+    private void OnKeyDiscovered(HotkeyGesture gesture)
     {
-        if (vk == _lastDiscovered && mods == _lastDiscoveredMods) return;
-        _lastDiscovered = vk;
-        _lastDiscoveredMods = mods;
-        string name = WindowsHotkeyTranslator.Format(vk, mods);
-        Logger.Info($"Tecla detectada: vk=0x{vk:X2} ({vk}) mods={mods} -> atalho sugerido: {name}");
+        if (gesture == _lastDiscovered) return;
+        _lastDiscovered = gesture;
+        string name = gesture.ToString();
+        Logger.Info($"Tecla detectada: {name}");
         _ui.Post(_ => Balloon("Tecla detectada",
-            $"Codigo: 0x{vk:X2} ({vk})  |  atalho: {name}\n" +
-            $"Coloque \"hotkey\": \"{name}\" em appsettings.json e reinicie."), null);
+            $"Atalho: {name}\nColoque \"hotkey\": \"{name}\" em appsettings.json."), null);
     }
 
     // ---- UI helpers ----
@@ -710,20 +703,20 @@ internal sealed class TrayApp : ApplicationContext
     {
         if (_history == null) return;
         // captura o alvo ANTES de abrir a tela: a partir daqui o foco e' dela
-        var returnTo = TextInjector.GetForegroundWindowHandle();
-        using var form = new HistoryForm(_history, _cfg, returnTo);
+        var returnTo = _targetWindow.CaptureActive();
+        using var form = new HistoryForm(_history, returnTo, _targetWindow, _textSink);
         form.ShowDialog();
     }
 
     private void OpenSettings()
     {
-        // nao abrir com gravacao/sessao ativa: a config e' aplicada por reinicio
-        if (_recorder.IsRecording || _liveActive || _busy)
+        // nao abrir com gravacao/sessao ativa: a sessao conserva o snapshot de config
+        if (_recorder.IsCapturing || _liveActive || _busy)
         {
             Balloon("Aguarde", "Encerre a gravação antes de abrir as configurações.");
             return;
         }
-        using var form = new SettingsForm(_hotkey);
+        using var form = new SettingsForm(_hotkey, _recorder, _shell);
         if (form.ShowDialog() != DialogResult.OK) return;
         ApplyConfig();
     }
@@ -760,10 +753,11 @@ internal sealed class TrayApp : ApplicationContext
             _cfg.FocusBorderThickness != old.FocusBorderThickness ||
             Math.Abs(_cfg.FocusBorderOpacity - old.FocusBorderOpacity) > 0.001f)
         {
-            try { _border?.Dispose(); } catch { }
-            _border = BuildBorder();
-            // a moldura nova nasce sem saber da janela fixada
-            if (_pinnedHwnd != IntPtr.Zero) _border?.SetPinned(_pinnedHwnd);
+            _targetWindow.ConfigureIndicator(
+                _cfg.FocusBorder,
+                _cfg.FocusBorderColor,
+                _cfg.FocusBorderThickness,
+                _cfg.FocusBorderOpacity);
         }
 
         if (_cfg.History != old.History || _cfg.HistoryMaxItems != old.HistoryMaxItems)
@@ -833,10 +827,11 @@ internal sealed class TrayApp : ApplicationContext
             _idleTimer?.Dispose();
             try { _live?.Stop(); _liveQueue?.CompleteAdding(); } catch { }
             _recorder.Dispose();
+            _textSink.Dispose();
+            _targetWindow.Dispose();
             _transcriber?.Dispose();
-            _border?.Dispose();
             _postProcessor?.Dispose();
-            _tray.Visible = false;
+            _shell.Dispose();
         }
         catch { }
         Application.Restart(); // o Main da nova instancia espera o mutex ser liberado
@@ -844,10 +839,9 @@ internal sealed class TrayApp : ApplicationContext
 
     private void SetIdle()
     {
-        _tray.Icon = _icoIdle;
-        _tray.Text = Truncate(_cfg.DiscoverMode
+        _shell.SetState(ShellState.Idle, _cfg.DiscoverMode
             ? "Matraca — MODO DESCOBERTA"
-            : _pinnedHwnd != IntPtr.Zero
+            : _pinnedTarget != null
                 ? $"Matraca — fixado em: {ShortTitle(_pinnedTitle)}"
                 : $"Matraca — pronto ({_cfg.HotkeyName})");
 
@@ -855,45 +849,36 @@ internal sealed class TrayApp : ApplicationContext
         // modo persistente e facil de esquecer — sem marca permanente voce dita achando que vai
         // pra janela em foco e o texto cai em outro lugar. Serve tambem como a confirmacao que o
         // balao do tray nao garante: o Windows engole balao repetido, a moldura nao depende dele.
-        if (_pinnedHwnd != IntPtr.Zero)
+        if (_pinnedTarget != null)
         {
-            _border?.SetColor(BorderColorFor(recording: false));
-            _border?.ShowBorder();
+            _targetWindow.ShowIndicator(_pinnedTarget, BorderColorFor(recording: false));
         }
-        else _border?.HideBorder();
+        else _targetWindow.HideIndicator();
     }
-
-    // NotifyIcon.Text estoura com mais de 63 caracteres.
-    private static string Truncate(string s) => s.Length <= 63 ? s : s[..60] + "...";
 
     private void SetRecording()
     {
-        _tray.Icon = _icoRec;
-        _tray.Text = "Matraca — GRAVANDO (aperte de novo p/ parar)";
-        _border?.SetColor(BorderColorFor(recording: true));
-        _border?.ShowBorder();
+        _shell.SetState(ShellState.Recording, "Matraca — GRAVANDO (aperte de novo p/ parar)");
+        _targetWindow.ShowIndicator(_pinnedTarget, BorderColorFor(recording: true));
     }
 
     private void SetBusy()
     {
-        _tray.Icon = _icoBusy;
-        _tray.Text = "Matraca — transcrevendo...";
+        _shell.SetState(ShellState.Busy, "Matraca — transcrevendo...");
         // moldura continua visivel: a entrega do texto acontece no fim do estado busy,
         // entao a janela marcada ainda e' a que vai receber o texto. So' a cor muda.
-        _border?.SetColor(BorderColorFor(recording: false));
+        _targetWindow.ShowIndicator(_pinnedTarget, BorderColorFor(recording: false));
     }
 
     /// <summary>
     /// Cor da moldura por estado: destino fixo tem prioridade (o texto vai pra la' de todo
     /// jeito), senao vermelho gravando / âmbar transcrevendo.
     /// </summary>
-    private Color BorderColorFor(bool recording)
+    private string BorderColorFor(bool recording)
     {
-        var html = _pinnedHwnd != IntPtr.Zero
+        return _pinnedTarget != null
             ? _cfg.FocusBorderColorPinned
             : recording ? _cfg.FocusBorderColor : _cfg.FocusBorderColorBusy;
-        try { return ColorTranslator.FromHtml(html); }
-        catch { return Color.FromArgb(0xE8, 0x11, 0x23); }
     }
 
     /// <summary>
@@ -908,12 +893,12 @@ internal sealed class TrayApp : ApplicationContext
     /// <summary>
     /// Piso da janela de descarte no inicio da captura, pela duracao do som (ja' sem o silencio
     /// do fim). A captura estende isso sozinha enquanto o bip estiver soando de verdade (ver
-    /// Beeper.InBeepShadow), que e' o que cobre a latencia de decodificacao e do buffer da placa.
+    /// IShell.IsSoundActive), que cobre a latencia de decodificacao e do buffer da placa.
     /// </summary>
     private static int MuteWindowMs(int beepMs)
     {
         if (beepMs <= 0) return 0;
-        int window = beepMs + Beeper.GuardMs;
+        int window = beepMs + 150;
         if (window <= MaxMuteWindowMs) return window;
 
         if (!_warnedLongBeep)
@@ -932,21 +917,18 @@ internal sealed class TrayApp : ApplicationContext
     {
         if (!_cfg.Beep) return 0;
         var file = start ? _cfg.StartSound : _cfg.StopSound;
-        if (!string.IsNullOrWhiteSpace(file) && File.Exists(file))
-            return Beeper.PlaySoundFile(file, _cfg.BeepVolume);
-
-        var notes = start
-            ? new[] { (660, 90), (990, 130) }   // sobe
-            : new[] { (990, 90), (590, 150) };   // desce
-        return Beeper.Play(notes, _cfg.BeepVolume);
+        return _shell.PlaySound(start, file, _cfg.BeepVolume);
     }
 
     private void Balloon(string title, string text, ToolTipIcon icon = ToolTipIcon.Info)
     {
-        _tray.BalloonTipTitle = title;
-        _tray.BalloonTipText = text;
-        _tray.BalloonTipIcon = icon;
-        _tray.ShowBalloonTip(5000);
+        var level = icon switch
+        {
+            ToolTipIcon.Warning => ShellNotificationLevel.Warning,
+            ToolTipIcon.Error => ShellNotificationLevel.Error,
+            _ => ShellNotificationLevel.Info,
+        };
+        _shell.ShowNotification(title, text, level);
     }
 
     private void ExitApp()
@@ -955,13 +937,13 @@ internal sealed class TrayApp : ApplicationContext
         {
             _hotkey.Dispose();
             _idleTimer?.Dispose();
-            _border?.Dispose();
             _postProcessor?.Dispose();
             try { _live?.Stop(); _liveQueue?.CompleteAdding(); } catch { }
             _recorder.Dispose();
+            _textSink.Dispose();
+            _targetWindow.Dispose();
             _transcriber?.Dispose();
-            _tray.Visible = false;
-            _tray.Dispose();
+            _shell.Dispose();
             _icoIdle.Dispose(); _icoRec.Dispose(); _icoBusy.Dispose();
         }
         catch { }
@@ -970,7 +952,7 @@ internal sealed class TrayApp : ApplicationContext
 
     protected override void Dispose(bool disposing)
     {
-        if (disposing) { try { _tray.Dispose(); } catch { } }
+        if (disposing) { try { _shell.Dispose(); } catch { } }
         base.Dispose(disposing);
     }
 }

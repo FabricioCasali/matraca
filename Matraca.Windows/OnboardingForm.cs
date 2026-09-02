@@ -18,7 +18,7 @@ internal sealed class OnboardingForm : Form
     private readonly Button _captureBtn;
     private readonly Button _finishBtn;
 
-    private HotkeyListener? _capture;
+    private IKeyboardHook? _capture;
     private CancellationTokenSource? _cts;
     private string _modelPath = "";
     private string _hotkeyValue = "";
@@ -226,25 +226,32 @@ internal sealed class OnboardingForm : Form
     private void ToggleCapture()
     {
         if (_capture != null) { StopCapture(); return; }
-        _capture = HotkeyListener.CreateDiscovery();
+        _capture = WindowsKeyboardHook.CreateDiscovery();
         _capture.KeyDiscovered += OnKeyCaptured;
         _capture.Start();
         _hotkeyBox.Text = "pressione uma tecla...";
         _captureBtn.Text = "Cancelar";
     }
 
-    private void OnKeyCaptured(int vk, KeyMods mods)
+    private void OnKeyCaptured(HotkeyGesture gesture)
     {
-        if (vk == 0x1B && mods == KeyMods.None) { StopCapture(); return; }   // Esc cancela
+        try { BeginInvoke(new Action(() => HandleKeyCaptured(gesture))); }
+        catch (Exception ex) { Logger.Warn("captura de tecla: falha ao repostar: " + ex.Message); }
+    }
 
-        var combo = WindowsHotkeyTranslator.Format(vk, mods);
+    private void HandleKeyCaptured(HotkeyGesture gesture)
+    {
+        if (_capture == null) return;
+        if (gesture.Key == "Esc" && gesture.Modifiers == KeyMods.None) { StopCapture(); return; }
+
+        var combo = gesture.ToString();
         if (!HotkeyParser.TryParse(combo, out _) &&
             WindowsHotkeyTranslator.ParseCompatibility(combo) == null)
         {
             MessageBox.Show(this,
                 $"'{combo}' não serve como atalho: teclas de digitação sozinhas parariam de "
               + "funcionar no sistema inteiro. Junte um modificador (ex.: Ctrl+Alt+"
-              + WindowsHotkeyTranslator.NameForVirtualKey(vk) + ") ou use uma tecla dedicada como F13–F24.",
+              + gesture.Key + ") ou use uma tecla dedicada como F13–F24.",
                 "Matraca", MessageBoxButtons.OK, MessageBoxIcon.Warning);
             StopCapture();
             return;
