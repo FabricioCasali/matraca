@@ -16,8 +16,10 @@ O desenho da frente 2.0 está em [`PLANO-2.0.md`](PLANO-2.0.md).
   modos conectados ao pipeline do Core. O estado nativo do Whisper agora nasce no
   preload e permanece vivo entre ditados; a prova real fez duas inferências com uma
   inicialização Metal e nenhuma liberação intermediária (MT-016). Este é o marco de uso
-  pessoal. Próxima é a fatia 7: pin e moldura; depois falta o endurecimento. Contrato em
-  [`PLANO-2.0.md`](PLANO-2.0.md). · `[2.0]` · G · importante
+  pessoal. Próxima é a fatia 7: pin e moldura, aguardando sessão assistida com o Fabricio
+  em 03/09/2026 porque a validação exige observar foco, janela-alvo, Spaces e monitores.
+  Depois falta o endurecimento. Contrato em [`PLANO-2.0.md`](PLANO-2.0.md). · `[2.0]` · G ·
+  importante
 
 ## 📋 A fazer
 
