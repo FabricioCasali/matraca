@@ -860,6 +860,251 @@ public sealed class DictationControllerTests
     }
 
     [Fact]
+    public async Task SleepCancelsRecordingAndWakeUsesLatestInputDevice()
+    {
+        Config initial = NewConfig("hold", inputDevice: "old mic");
+        Config updated = NewConfig("hold", inputDevice: "new mic");
+        var setup = CreateController(initial, ["after wake"]);
+        setup.Controller.Start();
+        setup.Keyboard.RaiseDictation(true);
+        await setup.Controller.DrainAsync();
+
+        Task suspend = setup.Controller.SuspendAsync();
+        Assert.True(setup.Controller.IsSuspended);
+        Assert.True(setup.Keyboard.Suspended);
+        setup.Keyboard.RaiseDictation(false);
+        setup.Keyboard.RaiseDictation(true);
+        await suspend;
+
+        Assert.False(setup.Controller.IsSessionActive);
+        Assert.Equal(1, setup.Audio.StopCount);
+        Assert.Empty(setup.Sink.Requests);
+
+        await setup.Controller.ApplyConfigAsync(updated);
+        await setup.Controller.ResumeAsync();
+        Assert.False(setup.Controller.IsSuspended);
+        Assert.False(setup.Keyboard.Suspended);
+
+        setup.Keyboard.RaiseDictation(true);
+        await setup.Controller.DrainAsync();
+        Assert.True(setup.Controller.IsSessionActive);
+        Assert.Equal(["old mic", "new mic"], setup.Audio.StartedDevices);
+
+        setup.Keyboard.RaiseDictation(false);
+        await setup.Controller.DrainAsync();
+        Assert.Equal("after wake", Assert.Single(setup.Sink.Requests).Text);
+        await setup.Controller.ShutdownAsync();
+    }
+
+    [Fact]
+    public async Task SleepCancelsActiveTranscriptionWithoutDelivery()
+    {
+        var transcriptionStarted = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var setup = CreateController(NewConfig("hold"), [], modelFactory: (_, _) =>
+            Task.FromResult(new TranscriptionModel(async (_, cancellationToken) =>
+            {
+                transcriptionStarted.TrySetResult();
+                await Task.Delay(Timeout.InfiniteTimeSpan, cancellationToken);
+                return "never";
+            })));
+        setup.Controller.Start();
+        await setup.Controller.HandleDictationKeyAsync(true);
+        Task stop = setup.Controller.HandleDictationKeyAsync(false);
+        await transcriptionStarted.Task;
+
+        Task suspend = setup.Controller.SuspendAsync();
+
+        await Task.WhenAll(stop, suspend).WaitAsync(TimeSpan.FromSeconds(2));
+        Assert.True(setup.Controller.IsSuspended);
+        Assert.False(setup.Controller.IsSessionActive);
+        Assert.Empty(setup.Sink.Requests);
+        await setup.Controller.ShutdownAsync();
+    }
+
+    [Fact]
+    public async Task SleepCancelsActivePostProcessingWithoutDelivery()
+    {
+        var postProcessingStarted = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        using var processor = new TextPostProcessor(
+            async (_, cancellationToken) =>
+            {
+                postProcessingStarted.TrySetResult();
+                await Task.Delay(Timeout.InfiniteTimeSpan, cancellationToken);
+                return "never";
+            },
+            10000);
+        var setup = CreateController(
+            NewConfig("hold"),
+            ["raw"],
+            postProcessorFactory: _ => processor);
+        setup.Controller.Start();
+        await setup.Controller.HandleDictationKeyAsync(true);
+        Task stop = setup.Controller.HandleDictationKeyAsync(false);
+        await postProcessingStarted.Task;
+
+        Task suspend = setup.Controller.SuspendAsync();
+
+        await Task.WhenAll(stop, suspend).WaitAsync(TimeSpan.FromSeconds(2));
+        Assert.Empty(setup.Sink.Requests);
+        Assert.False(setup.Controller.IsSessionActive);
+        await setup.Controller.ShutdownAsync();
+    }
+
+    [Fact]
+    public async Task DeliveryAcceptedBeforeSleepIsNotCancelled()
+    {
+        var deliveryStarted = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var releaseDelivery = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        CancellationToken deliveryCancellation = default;
+        var sink = new RecordingTextSink(async (_, _, cancellationToken) =>
+        {
+            deliveryCancellation = cancellationToken;
+            deliveryStarted.TrySetResult();
+            await releaseDelivery.Task;
+            return TextDeliveryResult.Delivered;
+        });
+        var setup = CreateController(NewConfig("hold"), ["accepted"], sink);
+        setup.Controller.Start();
+        await setup.Controller.HandleDictationKeyAsync(true);
+        Task stop = setup.Controller.HandleDictationKeyAsync(false);
+        await deliveryStarted.Task;
+
+        Task suspend = setup.Controller.SuspendAsync();
+        Assert.True(setup.Controller.IsSuspended);
+        Assert.False(deliveryCancellation.IsCancellationRequested);
+        releaseDelivery.TrySetResult();
+
+        await Task.WhenAll(stop, suspend).WaitAsync(TimeSpan.FromSeconds(2));
+        Assert.False(deliveryCancellation.IsCancellationRequested);
+        Assert.Equal("accepted", Assert.Single(sink.Requests).Text);
+        await setup.Controller.ShutdownAsync();
+    }
+
+    [Fact]
+    public async Task RepeatedAndOutOfOrderPowerTransitionsAreIdempotent()
+    {
+        var setup = CreateController(NewConfig("hold"), ["awake"]);
+        setup.Controller.Start();
+
+        await setup.Controller.ResumeAsync();
+        Assert.False(setup.Controller.IsSuspended);
+
+        Task firstSuspend = setup.Controller.SuspendAsync();
+        Task secondSuspend = setup.Controller.SuspendAsync();
+        await Task.WhenAll(firstSuspend, secondSuspend);
+        Assert.True(setup.Controller.IsSuspended);
+        Assert.True(setup.Keyboard.Suspended);
+
+        Task firstResume = setup.Controller.ResumeAsync();
+        Task secondResume = setup.Controller.ResumeAsync();
+        await Task.WhenAll(firstResume, secondResume);
+        Assert.False(setup.Controller.IsSuspended);
+        Assert.False(setup.Keyboard.Suspended);
+
+        setup.Keyboard.RaiseDictation(true);
+        await setup.Controller.DrainAsync();
+        Assert.True(setup.Controller.IsSessionActive);
+        setup.Keyboard.RaiseDictation(false);
+        await setup.Controller.DrainAsync();
+        Assert.Equal("awake", Assert.Single(setup.Sink.Requests).Text);
+        await setup.Controller.ShutdownAsync();
+    }
+
+    [Fact]
+    public async Task SleepCompletesKeyboardReloadDeferredByActiveSession()
+    {
+        var setup = CreateController(NewConfig("hold"), []);
+        var replacement = new FakeKeyboardHook();
+        setup.Controller.Start();
+        setup.Keyboard.RaiseDictation(true);
+        await setup.Controller.DrainAsync();
+
+        Task apply = setup.Controller.ApplyConfigAsync(NewConfig("toggle"), replacement);
+        await setup.Controller.DrainAsync();
+        Assert.False(apply.IsCompleted);
+
+        await setup.Controller.SuspendAsync().WaitAsync(TimeSpan.FromSeconds(2));
+        await apply.WaitAsync(TimeSpan.FromSeconds(2));
+
+        Assert.True(setup.Keyboard.Disposed);
+        Assert.True(replacement.Started);
+        Assert.True(replacement.Suspended);
+        Assert.Equal("toggle", setup.Controller.CurrentConfig.Mode);
+
+        await setup.Controller.ResumeAsync();
+        Assert.False(replacement.Suspended);
+        await setup.Controller.ShutdownAsync();
+    }
+
+    [Fact]
+    public async Task ImmediateWakeQueuesAfterSleepCleanup()
+    {
+        var setup = CreateController(NewConfig("hold"), ["awake"]);
+        setup.Controller.Start();
+        setup.Keyboard.RaiseDictation(true);
+        await setup.Controller.DrainAsync();
+
+        Task suspend = setup.Controller.SuspendAsync();
+        Task resume = setup.Controller.ResumeAsync();
+        await Task.WhenAll(suspend, resume).WaitAsync(TimeSpan.FromSeconds(2));
+
+        Assert.False(setup.Controller.IsSuspended);
+        Assert.False(setup.Controller.IsSessionActive);
+        Assert.Equal(1, setup.Audio.StopCount);
+        setup.Keyboard.RaiseDictation(true);
+        await setup.Controller.DrainAsync();
+        Assert.True(setup.Controller.IsSessionActive);
+        setup.Keyboard.RaiseDictation(false);
+        await setup.Controller.DrainAsync();
+        Assert.Equal("awake", Assert.Single(setup.Sink.Requests).Text);
+        await setup.Controller.ShutdownAsync();
+    }
+
+    [Fact]
+    public async Task ImmediateWakeActivatesKeyboardReloadDeferredBySleep()
+    {
+        var setup = CreateController(NewConfig("hold"), []);
+        var replacement = new FakeKeyboardHook();
+        setup.Controller.Start();
+        setup.Keyboard.RaiseDictation(true);
+        await setup.Controller.DrainAsync();
+        Task apply = setup.Controller.ApplyConfigAsync(NewConfig("toggle"), replacement);
+        await setup.Controller.DrainAsync();
+
+        Task suspend = setup.Controller.SuspendAsync();
+        Task resume = setup.Controller.ResumeAsync();
+        await Task.WhenAll(suspend, resume, apply).WaitAsync(TimeSpan.FromSeconds(2));
+
+        Assert.True(replacement.Started);
+        Assert.False(replacement.Suspended);
+        Assert.False(setup.Controller.IsSuspended);
+        await setup.Controller.ShutdownAsync();
+    }
+
+    [Fact]
+    public async Task SleepDuringLiveSessionDoesNotAddFinalEnter()
+    {
+        var deliveryStarted = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var sink = new RecordingTextSink((_, _, _) =>
+        {
+            deliveryStarted.TrySetResult();
+            return Task.FromResult(TextDeliveryResult.Delivered);
+        });
+        var setup = CreateController(NewConfig("push", autoEnter: true), ["spoken"], sink);
+        setup.Controller.Start();
+        await setup.Controller.HandleDictationKeyAsync(true);
+        EmitPhrase(setup.Audio);
+        await deliveryStarted.Task;
+
+        await setup.Controller.SuspendAsync();
+
+        var request = Assert.Single(sink.Requests);
+        Assert.Equal("spoken ", request.Text);
+        Assert.False(request.PressEnter);
+        await setup.Controller.ShutdownAsync();
+    }
+
+    [Fact]
     public async Task ModelReloadDuringSessionCompletesOnlyAfterTheNewModelIsReady()
     {
         var reload = new TaskCompletionSource<TranscriptionModel>(TaskCreationOptions.RunContinuationsAsynchronously);

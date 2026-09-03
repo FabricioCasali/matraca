@@ -18,6 +18,9 @@ internal sealed class MacTrayApp : IDisposable
     private readonly string _runtimeGpu;
     private CoreConfig _config;
     private MacConfigWatcher? _configWatcher;
+    private MacSleepWakeMonitor? _sleepWakeMonitor;
+    private int _powerGeneration;
+    private int _sleeping;
     private int _stopping;
 
     public MacTrayApp(CoreConfig config, MacStatusItem statusItem)
@@ -48,8 +51,69 @@ internal sealed class MacTrayApp : IDisposable
     public void Start()
     {
         _controller.Start();
+        _sleepWakeMonitor = new MacSleepWakeMonitor(OnWillSleep, OnDidWake);
         _configWatcher = new MacConfigWatcher();
         _configWatcher.Changed += OnConfigChanged;
+    }
+
+    private void OnWillSleep()
+    {
+        if (Volatile.Read(ref _stopping) != 0
+            || Interlocked.Exchange(ref _sleeping, 1) != 0)
+            return;
+
+        Interlocked.Increment(ref _powerGeneration);
+        Logger.Info("macOS vai entrar em repouso.");
+        try { Observe(_controller.SuspendAsync()); }
+        catch (Exception exception) { Logger.Error("Falha ao iniciar suspensao", exception); }
+    }
+
+    private void OnDidWake()
+    {
+        if (Volatile.Read(ref _stopping) != 0
+            || Interlocked.CompareExchange(ref _sleeping, 0, 1) != 1)
+            return;
+
+        int generation = Volatile.Read(ref _powerGeneration);
+        Logger.Info("macOS retomou do repouso.");
+        Observe(WakeAsync(generation));
+    }
+
+    private async Task WakeAsync(int generation)
+    {
+        try
+        {
+            await ApplyConfigAsync(MacConfig.Load()).ConfigureAwait(false);
+        }
+        catch
+        {
+            // ApplyConfigAsync already reports the rejected configuration.
+        }
+
+        if (Volatile.Read(ref _stopping) != 0
+            || Volatile.Read(ref _sleeping) != 0
+            || Volatile.Read(ref _powerGeneration) != generation)
+            return;
+
+        MainThread.Post(() => ResumeOnMainThread(generation));
+    }
+
+    private void ResumeOnMainThread(int generation)
+    {
+        if (Volatile.Read(ref _stopping) != 0
+            || Volatile.Read(ref _sleeping) != 0
+            || Volatile.Read(ref _powerGeneration) != generation)
+            return;
+
+        try { Observe(_controller.ResumeAsync()); }
+        catch (Exception exception)
+        {
+            Interlocked.CompareExchange(ref _sleeping, 1, 0);
+            Logger.Error("Falha ao recriar o event tap apos repouso", exception);
+            _shell.SetState(
+                ShellState.Error,
+                "Matraca - teclado indisponivel apos repouso.");
+        }
     }
 
     private void OnConfigChanged(CoreConfig config)
@@ -131,6 +195,8 @@ internal sealed class MacTrayApp : IDisposable
     public async Task ShutdownAsync(CancellationToken cancellationToken = default)
     {
         if (Interlocked.Exchange(ref _stopping, 1) != 0) return;
+        _sleepWakeMonitor?.Dispose();
+        _sleepWakeMonitor = null;
         if (_configWatcher != null)
         {
             _configWatcher.Changed -= OnConfigChanged;

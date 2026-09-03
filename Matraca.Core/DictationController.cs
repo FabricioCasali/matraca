@@ -3,9 +3,13 @@ namespace Matraca.Core;
 public sealed class DictationController : IDisposable
 {
     private const int MaximumMuteWindowMilliseconds = 900;
+    private const int LifecycleActive = 0;
+    private const int LifecycleSuspended = 1;
+    private const int LifecycleResuming = 2;
 
     private readonly object _commandGate = new();
     private readonly object _shutdownGate = new();
+    private readonly object _lifecycleGate = new();
     private readonly object _targetGate = new();
     private readonly IAudioCapture _audio;
     private readonly ITargetWindow _targets;
@@ -40,6 +44,7 @@ public sealed class DictationController : IDisposable
     private bool _announcedReady;
     private bool _warnedLongBeep;
     private int _busy;
+    private int _lifecycleState;
     private int _started;
     private int _shuttingDown;
     private int _disposed;
@@ -75,6 +80,7 @@ public sealed class DictationController : IDisposable
     public DictationHistory? CurrentHistory => _history;
     public bool IsSessionActive => _session != null;
     public bool IsBusy => Volatile.Read(ref _busy) != 0;
+    public bool IsSuspended => Volatile.Read(ref _lifecycleState) != LifecycleActive;
     public Config CurrentConfig => _config;
     public TargetToken? PinnedTarget { get { lock (_targetGate) return _pinnedTarget; } }
 
@@ -117,6 +123,38 @@ public sealed class DictationController : IDisposable
     {
         ArgumentNullException.ThrowIfNull(keyboard);
         return QueueKeyboardReplacementAsync(keyboard, config: null);
+    }
+
+    public Task SuspendAsync()
+    {
+        lock (_lifecycleGate)
+        {
+            if (Volatile.Read(ref _shuttingDown) != 0
+                || _lifecycleState == LifecycleSuspended)
+                return DrainAsync();
+
+            _lifecycleState = LifecycleSuspended;
+            _dictationKeyDown = false;
+            try { _keyboard.Suspended = true; }
+            catch (Exception exception) { Logger.Error("Falha ao suspender o teclado", exception); }
+            try { _session?.Cancellation.Cancel(); }
+            catch (ObjectDisposedException) { }
+            return EnqueueCommand(SuspendCoreAsync);
+        }
+    }
+
+    public Task ResumeAsync()
+    {
+        lock (_lifecycleGate)
+        {
+            if (Volatile.Read(ref _shuttingDown) != 0
+                || _lifecycleState != LifecycleSuspended)
+                return DrainAsync();
+
+            _keyboard.Suspended = false;
+            _lifecycleState = LifecycleResuming;
+            return EnqueueCommand(ResumeCoreAsync);
+        }
     }
 
     private async Task QueueKeyboardReplacementAsync(IKeyboardHook keyboard, Config? config)
@@ -173,7 +211,7 @@ public sealed class DictationController : IDisposable
 
     private void OnDictationKeyChanged(HotkeyGesture gesture, bool pressed)
     {
-        if (Volatile.Read(ref _shuttingDown) != 0) return;
+        if (Volatile.Read(ref _shuttingDown) != 0 || IsSuspended) return;
         bool suppressAction = IsBusy;
         if (suppressAction && pressed) PlaySound(start: false, _config);
         Observe(EnqueueCommand(() => HandleDictationKeyCoreAsync(pressed, suppressAction)));
@@ -181,11 +219,12 @@ public sealed class DictationController : IDisposable
 
     private void OnPinToggled(HotkeyGesture gesture)
     {
-        if (Volatile.Read(ref _shuttingDown) == 0) Observe(TogglePinAsync());
+        if (Volatile.Read(ref _shuttingDown) == 0 && !IsSuspended) Observe(TogglePinAsync());
     }
 
     private void OnKeyDiscovered(HotkeyGesture gesture)
     {
+        if (IsSuspended) return;
         if (gesture == _lastDiscovered) return;
         _lastDiscovered = gesture;
         string name = gesture.ToString();
@@ -198,7 +237,7 @@ public sealed class DictationController : IDisposable
     {
         try
         {
-            if (_config.DiscoverMode) return;
+            if (_config.DiscoverMode || IsSuspended) return;
             _models.Touch();
 
             if (pressed)
@@ -234,22 +273,28 @@ public sealed class DictationController : IDisposable
 
     private async Task StartSessionAsync()
     {
-        if (_session != null || IsBusy) return;
-
-        Config snapshot = _config;
-        bool streaming = snapshot.Mode is "live" or "push";
-        _models.BeginUse();
-        var sessionCancellation = new CancellationTokenSource();
-        var session = new DictationSession
+        DictationSession session;
+        Config snapshot;
+        bool streaming;
+        lock (_lifecycleGate)
         {
-            Config = snapshot,
-            Streaming = streaming,
-            Model = _models.GetModelAsync(sessionCancellation.Token),
-            PostProcessor = _postProcessor,
-            History = _history,
-            Cancellation = sessionCancellation,
-        };
-        _session = session;
+            if (_lifecycleState != LifecycleActive || _session != null || IsBusy) return;
+
+            snapshot = _config;
+            streaming = snapshot.Mode is "live" or "push";
+            _models.BeginUse();
+            var sessionCancellation = new CancellationTokenSource();
+            session = new DictationSession
+            {
+                Config = snapshot,
+                Streaming = streaming,
+                Model = _models.GetModelAsync(sessionCancellation.Token),
+                PostProcessor = _postProcessor,
+                History = _history,
+                Cancellation = sessionCancellation,
+            };
+            _session = session;
+        }
 
         try
         {
@@ -273,13 +318,20 @@ public sealed class DictationController : IDisposable
             int soundMilliseconds = PlaySound(start: true, snapshot);
             await _audio.StartAsync(
                 snapshot.InputDevice,
-                TimeSpan.FromMilliseconds(MuteWindowMilliseconds(soundMilliseconds)))
+                TimeSpan.FromMilliseconds(MuteWindowMilliseconds(soundMilliseconds)),
+                session.Cancellation.Token)
                 .ConfigureAwait(false);
             _models.Touch();
             SetRecording(snapshot);
             Logger.Info(streaming
                 ? $"Live (VAD) iniciado. silenceMs={snapshot.SilenceMs} threshold={snapshot.EffectiveVadThreshold} phraseMax={snapshot.PhraseMaxSeconds}s"
                 : "Gravando...");
+        }
+        catch (OperationCanceledException) when (session.Cancellation.IsCancellationRequested)
+        {
+            Logger.Info("Inicio da gravacao cancelado pelo ciclo de energia.");
+            await AbortStartAsync(session).ConfigureAwait(false);
+            SetIdle();
         }
         catch (Exception exception)
         {
@@ -314,8 +366,11 @@ public sealed class DictationController : IDisposable
         }
         catch (Exception exception)
         {
-            if (exception is OperationCanceledException && Volatile.Read(ref _shuttingDown) != 0)
+            if (exception is OperationCanceledException && session.Cancellation.IsCancellationRequested)
+            {
+                Logger.Info("Ditado ativo cancelado pelo ciclo de vida.");
                 return;
+            }
             Logger.Error("Falha na transcricao", exception);
             Notify("Erro", "Falha ao transcrever. Veja matraca.log.", ShellNotificationLevel.Error);
         }
@@ -366,7 +421,10 @@ public sealed class DictationController : IDisposable
         session.Segments?.CompleteAdding();
         if (session.Consumer != null) await session.Consumer.ConfigureAwait(false);
 
-        if (session.DeliveredSpeech && !session.DeliveryFailed && session.Config.AutoEnter)
+        if (!session.Cancellation.IsCancellationRequested
+            && session.DeliveredSpeech
+            && !session.DeliveryFailed
+            && session.Config.AutoEnter)
         {
             await DeliverAsync(session, "", pressEnter: true, addToHistory: false)
                 .ConfigureAwait(false);
@@ -399,12 +457,20 @@ public sealed class DictationController : IDisposable
                         session.DeliveryFailed = true;
                     Logger.Info($"[live] chunk (~{segment.Length / 16000.0:F1}s): \"{text.Trim()}\"");
                 }
+                catch (OperationCanceledException) when (session.Cancellation.IsCancellationRequested)
+                {
+                    break;
+                }
                 catch (Exception exception)
                 {
                     session.DeliveryFailed = true;
                     Logger.Error("[live] falha ao transcrever chunk", exception);
                 }
             }
+        }
+        catch (OperationCanceledException) when (session.Cancellation.IsCancellationRequested)
+        {
+            Logger.Info("Consumidor live cancelado pelo ciclo de vida.");
         }
         catch (Exception exception)
         {
@@ -439,7 +505,7 @@ public sealed class DictationController : IDisposable
                 else
                 {
                     bool noFocus = session.Config.PinDelivery == "nofocus";
-                    var result = await _delivery.EnqueueAsync(new TextDeliveryRequest(
+                    var result = await EnqueueDeliveryAsync(session, new TextDeliveryRequest(
                         text,
                         pressEnter,
                         noFocus ? TextDeliveryMethod.TargetWithoutFocus : TextDeliveryMethod.TargetWithFocus,
@@ -447,7 +513,7 @@ public sealed class DictationController : IDisposable
 
                     if (noFocus && result == TextDeliveryResult.Unsupported)
                     {
-                        result = await _delivery.EnqueueAsync(new TextDeliveryRequest(
+                        result = await EnqueueDeliveryAsync(session, new TextDeliveryRequest(
                             text,
                             pressEnter,
                             TextDeliveryMethod.TargetWithFocus,
@@ -467,15 +533,28 @@ public sealed class DictationController : IDisposable
         var fallbackMethod = session.Config.PasteMethod == "clipboard"
             ? TextDeliveryMethod.Clipboard
             : TextDeliveryMethod.Unicode;
-        return await _delivery.EnqueueAsync(new TextDeliveryRequest(
+        return await EnqueueDeliveryAsync(session, new TextDeliveryRequest(
             text,
             pressEnter,
             fallbackMethod)).ConfigureAwait(false);
     }
 
+    private Task<TextDeliveryResult> EnqueueDeliveryAsync(
+        DictationSession session,
+        TextDeliveryRequest request)
+    {
+        lock (_lifecycleGate)
+        {
+            if (_lifecycleState != LifecycleActive
+                || session.Cancellation.IsCancellationRequested)
+                return Task.FromResult(TextDeliveryResult.Cancelled);
+            return _delivery.EnqueueAsync(request);
+        }
+    }
+
     private Task TogglePinCoreAsync()
     {
-        if (_config.DiscoverMode) return Task.CompletedTask;
+        if (_config.DiscoverMode || IsSuspended) return Task.CompletedTask;
         TargetToken? pinnedTarget;
         lock (_targetGate) pinnedTarget = _pinnedTarget;
         if (pinnedTarget != null)
@@ -671,7 +750,7 @@ public sealed class DictationController : IDisposable
 
     private void OnModelStateChanged(TranscriptionModelState state)
     {
-        if (_session != null || IsBusy || _config.DiscoverMode) return;
+        if (_session != null || IsBusy || _config.DiscoverMode || IsSuspended) return;
         switch (state)
         {
             case TranscriptionModelState.Loading:
@@ -697,6 +776,11 @@ public sealed class DictationController : IDisposable
 
     private void RefreshState()
     {
+        if (IsSuspended)
+        {
+            SetSuspended();
+            return;
+        }
         var session = _session;
         if (session != null) SetRecording(session.Config);
         else if (IsBusy) SetBusy(_config);
@@ -705,6 +789,11 @@ public sealed class DictationController : IDisposable
 
     private void SetIdle()
     {
+        if (IsSuspended)
+        {
+            SetSuspended();
+            return;
+        }
         TargetToken? pinnedTarget;
         string pinnedTitle;
         lock (_targetGate)
@@ -728,6 +817,12 @@ public sealed class DictationController : IDisposable
                     _targets.HideIndicator();
             }
         });
+    }
+
+    private void SetSuspended()
+    {
+        SetShellState(ShellState.Idle, "Matraca - suspenso");
+        Dispatch(_targets.HideIndicator);
     }
 
     private void SetRecording(Config config)
@@ -864,11 +959,15 @@ public sealed class DictationController : IDisposable
         _pendingKeyboardCompletion = null;
         try
         {
-            UnsubscribeKeyboard(_keyboard);
-            try { _keyboard.Dispose(); } catch { }
-            _keyboard = keyboard;
-            SubscribeKeyboard(_keyboard);
-            _keyboard.Start();
+            lock (_lifecycleGate)
+            {
+                UnsubscribeKeyboard(_keyboard);
+                try { _keyboard.Dispose(); } catch { }
+                _keyboard = keyboard;
+                _keyboard.Suspended = _lifecycleState == LifecycleSuspended;
+                SubscribeKeyboard(_keyboard);
+                _keyboard.Start();
+            }
             if (config != null) await ApplyConfigCoreAsync(config).ConfigureAwait(false);
             completion?.TrySetResult();
         }
@@ -892,7 +991,60 @@ public sealed class DictationController : IDisposable
     private static async Task RunAfterAsync(Task previous, Func<Task> command)
     {
         try { await previous.ConfigureAwait(false); } catch { }
+        await Task.Yield();
         await command().ConfigureAwait(false);
+    }
+
+    private async Task SuspendCoreAsync()
+    {
+        var session = _session;
+        if (session != null)
+        {
+            Volatile.Write(ref _busy, 1);
+            try
+            {
+                session.Cancellation.Cancel();
+                _audio.FrameCaptured -= OnAudioFrame;
+                try
+                {
+                    if (_audio.IsCapturing) await _audio.StopAsync().ConfigureAwait(false);
+                }
+                catch (Exception exception)
+                {
+                    Logger.Error("Falha ao parar audio antes do repouso", exception);
+                }
+                try { session.Detector?.Stop(); } catch { }
+                session.Segments?.CompleteAdding();
+                try
+                {
+                    if (session.Consumer != null) await session.Consumer.ConfigureAwait(false);
+                }
+                catch (OperationCanceledException) { }
+                await FinishSessionAsync(session).ConfigureAwait(false);
+            }
+            finally
+            {
+                Volatile.Write(ref _busy, 0);
+            }
+        }
+
+        await ApplyPendingKeyboardIfSafeAsync().ConfigureAwait(false);
+        if (IsSuspended) SetSuspended();
+        Logger.Info("Pipeline de ditado suspenso para repouso.");
+    }
+
+    private Task ResumeCoreAsync()
+    {
+        lock (_lifecycleGate)
+        {
+            if (_lifecycleState != LifecycleResuming) return Task.CompletedTask;
+            _dictationKeyDown = false;
+            _lifecycleState = LifecycleActive;
+        }
+
+        SetIdle();
+        Logger.Info("Pipeline de ditado retomado apos repouso.");
+        return Task.CompletedTask;
     }
 
     private void Observe(Task task)

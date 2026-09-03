@@ -115,4 +115,5 @@ public sealed class TextPostProcessorTests
         Assert.Equal(original, await processor.CleanAsync(original));
         release.TrySetResult();
     }
+
 }

@@ -72,4 +72,6 @@ internal static class ObjCSelectors
     public static readonly IntPtr DateWithTimeIntervalSinceNow =
         Register("dateWithTimeIntervalSinceNow:");
     public static readonly IntPtr RunUntilDate = Register("runUntilDate:");
+    public static readonly IntPtr WorkspaceWillSleep = Register("workspaceWillSleep:");
+    public static readonly IntPtr WorkspaceDidWake = Register("workspaceDidWake:");
 }

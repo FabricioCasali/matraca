@@ -65,6 +65,15 @@ internal static class ObjC
     public static extern void SendVoid(IntPtr receiver, IntPtr selector, IntPtr argument);
 
     [DllImport(Library, EntryPoint = "objc_msgSend")]
+    public static extern void SendVoid(
+        IntPtr receiver,
+        IntPtr selector,
+        IntPtr first,
+        IntPtr second,
+        IntPtr third,
+        IntPtr fourth);
+
+    [DllImport(Library, EntryPoint = "objc_msgSend")]
     public static extern nint SendNInt(IntPtr receiver, IntPtr selector);
 
     [DllImport(Library, EntryPoint = "objc_msgSend")]

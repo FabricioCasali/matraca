@@ -18,6 +18,7 @@ internal sealed unsafe class MacKeyboardHook : IKeyboardHook
 
     private static MacKeyboardHook? _current;
 
+    private readonly object _lifecycleGate = new();
     private readonly AsyncCallbackQueue<(int Kind, ushort KeyCode, KeyMods Modifiers)> _callbacks;
     private readonly HotkeyGesture? _dictationGesture;
     private readonly HotkeyGesture? _pinGesture;
@@ -28,7 +29,7 @@ internal sealed unsafe class MacKeyboardHook : IKeyboardHook
     private IntPtr _source;
     private bool _dictationDown;
     private bool _pinDown;
-    private volatile bool _suspended;
+    private int _suspended;
     private int _disposed;
 
     public MacKeyboardHook(Matraca.Core.Config config)
@@ -50,18 +51,29 @@ internal sealed unsafe class MacKeyboardHook : IKeyboardHook
 
     public bool Suspended
     {
-        get => _suspended;
-        set => _suspended = value;
+        get => Volatile.Read(ref _suspended) != 0;
+        set
+        {
+            if (value) Suspend();
+            else Resume();
+        }
     }
 
     public void Start()
     {
-        ObjectDisposedException.ThrowIf(Volatile.Read(ref _disposed) != 0, this);
-        if (_tap != IntPtr.Zero) return;
-        if (_current != null)
-            throw new InvalidOperationException("Only one macOS event tap can run at a time.");
+        lock (_lifecycleGate)
+        {
+            ObjectDisposedException.ThrowIf(Volatile.Read(ref _disposed) != 0, this);
+            ClaimCurrent();
+            if (Suspended || _tap != IntPtr.Zero) return;
+            CreateTap();
+        }
+    }
 
-        _current = this;
+    private void CreateTap()
+    {
+        ClaimCurrent();
+
         _tap = CoreGraphics.CGEventTapCreate(
             CoreGraphics.SessionEventTap,
             CoreGraphics.HeadInsertEventTap,
@@ -89,6 +101,40 @@ internal sealed unsafe class MacKeyboardHook : IKeyboardHook
             CoreGraphics.CommonModes);
         CoreGraphics.CGEventTapEnable(_tap, true);
         Logger.Info("Event tap do Mac ativo.");
+    }
+
+    private void ClaimCurrent()
+    {
+        MacKeyboardHook? current = Volatile.Read(ref _current);
+        if (current != null && !ReferenceEquals(current, this))
+            throw new InvalidOperationException("Only one macOS event tap can run at a time.");
+        _current = this;
+    }
+
+    private void Suspend()
+    {
+        lock (_lifecycleGate)
+        {
+            if (Volatile.Read(ref _disposed) != 0
+                || Interlocked.Exchange(ref _suspended, 1) != 0)
+                return;
+            _dictationDown = false;
+            _pinDown = false;
+            DestroyTap();
+            Logger.Info("Event tap do Mac suspenso para repouso.");
+        }
+    }
+
+    private void Resume()
+    {
+        lock (_lifecycleGate)
+        {
+            ObjectDisposedException.ThrowIf(Volatile.Read(ref _disposed) != 0, this);
+            if (Volatile.Read(ref _suspended) == 0) return;
+            CreateTap();
+            Volatile.Write(ref _suspended, 0);
+            Logger.Info("Event tap do Mac recriado apos repouso.");
+        }
     }
 
     [UnmanagedCallersOnly]
@@ -122,7 +168,7 @@ internal sealed unsafe class MacKeyboardHook : IKeyboardHook
             @event,
             CoreGraphics.KeyboardEventKeycode);
         bool pressed = type == CoreGraphics.KeyDown;
-        if (_suspended)
+        if (Suspended)
         {
             if (!pressed && keyCode == _dictationKeyCode) _dictationDown = false;
             if (!pressed && keyCode == _pinKeyCode) _pinDown = false;
@@ -185,6 +231,7 @@ internal sealed unsafe class MacKeyboardHook : IKeyboardHook
 
     private void Publish((int Kind, ushort KeyCode, KeyMods Modifiers) signal)
     {
+        if (Suspended) return;
         switch (signal.Kind)
         {
             case DictationDown when _dictationGesture != null:
@@ -220,6 +267,14 @@ internal sealed unsafe class MacKeyboardHook : IKeyboardHook
     public void Dispose()
     {
         if (Interlocked.Exchange(ref _disposed, 1) != 0) return;
+        Volatile.Write(ref _suspended, 1);
+        lock (_lifecycleGate) DestroyTap();
+        if (ReferenceEquals(_current, this)) _current = null;
+        _callbacks.Dispose();
+    }
+
+    private void DestroyTap()
+    {
         if (_tap != IntPtr.Zero)
         {
             CoreGraphics.CGEventTapEnable(_tap, false);
@@ -235,7 +290,5 @@ internal sealed unsafe class MacKeyboardHook : IKeyboardHook
             CoreGraphics.CFRelease(_tap);
             _tap = IntPtr.Zero;
         }
-        if (ReferenceEquals(_current, this)) _current = null;
-        _callbacks.Dispose();
     }
 }
