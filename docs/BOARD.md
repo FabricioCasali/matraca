@@ -11,15 +11,11 @@ O desenho da frente 2.0 está em [`PLANO-2.0.md`](PLANO-2.0.md).
 
 ## 🔄 Fazendo
 
-- **MT-004** **Fase 2 — o Mac dita** — fatias 1–6 verdes: casco assinado, config a
-  quente, TCC, event tap, entrega CGEvent, AudioQueue somente em memória e os quatro
-  modos conectados ao pipeline do Core. O estado nativo do Whisper agora nasce no
-  preload e permanece vivo entre ditados; a prova real fez duas inferências com uma
-  inicialização Metal e nenhuma liberação intermediária (MT-016). Este é o marco de uso
-  pessoal. Próxima é a fatia 7: pin e moldura, aguardando sessão assistida com o Fabricio
-  em 03/09/2026 porque a validação exige observar foco, janela-alvo, Spaces e monitores.
-  Depois falta o endurecimento. Contrato em [`PLANO-2.0.md`](PLANO-2.0.md). · `[2.0]` · G ·
-  importante
+- **MT-004** **Fase 2 — o Mac dita** — fatias 1–6 verdes e marco de uso pessoal
+  entregue. Fatia 7 em execução: contrato seguro de fallback, registro AX, entrega
+  pinada com e sem foco por capacidade, moldura click-through, Spaces e monitores.
+  Depois falta o endurecimento e a prova assistida final. Contrato em
+  [`PLANO-2.0.md`](PLANO-2.0.md). · `[2.0]` · G · importante
 
 ## 📋 A fazer
 
@@ -58,6 +54,10 @@ O desenho da frente 2.0 está em [`PLANO-2.0.md`](PLANO-2.0.md).
   como membro sob demanda e o `arquiteto.md` mande consultá-la. Sem o arquivo, quem
   precisa da memória do projeto lê o vault na mão. Criar o agente ou tirar a cadeira das
   duas referências. · `[processo]` · P · melhoria
+- **MT-018** **Configurar entrega para alvo em outro Space** — a política inicial no Mac
+  é ir ao Space do alvo, confirmar, entregar e restaurar. Expor em configuração a quente
+  as alternativas de recusar ou usar `nofocus` quando a capacidade estiver comprovada. ·
+  `[2.0]` · P · melhoria
 
 ## ⏸️ Pausado
 
