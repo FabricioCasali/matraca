@@ -19,6 +19,10 @@ internal static class CoreFoundation
     private static extern nuint CFGetTypeID(IntPtr value);
 
     [DllImport(CoreFoundationFramework)]
+    [return: MarshalAs(UnmanagedType.I1)]
+    private static extern bool CFEqual(IntPtr first, IntPtr second);
+
+    [DllImport(CoreFoundationFramework)]
     private static extern nuint CFStringGetTypeID();
 
     [DllImport(CoreFoundationFramework)]
@@ -55,6 +59,9 @@ internal static class CoreFoundation
 
     public static bool IsType(IntPtr value, nuint typeId)
         => value != IntPtr.Zero && CFGetTypeID(value) == typeId;
+
+    public static bool AreEqual(IntPtr first, IntPtr second)
+        => first != IntPtr.Zero && second != IntPtr.Zero && CFEqual(first, second);
 
     public static IntPtr CreateString(string value)
     {

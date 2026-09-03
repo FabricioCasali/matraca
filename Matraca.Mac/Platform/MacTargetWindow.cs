@@ -17,56 +17,41 @@ internal sealed class MacTargetWindow : ITargetWindow
 
     public TargetToken? CaptureActive()
     {
-        IntPtr system = IntPtr.Zero;
-        IntPtr application = IntPtr.Zero;
-        IntPtr window = IntPtr.Zero;
+        if (!TryCaptureActiveHandles(out IntPtr application, out IntPtr window, out int processId))
+            return null;
         bool stored = false;
 
         try
         {
-            system = Accessibility.CreateSystemWideElement();
-            if (system == IntPtr.Zero
-                || !Accessibility.TryCopyElementAttribute(
-                    system,
-                    Accessibility.FocusedApplicationAttribute,
-                    out application)
-                || !Accessibility.TryGetProcessId(application, out int applicationProcessId)
-                || applicationProcessId <= 0
-                || applicationProcessId == Environment.ProcessId
-                || !Accessibility.TryCopyElementAttribute(
-                    application,
-                    Accessibility.FocusedWindowAttribute,
-                    out window)
-                || !Accessibility.TryGetProcessId(window, out int windowProcessId)
-                || windowProcessId != applicationProcessId
-                || !string.Equals(
-                    Accessibility.GetStringAttribute(application, Accessibility.RoleAttribute),
-                    Accessibility.ApplicationRole,
-                    StringComparison.Ordinal)
-                || !string.Equals(
-                    Accessibility.GetStringAttribute(window, Accessibility.RoleAttribute),
-                    Accessibility.WindowRole,
-                    StringComparison.Ordinal))
-                return null;
-
             var token = TargetToken.Create();
             lock (_gate)
             {
                 if (_disposed) return null;
-                _targets.Add(token.Value, (application, window, applicationProcessId));
+                _targets.Add(token.Value, (application, window, processId));
                 stored = true;
             }
             return token;
         }
         finally
         {
-            CoreFoundation.Release(system);
             if (!stored)
             {
                 CoreFoundation.Release(window);
                 CoreFoundation.Release(application);
             }
         }
+    }
+
+    internal static bool TryCaptureActiveLease([NotNullWhen(true)] out MacTargetLease? lease)
+    {
+        if (!TryCaptureActiveHandles(out IntPtr application, out IntPtr window, out int processId))
+        {
+            lease = null;
+            return false;
+        }
+
+        lease = new MacTargetLease(application, window, processId);
+        return true;
     }
 
     public bool IsAlive(TargetToken target)
@@ -168,5 +153,56 @@ internal sealed class MacTargetWindow : ITargetWindow
     {
         CoreFoundation.Release(target.Window);
         CoreFoundation.Release(target.Application);
+    }
+
+    private static bool TryCaptureActiveHandles(
+        out IntPtr application,
+        out IntPtr window,
+        out int processId)
+    {
+        IntPtr system = IntPtr.Zero;
+        application = IntPtr.Zero;
+        window = IntPtr.Zero;
+        processId = 0;
+        bool captured = false;
+        try
+        {
+            system = Accessibility.CreateSystemWideElement();
+            captured = system != IntPtr.Zero
+                && Accessibility.TryCopyElementAttribute(
+                    system,
+                    Accessibility.FocusedApplicationAttribute,
+                    out application)
+                && Accessibility.TryGetProcessId(application, out processId)
+                && processId > 0
+                && processId != Environment.ProcessId
+                && Accessibility.TryCopyElementAttribute(
+                    application,
+                    Accessibility.FocusedWindowAttribute,
+                    out window)
+                && Accessibility.TryGetProcessId(window, out int windowProcessId)
+                && windowProcessId == processId
+                && string.Equals(
+                    Accessibility.GetStringAttribute(application, Accessibility.RoleAttribute),
+                    Accessibility.ApplicationRole,
+                    StringComparison.Ordinal)
+                && string.Equals(
+                    Accessibility.GetStringAttribute(window, Accessibility.RoleAttribute),
+                    Accessibility.WindowRole,
+                    StringComparison.Ordinal);
+            return captured;
+        }
+        finally
+        {
+            CoreFoundation.Release(system);
+            if (!captured)
+            {
+                CoreFoundation.Release(window);
+                CoreFoundation.Release(application);
+                window = IntPtr.Zero;
+                application = IntPtr.Zero;
+                processId = 0;
+            }
+        }
     }
 }

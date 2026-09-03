@@ -13,8 +13,12 @@ internal static class Accessibility
 
     public const string FocusedApplicationAttribute = "AXFocusedApplication";
     public const string FocusedWindowAttribute = "AXFocusedWindow";
+    public const string FocusedUiElementAttribute = "AXFocusedUIElement";
+    public const string WindowAttribute = "AXWindow";
+    public const string SelectedTextAttribute = "AXSelectedText";
     public const string RoleAttribute = "AXRole";
     public const string TitleAttribute = "AXTitle";
+    public const string RaiseAction = "AXRaise";
     public const string ApplicationRole = "AXApplication";
     public const string WindowRole = "AXWindow";
 
@@ -36,6 +40,21 @@ internal static class Accessibility
 
     [DllImport(ApplicationServices)]
     private static extern nuint AXUIElementGetTypeID();
+
+    [DllImport(ApplicationServices)]
+    private static extern int AXUIElementSetAttributeValue(
+        IntPtr element,
+        IntPtr attribute,
+        IntPtr value);
+
+    [DllImport(ApplicationServices)]
+    private static extern int AXUIElementIsAttributeSettable(
+        IntPtr element,
+        IntPtr attribute,
+        [MarshalAs(UnmanagedType.I1)] out bool settable);
+
+    [DllImport(ApplicationServices)]
+    private static extern int AXUIElementPerformAction(IntPtr element, IntPtr action);
 
     public static bool IsTrusted(bool prompt)
     {
@@ -93,6 +112,107 @@ internal static class Accessibility
         return HasExpectedRole(application, ApplicationRole)
             && HasExpectedRole(window, WindowRole)
             && IsProcessRunning(expectedProcessId);
+    }
+
+    public static bool IsFocusedTarget(IntPtr application, IntPtr window, int expectedProcessId)
+    {
+        IntPtr system = IntPtr.Zero;
+        IntPtr focusedApplication = IntPtr.Zero;
+        IntPtr focusedWindow = IntPtr.Zero;
+        try
+        {
+            system = CreateSystemWideElement();
+            return system != IntPtr.Zero
+                && TryCopyElementAttribute(system, FocusedApplicationAttribute, out focusedApplication)
+                && TryGetProcessId(focusedApplication, out int processId)
+                && processId == expectedProcessId
+                && CoreFoundation.AreEqual(focusedApplication, application)
+                && TryCopyElementAttribute(focusedApplication, FocusedWindowAttribute, out focusedWindow)
+                && CoreFoundation.AreEqual(focusedWindow, window);
+        }
+        finally
+        {
+            CoreFoundation.Release(focusedWindow);
+            CoreFoundation.Release(focusedApplication);
+            CoreFoundation.Release(system);
+        }
+    }
+
+    public static bool HasFocusedWindow(IntPtr application, IntPtr window)
+    {
+        if (!TryCopyElementAttribute(application, FocusedWindowAttribute, out IntPtr focusedWindow))
+            return false;
+        try { return CoreFoundation.AreEqual(focusedWindow, window); }
+        finally { CoreFoundation.Release(focusedWindow); }
+    }
+
+    public static bool TryGetFocusedInsertionElement(
+        IntPtr application,
+        IntPtr window,
+        int expectedProcessId,
+        out IntPtr element)
+    {
+        element = IntPtr.Zero;
+        IntPtr elementWindow = IntPtr.Zero;
+        try
+        {
+            if (!HasFocusedWindow(application, window)
+                || !TryCopyElementAttribute(application, FocusedUiElementAttribute, out element)
+                || !TryGetProcessId(element, out int processId)
+                || processId != expectedProcessId
+                || !TryCopyElementAttribute(element, WindowAttribute, out elementWindow)
+                || !CoreFoundation.AreEqual(elementWindow, window))
+            {
+                CoreFoundation.Release(element);
+                element = IntPtr.Zero;
+                return false;
+            }
+            return true;
+        }
+        finally
+        {
+            CoreFoundation.Release(elementWindow);
+        }
+    }
+
+    public static bool IsAttributeSettable(IntPtr element, string attribute)
+    {
+        IntPtr attributeName = CoreFoundation.CreateString(attribute);
+        try
+        {
+            return AXUIElementIsAttributeSettable(element, attributeName, out bool settable) == Success
+                && settable;
+        }
+        finally { CoreFoundation.Release(attributeName); }
+    }
+
+    public static bool SetStringAttribute(IntPtr element, string attribute, string value)
+    {
+        IntPtr attributeName = CoreFoundation.CreateString(attribute);
+        IntPtr attributeValue = CoreFoundation.CreateString(value);
+        try
+        {
+            return AXUIElementSetAttributeValue(element, attributeName, attributeValue) == Success;
+        }
+        finally
+        {
+            CoreFoundation.Release(attributeValue);
+            CoreFoundation.Release(attributeName);
+        }
+    }
+
+    public static bool SetElementAttribute(IntPtr element, string attribute, IntPtr value)
+    {
+        IntPtr attributeName = CoreFoundation.CreateString(attribute);
+        try { return AXUIElementSetAttributeValue(element, attributeName, value) == Success; }
+        finally { CoreFoundation.Release(attributeName); }
+    }
+
+    public static bool PerformAction(IntPtr element, string action)
+    {
+        IntPtr actionName = CoreFoundation.CreateString(action);
+        try { return AXUIElementPerformAction(element, actionName) == Success; }
+        finally { CoreFoundation.Release(actionName); }
     }
 
     private static bool HasExpectedRole(IntPtr element, string expectedRole)

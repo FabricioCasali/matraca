@@ -55,4 +55,7 @@ internal static class ObjCSelectors
     public static readonly IntPtr CanBecomeMainWindow = Register("canBecomeMainWindow");
     public static readonly IntPtr ColorWithSrgb =
         Register("colorWithSRGBRed:green:blue:alpha:");
+    public static readonly IntPtr RunningApplicationWithProcessIdentifier =
+        Register("runningApplicationWithProcessIdentifier:");
+    public static readonly IntPtr ActivateWithOptions = Register("activateWithOptions:");
 }

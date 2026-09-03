@@ -34,7 +34,7 @@ internal sealed class MacTrayApp : IDisposable
             config,
             keyboard,
             audio,
-            new MacTextSink(),
+            new MacTextSink(targets),
             targets,
             _shell,
             new TranscriptionModelManager(config, MacWhisperTranscriber.CreateModelAsync),

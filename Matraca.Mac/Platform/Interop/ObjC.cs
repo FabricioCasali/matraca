@@ -73,6 +73,10 @@ internal static class ObjC
     public static extern IntPtr SendNUInt(IntPtr receiver, IntPtr selector, nuint value);
 
     [DllImport(Library, EntryPoint = "objc_msgSend")]
+    [return: MarshalAs(UnmanagedType.I1)]
+    public static extern bool SendBoolNUInt(IntPtr receiver, IntPtr selector, nuint value);
+
+    [DllImport(Library, EntryPoint = "objc_msgSend")]
     public static extern IntPtr SendWithBool(
         IntPtr receiver,
         IntPtr selector,

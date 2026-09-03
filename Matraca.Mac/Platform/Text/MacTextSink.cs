@@ -11,14 +11,17 @@ internal sealed unsafe class MacTextSink : ITextSink
     // MT-017 proved that multi-unit bursts can be truncated by Terminal and Electron targets.
     private const int ChunkPauseMs = 2;
     private const int EnterPauseMs = 25;
+    private const int EventQueueSettleMs = 50;
 
     private readonly IntPtr _source;
+    private readonly MacTargetWindow? _targets;
     private readonly object _deliveryGate = new();
     private int _disposed;
 
-    public MacTextSink()
+    public MacTextSink(MacTargetWindow? targets = null)
     {
         Frameworks.EnsureLoaded();
+        _targets = targets;
         _source = CoreGraphics.CGEventSourceCreate(CoreGraphics.HidSystemState);
         if (_source == IntPtr.Zero)
             throw new InvalidOperationException("CGEventSourceCreate failed.");
@@ -31,7 +34,7 @@ internal sealed unsafe class MacTextSink : ITextSink
         ArgumentNullException.ThrowIfNull(request);
         if (cancellationToken.IsCancellationRequested)
             return Task.FromResult(TextDeliveryResult.Cancelled);
-        if (request.Method != TextDeliveryMethod.Unicode || request.Target != null)
+        if (!IsValidRequest(request))
             return Task.FromResult(TextDeliveryResult.InvalidRequest);
 
         try
@@ -42,7 +45,7 @@ internal sealed unsafe class MacTextSink : ITextSink
                     return Task.FromResult(TextDeliveryResult.Failed);
                 if (cancellationToken.IsCancellationRequested)
                     return Task.FromResult(TextDeliveryResult.Cancelled);
-                return Task.FromResult(Deliver(request, cancellationToken));
+                return Task.FromResult(DeliverRequest(request, cancellationToken));
             }
         }
         catch (OperationCanceledException)
@@ -51,12 +54,135 @@ internal sealed unsafe class MacTextSink : ITextSink
         }
         catch (Exception exception)
         {
-            Logger.Error("Falha ao entregar texto por CGEvent", exception);
+            Logger.Error("Falha ao entregar texto no Mac", exception);
             return Task.FromResult(TextDeliveryResult.Failed);
         }
     }
 
-    private TextDeliveryResult Deliver(
+    private bool IsValidRequest(TextDeliveryRequest request)
+        => request.Method switch
+        {
+            TextDeliveryMethod.Unicode => request.Target == null,
+            TextDeliveryMethod.TargetWithFocus or TextDeliveryMethod.TargetWithoutFocus
+                => request.Target != null && _targets != null,
+            _ => false,
+        };
+
+    private TextDeliveryResult DeliverRequest(
+        TextDeliveryRequest request,
+        CancellationToken cancellationToken)
+    {
+        if (request.Method == TextDeliveryMethod.Unicode)
+            return DeliverUnicode(request, cancellationToken);
+
+        if (!_targets!.TryAcquireLease(request.Target!, out MacTargetLease? target))
+            return TextDeliveryResult.TargetUnavailable;
+
+        using (target)
+        {
+            if (!Accessibility.IsTargetAlive(target.Application, target.Window, target.ProcessId))
+                return TextDeliveryResult.TargetUnavailable;
+            return request.Method == TextDeliveryMethod.TargetWithFocus
+                ? DeliverWithFocus(request, target, cancellationToken)
+                : DeliverWithoutFocus(request, target, cancellationToken);
+        }
+    }
+
+    private TextDeliveryResult DeliverWithFocus(
+        TextDeliveryRequest request,
+        MacTargetLease target,
+        CancellationToken cancellationToken)
+    {
+        if (!MacTargetWindow.TryCaptureActiveLease(out MacTargetLease? original))
+            return TextDeliveryResult.Failed;
+
+        using (original)
+        {
+            TextDeliveryResult result = TextDeliveryResult.Failed;
+            bool injectionMayHaveStarted = false;
+            try
+            {
+                if (!MacTargetActivator.ActivateRaiseAndVerify(target, cancellationToken))
+                    return result;
+
+                cancellationToken.ThrowIfCancellationRequested();
+                if (!Accessibility.IsFocusedTarget(
+                        target.Application,
+                        target.Window,
+                        target.ProcessId))
+                    return result;
+
+                injectionMayHaveStarted = true;
+                result = DeliverUnicode(request, cancellationToken);
+            }
+            catch (OperationCanceledException)
+            {
+                result = TextDeliveryResult.Cancelled;
+            }
+            catch (Exception exception)
+            {
+                Logger.Error("Falha ao entregar texto no destino fixo com foco", exception);
+                result = TextDeliveryResult.Failed;
+            }
+            finally
+            {
+                if (injectionMayHaveStarted) Thread.Sleep(EventQueueSettleMs);
+                try
+                {
+                    if (!MacTargetActivator.ActivateRaiseAndVerify(original))
+                    {
+                        Logger.Error("Nao foi possivel restaurar a janela original apos a entrega.");
+                        result = TextDeliveryResult.Failed;
+                    }
+                }
+                catch (Exception exception)
+                {
+                    Logger.Error("Falha ao restaurar a janela original apos a entrega", exception);
+                    result = TextDeliveryResult.Failed;
+                }
+            }
+            return result;
+        }
+    }
+
+    private static TextDeliveryResult DeliverWithoutFocus(
+        TextDeliveryRequest request,
+        MacTargetLease target,
+        CancellationToken cancellationToken)
+    {
+        if (request.PressEnter) return TextDeliveryResult.Unsupported;
+        if (request.Text.Length == 0) return TextDeliveryResult.Delivered;
+
+        if (!Accessibility.TryGetFocusedInsertionElement(
+                target.Application,
+                target.Window,
+                target.ProcessId,
+                out IntPtr element))
+            return TextDeliveryResult.Unsupported;
+
+        try
+        {
+            if (!Accessibility.IsAttributeSettable(element, Accessibility.SelectedTextAttribute))
+                return TextDeliveryResult.Unsupported;
+
+            cancellationToken.ThrowIfCancellationRequested();
+            bool delivered = Accessibility.SetStringAttribute(
+                element,
+                Accessibility.SelectedTextAttribute,
+                request.Text);
+            if (!delivered) return TextDeliveryResult.Failed;
+
+            Logger.Info(
+                $"AXSelectedText entregou {request.Text.Length} unidades UTF-16 sem mudar o foco.");
+            return TextDeliveryResult.Delivered;
+        }
+        finally
+        {
+            CoreFoundation.Release(element);
+        }
+    }
+
+    private TextDeliveryResult DeliverUnicode(
         TextDeliveryRequest request,
         CancellationToken cancellationToken)
     {

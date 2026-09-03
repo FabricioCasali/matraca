@@ -17,6 +17,7 @@ internal static class ObjCClasses
     public static readonly IntPtr NSScreen = Get("NSScreen");
     public static readonly IntPtr NSThread = Get("NSThread");
     public static readonly IntPtr NSWindow = Get("NSWindow");
+    public static readonly IntPtr NSRunningApplication = Get("NSRunningApplication");
 
     public static void Warm() => _ = NSApplication;
 
