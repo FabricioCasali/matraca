@@ -27,6 +27,8 @@ jq . "$RESULT"
 jq -e '
   .success == true and
   .sampleRate == 16000 and
+  (.devices | length) > 0 and
+  (.configuredDeviceOnRestart as $configured | (.devices | index($configured)) != null) and
   .sampleCount > 8000 and
   .streamedSamples == .sampleCount and
   .frameCount > 0 and
@@ -35,6 +37,9 @@ jq -e '
   .restartSampleCount > 0 and
   .restartStreamedSamples == .restartSampleCount and
   .restartFrameCount > 0 and
+  .fallbackSampleCount > 0 and
+  .fallbackStreamedSamples == .fallbackSampleCount and
+  .fallbackFrameCount > 0 and
   .isCapturingAfterStop == false
 ' "$RESULT" >/dev/null
 

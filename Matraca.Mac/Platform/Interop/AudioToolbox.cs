@@ -6,6 +6,7 @@ namespace Matraca.Mac.Platform.Interop;
 internal static unsafe class AudioToolbox
 {
     public const uint PropertyIsRunning = 0x6171726E; // 'aqrn'
+    public const uint PropertyCurrentDevice = 0x61716364; // 'aqcd'
 
     private const string Library =
         "/System/Library/Frameworks/AudioToolbox.framework/AudioToolbox";
@@ -35,6 +36,13 @@ internal static unsafe class AudioToolbox
 
     [DllImport(Library)]
     public static extern int AudioQueueStart(IntPtr queue, IntPtr startTime);
+
+    [DllImport(Library)]
+    public static extern int AudioQueueSetProperty(
+        IntPtr queue,
+        uint propertyId,
+        IntPtr data,
+        uint dataSize);
 
     [DllImport(Library)]
     public static extern int AudioQueueGetProperty(

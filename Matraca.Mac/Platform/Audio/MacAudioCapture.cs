@@ -38,8 +38,10 @@ internal sealed class MacAudioCapture : IAudioCapture
 
     public bool IsCapturing => Volatile.Read(ref _capturing) != 0;
 
-    // Device selection belongs to the hardening slice; AudioQueue currently follows macOS default.
-    public IReadOnlyList<string> ListDevices() => Array.Empty<string>();
+    public IReadOnlyList<string> ListDevices() => MacAudioDevices.List()
+        .Select(device => device.Name)
+        .Distinct(StringComparer.OrdinalIgnoreCase)
+        .ToArray();
 
     public async Task StartAsync(
         string? deviceName,
@@ -54,9 +56,6 @@ internal sealed class MacAudioCapture : IAudioCapture
             if (_queue != IntPtr.Zero || IsCapturing)
                 throw new InvalidOperationException("A captura de audio ja esta ativa.");
 
-            if (!string.IsNullOrWhiteSpace(deviceName))
-                Logger.Warn($"Microfone '{deviceName}' ainda nao e selecionavel no Mac; usando o padrao do macOS.");
-
             PrepareSession(initialMute);
             try
             {
@@ -65,7 +64,7 @@ internal sealed class MacAudioCapture : IAudioCapture
                 try
                 {
                     await Task.Factory.StartNew(
-                            () => StartNative(cancellationToken),
+                            () => StartNative(deviceName, cancellationToken),
                             CancellationToken.None,
                             TaskCreationOptions.DenyChildAttach | TaskCreationOptions.LongRunning,
                             TaskScheduler.Default)
@@ -147,10 +146,13 @@ internal sealed class MacAudioCapture : IAudioCapture
         _callbackHandle = GCHandle.Alloc(this);
     }
 
-    private unsafe void StartNative(CancellationToken cancellationToken)
+    private unsafe void StartNative(string? deviceName, CancellationToken cancellationToken)
     {
         cancellationToken.ThrowIfCancellationRequested();
         Frameworks.EnsureLoaded();
+
+        string wantedDevice = (deviceName ?? string.Empty).Trim();
+        MacAudioDevice? selectedDevice = ResolveDevice(wantedDevice);
 
         AudioStreamBasicDescription format =
             AudioStreamBasicDescription.Pcm16Mono(IAudioCapture.RequiredSampleRate);
@@ -165,6 +167,8 @@ internal sealed class MacAudioCapture : IAudioCapture
         ThrowIfNativeFailed("AudioQueueNewInput", status);
 
         lock (_nativeGate) _queue = queue;
+        if (selectedDevice != null)
+            SelectDevice(queue, selectedDevice);
         for (int index = 0; index < BufferCount; index++)
         {
             status = AudioToolbox.AudioQueueAllocateBuffer(queue, BufferBytes, out AudioQueueBuffer* buffer);
@@ -186,6 +190,66 @@ internal sealed class MacAudioCapture : IAudioCapture
 
         Volatile.Write(ref _capturing, 1);
         cancellationToken.ThrowIfCancellationRequested();
+    }
+
+    private static MacAudioDevice? ResolveDevice(string wantedDevice)
+    {
+        if (wantedDevice.Length == 0)
+        {
+            Logger.Info("Captura de audio usando o microfone padrao do macOS.");
+            return null;
+        }
+
+        IReadOnlyList<MacAudioDevice> devices = MacAudioDevices.List();
+        MacAudioDevice? selected = MacAudioDeviceSelector.Find(devices, wantedDevice);
+        if (selected == null)
+        {
+            Logger.Warn(
+                $"Microfone '{wantedDevice}' ausente ou desconectado; usando o padrao do macOS.");
+            return null;
+        }
+
+        int matches = devices.Count(device =>
+            string.Equals(device.Name, wantedDevice, StringComparison.OrdinalIgnoreCase));
+        if (matches > 1)
+            Logger.Warn(
+                $"Ha {matches} microfones chamados '{selected.Name}'; usando o primeiro UID estavel.");
+        return selected;
+    }
+
+    private static unsafe void SelectDevice(IntPtr queue, MacAudioDevice device)
+    {
+        IntPtr uid = IntPtr.Zero;
+        try
+        {
+            uid = CoreFoundation.CreateString(device.Uid);
+
+            IntPtr value = uid;
+            int status = AudioToolbox.AudioQueueSetProperty(
+                queue,
+                AudioToolbox.PropertyCurrentDevice,
+                (IntPtr)(&value),
+                (uint)IntPtr.Size);
+            if (status != 0)
+            {
+                Logger.Warn(
+                    $"Microfone '{device.Name}' ficou indisponivel durante a selecao " +
+                    $"({AudioToolbox.DescribeStatus(status)}); usando o padrao do macOS.");
+                return;
+            }
+
+            Logger.Info($"Captura de audio usando o microfone configurado '{device.Name}'.");
+        }
+        catch (Exception exception)
+        {
+            Logger.Warn(
+                $"Falha ao selecionar o microfone '{device.Name}': {exception.Message}; " +
+                "usando o padrao do macOS.");
+        }
+        finally
+        {
+            CoreFoundation.Release(uid);
+        }
     }
 
     private async Task ProcessFramesAsync(ChannelReader<short[]> reader)

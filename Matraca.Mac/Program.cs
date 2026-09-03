@@ -109,6 +109,9 @@ internal static class Program
         {
             Frameworks.EnsureLoaded();
             using var capture = new MacAudioCapture();
+            IReadOnlyList<string> devices = capture.ListDevices();
+            string configuredDevice = devices.FirstOrDefault()
+                ?? throw new InvalidOperationException("CoreAudio nao enumerou nenhum microfone.");
             int frameCount = 0;
             long streamedSamples = 0;
             capture.FrameCaptured += frame =>
@@ -127,30 +130,47 @@ internal static class Program
 
             Interlocked.Exchange(ref frameCount, 0);
             Interlocked.Exchange(ref streamedSamples, 0);
-            await capture.StartAsync(null, TimeSpan.FromMilliseconds(200)).ConfigureAwait(false);
+            await capture.StartAsync(configuredDevice, TimeSpan.FromMilliseconds(200)).ConfigureAwait(false);
             await Task.Delay(600).ConfigureAwait(false);
             float[] restartSamples = await capture.StopAsync().ConfigureAwait(false);
+            int restartFrameCount = frameCount;
+            long restartStreamedSamples = streamedSamples;
+
+            Interlocked.Exchange(ref frameCount, 0);
+            Interlocked.Exchange(ref streamedSamples, 0);
+            const string missingDevice = "Matraca smoke: disconnected microphone";
+            await capture.StartAsync(missingDevice, TimeSpan.Zero).ConfigureAwait(false);
+            await Task.Delay(600).ConfigureAwait(false);
+            float[] fallbackSamples = await capture.StopAsync().ConfigureAwait(false);
             bool success = samples.Length > 0
                 && firstFrameCount > 0
                 && firstStreamedSamples == samples.Length
                 && rms > 0
                 && restartSamples.Length > 0
-                && frameCount > 0
-                && streamedSamples == restartSamples.Length
+                && restartFrameCount > 0
+                && restartStreamedSamples == restartSamples.Length
+                && fallbackSamples.Length > 0
+                && streamedSamples == fallbackSamples.Length
                 && !capture.IsCapturing;
 
             File.WriteAllText(resultPath, JsonSerializer.Serialize(new
             {
                 success,
                 sampleRate = IAudioCapture.RequiredSampleRate,
+                devices,
+                configuredDeviceOnRestart = configuredDevice,
                 sampleCount = samples.Length,
                 streamedSamples = firstStreamedSamples,
                 frameCount = firstFrameCount,
                 rms,
                 peak,
                 restartSampleCount = restartSamples.Length,
-                restartStreamedSamples = streamedSamples,
-                restartFrameCount = frameCount,
+                restartStreamedSamples,
+                restartFrameCount,
+                fallbackDevice = missingDevice,
+                fallbackSampleCount = fallbackSamples.Length,
+                fallbackStreamedSamples = streamedSamples,
+                fallbackFrameCount = frameCount,
                 isCapturingAfterStop = capture.IsCapturing,
             }));
             return success ? 0 : 1;
