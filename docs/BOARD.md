@@ -14,7 +14,11 @@ O desenho da frente 2.0 está em [`PLANO-2.0.md`](PLANO-2.0.md).
 - **MT-004** **Fase 2 — o Mac dita** — fatias 1–7 verdes. Endurecimento implementa
   histórico/pós-processamento, clipboard com restauração integral, feedback sonoro,
   instância única, sleep/wake, troca de microfone e shutdown drenando entregas aceitas.
-  Restam o soak e a prova assistida final. Contrato em
+  Prova assistida verde para entrega Unicode/clipboard em TextEdit, Terminal, Chrome e
+  VS Code, com preservação do clipboard, e para a moldura entre janelas, Spaces e
+  monitores sem roubar foco ou cliques. Restam o soak e o ciclo físico de sleep/wake;
+  este último está aceito provisoriamente, sem prova, porque a máquina não pôde ser
+  suspensa durante a sessão. Contrato em
   [`PLANO-2.0.md`](PLANO-2.0.md). · `[2.0]` · G · importante
 
 ## 📋 A fazer
