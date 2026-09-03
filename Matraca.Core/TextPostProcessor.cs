@@ -15,6 +15,8 @@ public sealed class TextPostProcessor : IDisposable
 
     private readonly Func<string, CancellationToken, Task<string?>> _clean;
     private readonly int _timeoutMs;
+    private readonly CancellationTokenSource _disposalCancellation = new();
+    private int _disposed;
 
     public TextPostProcessor(
         Func<string, CancellationToken, Task<string?>> clean,
@@ -62,15 +64,28 @@ public sealed class TextPostProcessor : IDisposable
         }
     }
 
-    public async Task<string> CleanAsync(string text)
+    public async Task<string> CleanAsync(
+        string text,
+        CancellationToken cancellationToken = default)
     {
         if (string.IsNullOrWhiteSpace(text)) return text;
+        if (Volatile.Read(ref _disposed) != 0) return text;
 
+        Task<string?>? request = null;
         try
         {
             using var timeout = new CancellationTokenSource(_timeoutMs);
+            using var cancellation = CancellationTokenSource.CreateLinkedTokenSource(
+                timeout.Token,
+                cancellationToken,
+                _disposalCancellation.Token);
             var stopwatch = System.Diagnostics.Stopwatch.StartNew();
-            var cleaned = (await _clean(text, timeout.Token).WaitAsync(timeout.Token))?.Trim();
+            request = Task.Run(() =>
+            {
+                cancellation.Token.ThrowIfCancellationRequested();
+                return _clean(text, cancellation.Token);
+            }, CancellationToken.None);
+            var cleaned = (await request.WaitAsync(cancellation.Token))?.Trim();
 
             if (string.IsNullOrEmpty(cleaned))
             {
@@ -84,7 +99,11 @@ public sealed class TextPostProcessor : IDisposable
         }
         catch (OperationCanceledException)
         {
-            Logger.Warn($"Pos-processamento estourou {_timeoutMs}ms; usando a transcricao original.");
+            if (request != null) Observe(request);
+            if (cancellationToken.IsCancellationRequested || Volatile.Read(ref _disposed) != 0)
+                Logger.Info("Pos-processamento cancelado; usando a transcricao original.");
+            else
+                Logger.Warn($"Pos-processamento estourou {_timeoutMs}ms; usando a transcricao original.");
             return text;
         }
         catch (Exception ex)
@@ -96,8 +115,16 @@ public sealed class TextPostProcessor : IDisposable
 
     public void Dispose()
     {
-        // AnthropicClient does not expose resources to dispose.
+        if (Interlocked.Exchange(ref _disposed, 1) == 0)
+            _disposalCancellation.Cancel();
     }
+
+    private static void Observe(Task task)
+        => _ = task.ContinueWith(
+            completed => _ = completed.Exception,
+            CancellationToken.None,
+            TaskContinuationOptions.OnlyOnFaulted | TaskContinuationOptions.ExecuteSynchronously,
+            TaskScheduler.Default);
 
     private static async Task<string?> RequestAsync(
         AnthropicClient client,

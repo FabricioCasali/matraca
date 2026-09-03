@@ -62,6 +62,68 @@ public sealed class DictationHistoryTests
         }
     }
 
+    [Fact]
+    public void FailedAtomicReplaceLeavesThePreviousFileIntact()
+    {
+        var home = NewTemporaryDirectory();
+        try
+        {
+            var paths = AppPaths.ForMac(home);
+            var history = new DictationHistory(paths, 10);
+            history.Add("first");
+            string committed = File.ReadAllText(paths.HistoryFile);
+            string? staged = null;
+            var interrupted = new DictationHistory(
+                paths,
+                10,
+                replaceFile: (temporary, destination) =>
+                {
+                    Assert.Equal(paths.HistoryFile, destination);
+                    staged = File.ReadAllText(temporary);
+                    throw new IOException("interrupted before replace");
+                });
+
+            interrupted.Add("second");
+
+            Assert.Equal(committed, File.ReadAllText(paths.HistoryFile));
+            Assert.NotNull(staged);
+            Assert.Contains("second", staged);
+            Assert.Equal(["first"],
+                new DictationHistory(paths, 10).Snapshot().Select(entry => entry.Text));
+            Assert.Empty(Directory.EnumerateFiles(
+                paths.DataDirectory,
+                $".{Path.GetFileName(paths.HistoryFile)}.*.tmp"));
+        }
+        finally
+        {
+            Directory.Delete(home, recursive: true);
+        }
+    }
+
+    [Fact]
+    public void ReducingMaximumPersistsTheNewestEntriesImmediately()
+    {
+        var home = NewTemporaryDirectory();
+        try
+        {
+            var paths = AppPaths.ForMac(home);
+            var history = new DictationHistory(paths, 10);
+            history.Add("first");
+            history.Add("second");
+            history.Add("third");
+
+            history.SetMaximumItems(2);
+
+            Assert.Equal(["third", "second"], history.Snapshot().Select(entry => entry.Text));
+            Assert.Equal(["third", "second"],
+                new DictationHistory(paths, 10).Snapshot().Select(entry => entry.Text));
+        }
+        finally
+        {
+            Directory.Delete(home, recursive: true);
+        }
+    }
+
     private static string NewTemporaryDirectory()
     {
         var path = Path.Combine(Path.GetTempPath(), "matraca-tests", Guid.NewGuid().ToString("N"));

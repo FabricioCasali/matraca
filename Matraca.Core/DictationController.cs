@@ -5,6 +5,7 @@ public sealed class DictationController : IDisposable
     private const int MaximumMuteWindowMilliseconds = 900;
 
     private readonly object _commandGate = new();
+    private readonly object _shutdownGate = new();
     private readonly object _targetGate = new();
     private readonly IAudioCapture _audio;
     private readonly ITargetWindow _targets;
@@ -25,6 +26,7 @@ public sealed class DictationController : IDisposable
     private DictationHistory? _history;
     private volatile DictationSession? _session;
     private Task _commandTail = Task.CompletedTask;
+    private Task? _shutdownTask;
     private Config? _pendingModelReload;
     private TaskCompletionSource? _pendingModelReloadCompletion;
     private TargetToken? _pinnedTarget;
@@ -33,6 +35,7 @@ public sealed class DictationController : IDisposable
     private IKeyboardHook? _pendingKeyboard;
     private Config? _pendingKeyboardConfig;
     private TaskCompletionSource? _pendingKeyboardCompletion;
+    private bool _historyConfigurationPending;
     private bool _dictationKeyDown;
     private bool _announcedReady;
     private bool _warnedLongBeep;
@@ -149,10 +152,23 @@ public sealed class DictationController : IDisposable
 
     public Task ShutdownAsync(CancellationToken cancellationToken = default)
     {
-        if (Interlocked.Exchange(ref _shuttingDown, 1) != 0) return DrainAsync();
+        lock (_shutdownGate)
+        {
+            if (_shutdownTask != null) return _shutdownTask;
+            Volatile.Write(ref _shuttingDown, 1);
+            return _shutdownTask = BeginShutdownAsync(cancellationToken);
+        }
+    }
+
+    private async Task BeginShutdownAsync(CancellationToken cancellationToken)
+    {
         _shutdownCancellation.Cancel();
         try { _session?.Cancellation.Cancel(); } catch (ObjectDisposedException) { }
-        return EnqueueCommand(() => ShutdownCoreAsync(cancellationToken), allowDuringShutdown: true);
+        using var cancellationRegistration = cancellationToken.Register(_delivery.CancelPending);
+        _delivery.StopAccepting();
+        await EnqueueCommand(
+            () => ShutdownCoreAsync(cancellationToken),
+            allowDuringShutdown: true).ConfigureAwait(false);
     }
 
     private void OnDictationKeyChanged(HotkeyGesture gesture, bool pressed)
@@ -399,7 +415,7 @@ public sealed class DictationController : IDisposable
     private static async Task<string> PostProcessAsync(DictationSession session, string text)
         => session.PostProcessor == null
             ? text
-            : await session.PostProcessor.CleanAsync(text).ConfigureAwait(false);
+            : await session.PostProcessor.CleanAsync(text, session.Cancellation.Token).ConfigureAwait(false);
 
     private async Task<TextDeliveryResult> DeliverAsync(
         DictationSession session,
@@ -407,6 +423,8 @@ public sealed class DictationController : IDisposable
         bool pressEnter,
         bool addToHistory = true)
     {
+        if (Volatile.Read(ref _shuttingDown) != 0 || session.Cancellation.IsCancellationRequested)
+            return TextDeliveryResult.Cancelled;
         if (addToHistory) session.History?.Add(text);
 
         TargetToken? pinnedTarget = AcquirePinnedTarget();
@@ -586,7 +604,12 @@ public sealed class DictationController : IDisposable
             RetirePostProcessor(previous);
         }
         if (old.History != config.History || old.HistoryMaxItems != config.HistoryMaxItems)
-            _history = CreateHistory(config);
+        {
+            if (_session != null)
+                _historyConfigurationPending = true;
+            else
+                ApplyHistoryConfiguration(config);
+        }
 
         if (_session == null)
         {
@@ -603,6 +626,13 @@ public sealed class DictationController : IDisposable
         session.Cancellation.Dispose();
         _models.EndUse();
         DisposeRetiredPostProcessors();
+
+        if (_historyConfigurationPending)
+        {
+            _historyConfigurationPending = false;
+            if (Volatile.Read(ref _shuttingDown) == 0)
+                ApplyHistoryConfiguration(_config);
+        }
 
         if (_pendingModelReload != null)
         {
@@ -778,6 +808,20 @@ public sealed class DictationController : IDisposable
         }
     }
 
+    private void ApplyHistoryConfiguration(Config config)
+    {
+        if (!config.History)
+        {
+            _history = null;
+            return;
+        }
+
+        if (_history == null)
+            _history = CreateHistory(config);
+        else
+            _history.SetMaximumItems(config.HistoryMaxItems);
+    }
+
     private void RetirePostProcessor(TextPostProcessor? processor)
     {
         if (processor == null || ReferenceEquals(processor, _postProcessor)) return;
@@ -893,8 +937,6 @@ public sealed class DictationController : IDisposable
 
     private async Task ShutdownCoreAsync(CancellationToken cancellationToken)
     {
-        using var cancellationRegistration = cancellationToken.Register(() =>
-            Observe(_delivery.ShutdownAsync(cancelPending: true)));
         if (_session != null)
         {
             _session.Cancellation.Cancel();

@@ -666,6 +666,79 @@ public sealed class DictationControllerTests
     }
 
     [Fact]
+    public async Task HistoryLimitHotReloadKeepsEntriesFromTheActiveSession()
+    {
+        string home = NewTemporaryDirectory();
+        try
+        {
+            var paths = AppPaths.ForMac(home);
+            int factoryCalls = 0;
+            var setup = CreateController(
+                NewConfig("hold", historyMaxItems: 10),
+                ["first", "second"],
+                historyFactory: config =>
+                {
+                    factoryCalls++;
+                    return new DictationHistory(paths, config.HistoryMaxItems);
+                });
+            setup.Controller.Start();
+            await setup.Controller.HandleDictationKeyAsync(true);
+
+            await setup.Controller.ApplyConfigAsync(NewConfig("hold", historyMaxItems: 2));
+            await setup.Controller.HandleDictationKeyAsync(false);
+            await setup.Controller.HandleDictationKeyAsync(true);
+            await setup.Controller.HandleDictationKeyAsync(false);
+
+            Assert.Equal(1, factoryCalls);
+            Assert.Equal(["second", "first"],
+                new DictationHistory(paths, 10).Snapshot().Select(entry => entry.Text));
+            await setup.Controller.ShutdownAsync();
+        }
+        finally
+        {
+            Directory.Delete(home, recursive: true);
+        }
+    }
+
+    [Fact]
+    public async Task HistoryEnablementHotReloadAppliesAfterTheActiveSession()
+    {
+        string home = NewTemporaryDirectory();
+        try
+        {
+            var paths = AppPaths.ForMac(home);
+            var setup = CreateController(
+                NewConfig("hold", history: true),
+                ["first", "not stored", "third"],
+                historyFactory: config => config.History
+                    ? new DictationHistory(paths, config.HistoryMaxItems)
+                    : null);
+            setup.Controller.Start();
+            await setup.Controller.HandleDictationKeyAsync(true);
+
+            await setup.Controller.ApplyConfigAsync(NewConfig("hold", history: false));
+            await setup.Controller.HandleDictationKeyAsync(false);
+            await setup.Controller.HandleDictationKeyAsync(true);
+            await setup.Controller.HandleDictationKeyAsync(false);
+
+            Assert.Equal(["first"],
+                new DictationHistory(paths, 10).Snapshot().Select(entry => entry.Text));
+
+            await setup.Controller.ApplyConfigAsync(NewConfig("hold", history: true));
+            await setup.Controller.HandleDictationKeyAsync(true);
+            await setup.Controller.HandleDictationKeyAsync(false);
+
+            Assert.Equal(["third", "first"],
+                new DictationHistory(paths, 10).Snapshot().Select(entry => entry.Text));
+            await setup.Controller.ShutdownAsync();
+        }
+        finally
+        {
+            Directory.Delete(home, recursive: true);
+        }
+    }
+
+    [Fact]
     public async Task ModelConfigBecomesVisibleOnlyAfterAtomicReloadCompletes()
     {
         var reloadStarted = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
@@ -715,6 +788,75 @@ public sealed class DictationControllerTests
 
         await Task.WhenAll(stop, shutdown).WaitAsync(TimeSpan.FromSeconds(2));
         Assert.Empty(setup.Sink.Requests);
+    }
+
+    [Fact]
+    public async Task ShutdownCancelsPostProcessingWithoutStartingDelivery()
+    {
+        string home = NewTemporaryDirectory();
+        var release = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        try
+        {
+            var paths = AppPaths.ForMac(home);
+            var history = new DictationHistory(paths, 10);
+            var postProcessingStarted = new TaskCompletionSource(
+                TaskCreationOptions.RunContinuationsAsynchronously);
+            var processor = new TextPostProcessor(
+                async (_, _) =>
+                {
+                    postProcessingStarted.TrySetResult();
+                    await release.Task;
+                    return "late text";
+                },
+                60000);
+            var setup = CreateController(
+                NewConfig("hold"),
+                ["raw text"],
+                postProcessorFactory: _ => processor,
+                historyFactory: _ => history);
+            setup.Controller.Start();
+            await setup.Controller.HandleDictationKeyAsync(true);
+            Task stop = setup.Controller.HandleDictationKeyAsync(false);
+            await postProcessingStarted.Task;
+
+            Task shutdown = setup.Controller.ShutdownAsync();
+            Task concurrentShutdown = setup.Controller.ShutdownAsync();
+
+            Assert.Same(shutdown, concurrentShutdown);
+            await Task.WhenAll(stop, shutdown).WaitAsync(TimeSpan.FromSeconds(2));
+            Assert.Empty(setup.Sink.Requests);
+            Assert.Empty(history.Snapshot());
+        }
+        finally
+        {
+            release.TrySetResult();
+            Directory.Delete(home, recursive: true);
+        }
+    }
+
+    [Fact]
+    public async Task ShutdownDrainsDeliveryAcceptedBeforeItStarted()
+    {
+        var deliveryStarted = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var releaseDelivery = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var sink = new RecordingTextSink(async (_, _, _) =>
+        {
+            deliveryStarted.TrySetResult();
+            await releaseDelivery.Task;
+            return TextDeliveryResult.Delivered;
+        });
+        var setup = CreateController(NewConfig("hold"), ["accepted"], sink);
+        setup.Controller.Start();
+        await setup.Controller.HandleDictationKeyAsync(true);
+        Task stop = setup.Controller.HandleDictationKeyAsync(false);
+        await deliveryStarted.Task;
+
+        Task shutdown = setup.Controller.ShutdownAsync();
+
+        Assert.False(shutdown.IsCompleted);
+        releaseDelivery.TrySetResult();
+        await Task.WhenAll(stop, shutdown).WaitAsync(TimeSpan.FromSeconds(2));
+        Assert.Equal("accepted", Assert.Single(sink.Requests).Text);
     }
 
     [Fact]
@@ -821,7 +963,9 @@ public sealed class DictationControllerTests
         string focusColor = "#E81123",
         string busyColor = "#FFB900",
         int thickness = 4,
-        float opacity = 0.9f) => new()
+        float opacity = 0.9f,
+        int historyMaxItems = 100,
+        bool history = true) => new()
     {
         ModelPath = modelPath,
         Mode = mode,
@@ -836,6 +980,8 @@ public sealed class DictationControllerTests
         FocusBorderColorBusy = busyColor,
         FocusBorderThickness = thickness,
         FocusBorderOpacity = opacity,
+        History = history,
+        HistoryMaxItems = historyMaxItems,
     };
 
     private static string NewTemporaryDirectory()

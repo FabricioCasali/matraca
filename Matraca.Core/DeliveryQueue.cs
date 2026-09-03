@@ -55,17 +55,23 @@ public sealed class DeliveryQueue : IDisposable
         bool cancelPending = false,
         CancellationToken cancellationToken = default)
     {
-        if (Interlocked.Exchange(ref _completed, 1) == 0)
-        {
-            if (cancelPending) _shutdown.Cancel();
-            _items.CompleteAdding();
-        }
-        else if (cancelPending)
-        {
-            _shutdown.Cancel();
-        }
+        if (cancelPending) CancelPending();
+        else StopAccepting();
 
         await _stopped.Task.WaitAsync(cancellationToken).ConfigureAwait(false);
+    }
+
+    internal void StopAccepting()
+    {
+        if (Interlocked.Exchange(ref _completed, 1) == 0)
+            _items.CompleteAdding();
+    }
+
+    internal void CancelPending()
+    {
+        try { _shutdown.Cancel(); }
+        catch (ObjectDisposedException) { }
+        StopAccepting();
     }
 
     private void Consume()
