@@ -26,6 +26,16 @@
              Link="Compatibility/MacAudioDeviceSelector.cs" />
     <Compile Include="../../Matraca.Mac/Platform/Audio/MacSoundWave.cs"
              Link="Compatibility/MacSoundWave.cs" />
+    <Compile Include="../../Matraca.Mac/Platform/Text/IPasteboard.cs"
+             Link="Compatibility/IPasteboard.cs" />
+    <Compile Include="../../Matraca.Mac/Platform/Text/PasteboardItemSnapshot.cs"
+             Link="Compatibility/PasteboardItemSnapshot.cs" />
+    <Compile Include="../../Matraca.Mac/Platform/Text/PasteboardRestoreResult.cs"
+             Link="Compatibility/PasteboardRestoreResult.cs" />
+    <Compile Include="../../Matraca.Mac/Platform/Text/PasteboardSnapshot.cs"
+             Link="Compatibility/PasteboardSnapshot.cs" />
+    <Compile Include="../../Matraca.Mac/Platform/Text/PasteboardTransaction.cs"
+             Link="Compatibility/PasteboardTransaction.cs" />
     <Compile Include="../../Matraca.Windows/WindowsHotkeyTranslator.cs"
              Link="Compatibility/WindowsHotkeyTranslator.cs" />
     <None Include="../../Matraca.Windows/appsettings.json"

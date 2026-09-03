@@ -6,6 +6,12 @@ APP="$ROOT/bin/Matraca.app"
 BIN="$APP/Contents/MacOS/Matraca"
 TMP="$(mktemp -d "${TMPDIR:-/tmp}/matraca-delivery.XXXXXX")"
 TEXT="$(/usr/bin/python3 -c 'print("Matraca entrega texto longo com espacos, acentos: a\u00e7\u00e3o, caf\u00e9, Unicode \U0001F3A4 e pontua\u00e7\u00e3o; sem cortar nenhum caractere. 0123456789 ABCDEFGHIJKLMNOPQRSTUVWXYZ.", end="")')"
+METHOD="${MATRACA_DELIVERY_METHOD:-unicode}"
+
+if [[ "$METHOD" != "unicode" && "$METHOD" != "clipboard" ]]; then
+  echo "MATRACA_DELIVERY_METHOD must be unicode or clipboard" >&2
+  exit 2
+fi
 
 cleanup() {
   for label in matraca.delivery.textedit matraca.delivery.terminal matraca.delivery.chrome matraca.delivery.vscode; do
@@ -27,11 +33,19 @@ bash "$ROOT/pack.sh" >/dev/null
 run_delivery() {
   local name="$1"
   local enter="$2"
+  local application="$3"
   local result="$TMP/$name.result"
   local label="matraca.delivery.$name"
+  local clipboard="Matraca clipboard sentinel: $name"
 
+  printf '%s' "$clipboard" | pbcopy
+  osascript -e "tell application \"$application\" to activate" >/dev/null
+  sleep 0.5
+  local front_app
+  front_app="$(osascript -e 'tell application "System Events" to get name of first application process whose frontmost is true')"
+  echo "$name: front app before delivery is $front_app"
   launchctl remove "$label" >/dev/null 2>&1 || true
-  launchctl submit -l "$label" -- "$BIN" --delivery-smoke "$TEXT" "$enter" 1500 "$result"
+  launchctl submit -l "$label" -- "$BIN" --delivery-smoke "$METHOD" "$TEXT" "$enter" 1500 "$result"
 
   for _ in {1..300}; do
     [[ -f "$result" ]] && break
@@ -40,6 +54,11 @@ run_delivery() {
   [[ -f "$result" ]] || { echo "$name: smoke did not finish" >&2; return 1; }
   [[ "$(<"$result")" == "Delivered" ]] || { echo "$name: delivery failed" >&2; return 1; }
   launchctl remove "$label" >/dev/null 2>&1 || true
+  [[ "$(pbpaste)" == "$clipboard" ]] || {
+    echo "$name: clipboard was not preserved" >&2
+    return 1
+  }
+  echo "$name: clipboard preserved"
 }
 
 assert_file() {
@@ -69,7 +88,9 @@ printf '%s\n' "$TEXT" > "$TMP/expected-enter.txt"
 
 : > "$TMP/textedit.txt"
 open -a TextEdit "$TMP/textedit.txt"
-run_delivery textedit false
+osascript -e 'tell application "TextEdit" to activate' >/dev/null
+sleep 1
+run_delivery textedit false TextEdit
 TEXTEDIT_VALUE="$(osascript -e 'tell application "TextEdit" to get text of front document')"
 [[ "$TEXTEDIT_VALUE" == "$TEXT" ]] || { echo "TextEdit: received text differs" >&2; exit 1; }
 echo "TextEdit: literal match"
@@ -83,7 +104,7 @@ pathlib.Path(sys.argv[1]).write_text(input(), encoding="utf-8")
 PY
 osascript -e "tell application \"Terminal\" to activate" \
   -e "tell application \"Terminal\" to do script \"/usr/bin/python3 $TMP/receive.py $TMP/terminal.txt\"" >/dev/null
-run_delivery terminal true
+run_delivery terminal true Terminal
 for _ in {1..50}; do
   [[ -f "$TMP/terminal.txt" ]] && break
   sleep 0.1
@@ -98,6 +119,12 @@ cat > "$TMP/browser.html" <<'HTML'
 <form onsubmit="location.hash = encodeURIComponent(document.getElementById('target').value); return false">
   <input id="target" autofocus>
 </form>
+<script>
+  const target = document.getElementById('target');
+  target.focus();
+  const focusTarget = setInterval(() => target.focus(), 100);
+  target.addEventListener('input', () => clearInterval(focusTarget), { once: true });
+</script>
 HTML
 CHROME="/Applications/Google Chrome.app/Contents/MacOS/Google Chrome"
 [[ -x "$CHROME" ]] || { echo "Chrome: executable not found" >&2; exit 1; }
@@ -105,7 +132,9 @@ CHROME="/Applications/Google Chrome.app/Contents/MacOS/Google Chrome"
   --app="file://$TMP/browser.html" >/dev/null 2>&1 &
 CHROME_PID=$!
 sleep 3
-run_delivery chrome true
+osascript -e 'tell application "Google Chrome" to activate' >/dev/null
+sleep 1
+run_delivery chrome true "Google Chrome"
 CHROME_URL="$(osascript -e 'tell application "Google Chrome" to get URL of active tab of front window')"
 CHROME_VALUE="$(/usr/bin/python3 - "$CHROME_URL" <<'PY'
 import sys
@@ -114,7 +143,17 @@ import urllib.parse
 print(urllib.parse.unquote(urllib.parse.urlsplit(sys.argv[1]).fragment), end="")
 PY
 )"
-[[ "$CHROME_VALUE" == "$TEXT" ]] || { echo "Chrome: received text differs" >&2; exit 1; }
+if [[ "$CHROME_VALUE" != "$TEXT" ]]; then
+  echo "Chrome URL: $CHROME_URL" >&2
+  /usr/bin/python3 - "$CHROME_VALUE" "$TEXT" <<'PY'
+import sys
+
+print(f"Chrome actual={sys.argv[1]!r}", file=sys.stderr)
+print(f"Chrome expected={sys.argv[2]!r}", file=sys.stderr)
+PY
+  echo "Chrome: received text differs" >&2
+  exit 1
+fi
 echo "Chrome: literal match"
 kill "$CHROME_PID" >/dev/null 2>&1 || true
 wait "$CHROME_PID" 2>/dev/null || true
@@ -146,10 +185,8 @@ sleep 1
 osascript -e 'tell application "System Events" to key code 53' \
   -e 'tell application "System Events" to keystroke "1" using {command down}' >/dev/null
 sleep 1
-FRONT_APP="$(osascript -e 'tell application "System Events" to get name of first application process whose frontmost is true')"
-[[ "$FRONT_APP" == "Code" ]] || { echo "VS Code: expected front app Code, got $FRONT_APP" >&2; exit 1; }
-run_delivery vscode true
+run_delivery vscode true "Visual Studio Code"
 sleep 1
 assert_file "VS Code" "$TMP/vscode.txt" "$TMP/expected-enter.txt"
 
-echo "Delivery smoke passed in TextEdit, Terminal, Chrome and VS Code."
+echo "$METHOD delivery smoke passed in TextEdit, Terminal, Chrome and VS Code."

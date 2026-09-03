@@ -11,12 +11,10 @@ O desenho da frente 2.0 está em [`PLANO-2.0.md`](PLANO-2.0.md).
 
 ## 🔄 Fazendo
 
-- **MT-004** **Fase 2 — o Mac dita** — fatias 1–6 verdes e marco de uso pessoal
-  entregue. Fatia 7 em execução: contrato seguro de fallback, registro AX, entrega
-  pinada com e sem foco por capacidade, moldura click-through, Spaces e monitores.
-  No endurecimento, instância única por usuário, shutdown nativo com cinco segundos
-  para drenar entregas já aceitas, troca de microfone e lifecycle sleep/wake estão
-  implementados. Faltam soak e a prova assistida final. Contrato em
+- **MT-004** **Fase 2 — o Mac dita** — fatias 1–7 verdes. Endurecimento implementa
+  histórico/pós-processamento, clipboard com restauração integral, feedback sonoro,
+  instância única, sleep/wake, troca de microfone e shutdown drenando entregas aceitas.
+  Restam o soak e a prova assistida final. Contrato em
   [`PLANO-2.0.md`](PLANO-2.0.md). · `[2.0]` · G · importante
 
 ## 📋 A fazer

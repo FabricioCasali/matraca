@@ -78,12 +78,17 @@ internal static class Program
 
     private static int RunDeliverySmoke(string[] args)
     {
-        if (args.Length != 5
-            || !bool.TryParse(args[2], out bool pressEnter)
-            || !int.TryParse(args[3], out int delayMs)
+        TextDeliveryMethod method = args.Length > 1 && args[1] == "clipboard"
+            ? TextDeliveryMethod.Clipboard
+            : TextDeliveryMethod.Unicode;
+        if (args.Length != 6
+            || args[1] is not ("unicode" or "clipboard")
+            || !bool.TryParse(args[3], out bool pressEnter)
+            || !int.TryParse(args[4], out int delayMs)
             || delayMs < 0)
         {
-            Logger.Error("Uso: --delivery-smoke <texto> <true|false> <delay-ms> <resultado>.");
+            Logger.Error(
+                "Uso: --delivery-smoke <unicode|clipboard> <texto> <true|false> <delay-ms> <resultado>.");
             return 2;
         }
 
@@ -92,7 +97,7 @@ internal static class Program
         using var pool = AutoreleasePool.New();
         if (!Accessibility.IsTrusted(prompt: false))
         {
-            File.WriteAllText(args[4], TextDeliveryResult.Failed.ToString());
+            File.WriteAllText(args[5], TextDeliveryResult.Failed.ToString());
             Logger.Error("Smoke de entrega sem permissao de Acessibilidade.");
             return 1;
         }
@@ -100,11 +105,11 @@ internal static class Program
         Thread.Sleep(delayMs);
         using var sink = new MacTextSink();
         TextDeliveryResult result = sink.DeliverAsync(new TextDeliveryRequest(
-                args[1],
+                args[2],
                 pressEnter,
-                TextDeliveryMethod.Unicode))
+                method))
             .GetAwaiter().GetResult();
-        File.WriteAllText(args[4], result.ToString());
+        File.WriteAllText(args[5], result.ToString());
         return result == TextDeliveryResult.Delivered ? 0 : 1;
     }
 

@@ -24,6 +24,9 @@ internal static unsafe class CoreGraphics
     public const uint WindowListExcludeDesktopElements = 1 << 4;
     public const uint NullWindow = 0;
     public const int HidSystemState = 1;
+    public const ulong MaskCommand = 1UL << 20;
+    public const ushort CommandKey = 0x37;
+    public const ushort VKey = 0x09;
     public const ushort ReturnKey = 0x24;
     public const ulong KeyDownUpMask = (1UL << (int)KeyDown) | (1UL << (int)KeyUp);
 
@@ -48,6 +51,9 @@ internal static unsafe class CoreGraphics
     public static extern ulong CGEventGetFlags(IntPtr @event);
 
     [DllImport(CoreGraphicsFramework)]
+    public static extern ulong CGEventSourceFlagsState(int stateId);
+
+    [DllImport(CoreGraphicsFramework)]
     public static extern IntPtr CGEventSourceCreate(int stateId);
 
     [DllImport(CoreGraphicsFramework)]
@@ -64,6 +70,9 @@ internal static unsafe class CoreGraphics
 
     [DllImport(CoreGraphicsFramework)]
     public static extern void CGEventSetIntegerValueField(IntPtr @event, uint field, long value);
+
+    [DllImport(CoreGraphicsFramework)]
+    public static extern void CGEventSetFlags(IntPtr @event, ulong flags);
 
     [DllImport(CoreGraphicsFramework)]
     public static extern void CGEventPost(uint tap, IntPtr @event);

@@ -12,6 +12,7 @@ internal sealed unsafe class MacTextSink : ITextSink
     private const int ChunkPauseMs = 2;
     private const int EnterPauseMs = 25;
     private const int EventQueueSettleMs = 50;
+    private const int PasteboardConsumeMs = 500;
 
     private readonly IntPtr _source;
     private readonly MacTargetWindow? _targets;
@@ -62,7 +63,7 @@ internal sealed unsafe class MacTextSink : ITextSink
     private bool IsValidRequest(TextDeliveryRequest request)
         => request.Method switch
         {
-            TextDeliveryMethod.Unicode => request.Target == null,
+            TextDeliveryMethod.Unicode or TextDeliveryMethod.Clipboard => request.Target == null,
             TextDeliveryMethod.TargetWithFocus or TextDeliveryMethod.TargetWithoutFocus
                 => request.Target != null && _targets != null,
             _ => false,
@@ -72,8 +73,10 @@ internal sealed unsafe class MacTextSink : ITextSink
         TextDeliveryRequest request,
         CancellationToken cancellationToken)
     {
-        if (request.Method == TextDeliveryMethod.Unicode)
-            return DeliverUnicode(request, cancellationToken);
+        if (request.Method is TextDeliveryMethod.Unicode or TextDeliveryMethod.Clipboard)
+            return request.Method == TextDeliveryMethod.Clipboard
+                ? DeliverClipboard(request, cancellationToken)
+                : DeliverUnicode(request, cancellationToken);
 
         if (!_targets!.TryAcquireLease(request.Target!, out MacTargetLease? target))
             return TextDeliveryResult.TargetUnavailable;
@@ -216,6 +219,98 @@ internal sealed unsafe class MacTextSink : ITextSink
         return TextDeliveryResult.Delivered;
     }
 
+    private TextDeliveryResult DeliverClipboard(
+        TextDeliveryRequest request,
+        CancellationToken cancellationToken)
+    {
+        if (request.Text.Length == 0)
+            return DeliverUnicode(request, cancellationToken);
+
+        var pasteboard = new MacPasteboard();
+        if (!PasteboardTransaction.TryBegin(pasteboard, request.Text, out PasteboardTransaction? transaction))
+            return TextDeliveryResult.Unsupported;
+
+        bool injectionMayHaveStarted = false;
+        Stopwatch? pasteElapsed = null;
+        TextDeliveryResult result;
+        try
+        {
+            if (cancellationToken.IsCancellationRequested)
+            {
+                result = TextDeliveryResult.Cancelled;
+            }
+            else
+            {
+                injectionMayHaveStarted = true;
+                pasteElapsed = Stopwatch.StartNew();
+                PostPaste();
+                result = TextDeliveryResult.Delivered;
+
+                if (request.PressEnter)
+                {
+                    Thread.Sleep(EnterPauseMs);
+                    if (cancellationToken.IsCancellationRequested)
+                    {
+                        result = TextDeliveryResult.Cancelled;
+                    }
+                    else
+                    {
+                        PostKey(CoreGraphics.ReturnKey, keyDown: true);
+                        PostKey(CoreGraphics.ReturnKey, keyDown: false);
+                    }
+                }
+            }
+        }
+        catch (Exception exception)
+        {
+            Logger.Error("Falha depois de iniciar a cola no Mac; repeticao automatica bloqueada", exception);
+            result = exception is OperationCanceledException
+                ? TextDeliveryResult.Cancelled
+                : TextDeliveryResult.Failed;
+        }
+        finally
+        {
+            if (injectionMayHaveStarted)
+            {
+                int remaining = PasteboardConsumeMs - (int)(pasteElapsed?.ElapsedMilliseconds ?? 0);
+                if (remaining > 0) Thread.Sleep(remaining);
+                if (cancellationToken.IsCancellationRequested)
+                    result = TextDeliveryResult.Cancelled;
+            }
+
+            PasteboardRestoreResult restore = transaction!.Restore();
+            if (restore == PasteboardRestoreResult.Failed)
+                result = TextDeliveryResult.Failed;
+            else if (restore == PasteboardRestoreResult.OwnershipLost)
+            {
+                Logger.Info("Clipboard mudou durante a cola; conteudo novo do usuario preservado.");
+                if (injectionMayHaveStarted) result = TextDeliveryResult.Failed;
+            }
+        }
+
+        Logger.Info(
+            $"Clipboard entregou {request.Text.Length} unidades UTF-16"
+            + $"{(request.PressEnter ? ", com Enter" : string.Empty)}; resultado={result}.");
+        return result;
+    }
+
+    private void PostPaste()
+    {
+        bool commandWasDown = (CoreGraphics.CGEventSourceFlagsState(CoreGraphics.HidSystemState)
+            & CoreGraphics.MaskCommand) != 0;
+        if (!commandWasDown)
+            PostKey(CoreGraphics.CommandKey, keyDown: true, CoreGraphics.MaskCommand);
+        try
+        {
+            PostKey(CoreGraphics.VKey, keyDown: true, CoreGraphics.MaskCommand);
+            PostKey(CoreGraphics.VKey, keyDown: false, CoreGraphics.MaskCommand);
+        }
+        finally
+        {
+            if (!commandWasDown) PostKey(CoreGraphics.CommandKey, keyDown: false);
+        }
+    }
+
     private static int GetScalarLength(ReadOnlySpan<char> text)
     {
         OperationStatus status = Rune.DecodeFromUtf16(text, out _, out int consumed);
@@ -244,12 +339,16 @@ internal sealed unsafe class MacTextSink : ITextSink
         }
     }
 
-    private void PostKey(ushort keyCode, bool keyDown)
+    private void PostKey(ushort keyCode, bool keyDown, ulong flags = 0)
     {
         IntPtr @event = CoreGraphics.CGEventCreateKeyboardEvent(_source, keyCode, keyDown);
         if (@event == IntPtr.Zero)
             throw new InvalidOperationException("CGEventCreateKeyboardEvent failed.");
-        try { Post(@event); }
+        try
+        {
+            CoreGraphics.CGEventSetFlags(@event, flags);
+            Post(@event);
+        }
         finally { CoreGraphics.CFRelease(@event); }
     }
 
