@@ -360,12 +360,58 @@ public sealed class DictationControllerTests
         await setup.Controller.ShutdownAsync();
     }
 
-    [Fact]
-    public async Task FocusPinFailureFallsBackWithoutLosingHistoryOrder()
+    [Theory]
+    [InlineData("unicode", TextDeliveryMethod.Unicode)]
+    [InlineData("clipboard", TextDeliveryMethod.Clipboard)]
+    public async Task UnpinnedDeliveryUsesConfiguredActiveWindowMethod(
+        string pasteMethod,
+        TextDeliveryMethod expectedMethod)
     {
-        var sink = new RecordingTextSink((_, call, _) => Task.FromResult(
-            call == 1 ? TextDeliveryResult.Failed : TextDeliveryResult.Delivered));
-        var setup = CreateController(NewConfig("hold"), ["text"], sink);
+        var setup = CreateController(NewConfig("hold", pasteMethod: pasteMethod), ["text"]);
+        setup.Controller.Start();
+
+        await setup.Controller.HandleDictationKeyAsync(true);
+        await setup.Controller.HandleDictationKeyAsync(false);
+
+        var request = Assert.Single(setup.Sink.Requests);
+        Assert.Equal(expectedMethod, request.Method);
+        Assert.Null(request.Target);
+        await setup.Controller.ShutdownAsync();
+    }
+
+    [Theory]
+    [InlineData("focus", TextDeliveryMethod.TargetWithFocus)]
+    [InlineData("nofocus", TextDeliveryMethod.TargetWithoutFocus)]
+    public async Task PinnedDeliveryUsesConfiguredTargetMethod(
+        string pinDelivery,
+        TextDeliveryMethod expectedMethod)
+    {
+        var setup = CreateController(NewConfig("hold", pinDelivery: pinDelivery), ["text"]);
+        var pinned = setup.Targets.CreateAliveTarget();
+        setup.Targets.Active = pinned;
+        setup.Controller.Start();
+        await setup.Controller.TogglePinAsync();
+
+        await setup.Controller.HandleDictationKeyAsync(true);
+        await setup.Controller.HandleDictationKeyAsync(false);
+
+        var request = Assert.Single(setup.Sink.Requests);
+        Assert.Equal(expectedMethod, request.Method);
+        Assert.Equal(pinned, request.Target);
+        await setup.Controller.ShutdownAsync();
+    }
+
+    [Fact]
+    public async Task UnsupportedNoFocusRetriesSamePinnedTargetWithFocus()
+    {
+        var sink = new RecordingTextSink((request, _, _) => Task.FromResult(
+            request.Method == TextDeliveryMethod.TargetWithoutFocus
+                ? TextDeliveryResult.Unsupported
+                : TextDeliveryResult.Delivered));
+        var setup = CreateController(
+            NewConfig("hold", pinDelivery: "nofocus", pasteMethod: "clipboard"),
+            ["text"],
+            sink);
         var pinned = setup.Targets.CreateAliveTarget();
         setup.Targets.Active = pinned;
         setup.Controller.Start();
@@ -376,8 +422,223 @@ public sealed class DictationControllerTests
 
         TextDeliveryRequest[] requests = sink.Requests.ToArray();
         Assert.Equal(2, requests.Length);
+        Assert.Equal(TextDeliveryMethod.TargetWithoutFocus, requests[0].Method);
+        Assert.Equal(TextDeliveryMethod.TargetWithFocus, requests[1].Method);
+        Assert.All(requests, request => Assert.Equal(pinned, request.Target));
+        Assert.Equal(pinned, setup.Controller.PinnedTarget);
+        Assert.Empty(setup.Targets.Released);
+        await setup.Controller.ShutdownAsync();
+    }
+
+    [Fact]
+    public async Task UnavailableFocusedRetryFallsBackOnlyAfterNoFocusCapabilityCheck()
+    {
+        var sink = new RecordingTextSink((_, call, _) => Task.FromResult(call switch
+        {
+            1 => TextDeliveryResult.Unsupported,
+            2 => TextDeliveryResult.TargetUnavailable,
+            _ => TextDeliveryResult.Delivered,
+        }));
+        var setup = CreateController(
+            NewConfig("hold", pinDelivery: "nofocus", pasteMethod: "clipboard"),
+            ["text"],
+            sink);
+        var pinned = setup.Targets.CreateAliveTarget();
+        setup.Targets.Active = pinned;
+        setup.Controller.Start();
+        await setup.Controller.TogglePinAsync();
+
+        await setup.Controller.HandleDictationKeyAsync(true);
+        await setup.Controller.HandleDictationKeyAsync(false);
+
+        TextDeliveryRequest[] requests = sink.Requests.ToArray();
+        Assert.Equal(3, requests.Length);
+        Assert.Equal(TextDeliveryMethod.TargetWithoutFocus, requests[0].Method);
+        Assert.Equal(TextDeliveryMethod.TargetWithFocus, requests[1].Method);
+        Assert.Equal(TextDeliveryMethod.Clipboard, requests[2].Method);
         Assert.Equal(pinned, requests[0].Target);
+        Assert.Equal(pinned, requests[1].Target);
+        Assert.Null(requests[2].Target);
+        Assert.Null(setup.Controller.PinnedTarget);
+        Assert.Equal([pinned], setup.Targets.Released);
+        await setup.Controller.ShutdownAsync();
+    }
+
+    [Fact]
+    public async Task UnavailablePinnedTargetFallsBackToConfiguredActiveWindowMethod()
+    {
+        var sink = new RecordingTextSink((_, call, _) => Task.FromResult(
+            call == 1 ? TextDeliveryResult.TargetUnavailable : TextDeliveryResult.Delivered));
+        var setup = CreateController(NewConfig("hold", pasteMethod: "clipboard"), ["text"], sink);
+        var pinned = setup.Targets.CreateAliveTarget();
+        setup.Targets.Active = pinned;
+        setup.Controller.Start();
+        await setup.Controller.TogglePinAsync();
+
+        await setup.Controller.HandleDictationKeyAsync(true);
+        await setup.Controller.HandleDictationKeyAsync(false);
+
+        TextDeliveryRequest[] requests = sink.Requests.ToArray();
+        Assert.Equal(2, requests.Length);
+        Assert.Equal(TextDeliveryMethod.TargetWithFocus, requests[0].Method);
+        Assert.Equal(pinned, requests[0].Target);
+        Assert.Equal(TextDeliveryMethod.Clipboard, requests[1].Method);
         Assert.Null(requests[1].Target);
+        Assert.Null(setup.Controller.PinnedTarget);
+        Assert.Equal([pinned], setup.Targets.Released);
+        await setup.Controller.ShutdownAsync();
+    }
+
+    [Theory]
+    [InlineData("focus", TextDeliveryMethod.TargetWithFocus, TextDeliveryResult.Failed)]
+    [InlineData("focus", TextDeliveryMethod.TargetWithFocus, TextDeliveryResult.Cancelled)]
+    [InlineData("focus", TextDeliveryMethod.TargetWithFocus, TextDeliveryResult.InvalidRequest)]
+    [InlineData("focus", TextDeliveryMethod.TargetWithFocus, TextDeliveryResult.Unsupported)]
+    [InlineData("nofocus", TextDeliveryMethod.TargetWithoutFocus, TextDeliveryResult.Failed)]
+    [InlineData("nofocus", TextDeliveryMethod.TargetWithoutFocus, TextDeliveryResult.Cancelled)]
+    [InlineData("nofocus", TextDeliveryMethod.TargetWithoutFocus, TextDeliveryResult.InvalidRequest)]
+    public async Task PinnedDeliveryDoesNotRetryUnsafeOrNonUnavailableResult(
+        string pinDelivery,
+        TextDeliveryMethod expectedMethod,
+        TextDeliveryResult result)
+    {
+        var sink = new RecordingTextSink((_, _, _) => Task.FromResult(result));
+        var setup = CreateController(
+            NewConfig("hold", pinDelivery: pinDelivery, pasteMethod: "clipboard"),
+            ["text"],
+            sink);
+        var pinned = setup.Targets.CreateAliveTarget();
+        setup.Targets.Active = pinned;
+        setup.Controller.Start();
+        await setup.Controller.TogglePinAsync();
+
+        await setup.Controller.HandleDictationKeyAsync(true);
+        await setup.Controller.HandleDictationKeyAsync(false);
+
+        var request = Assert.Single(sink.Requests);
+        Assert.Equal(expectedMethod, request.Method);
+        Assert.Equal(pinned, request.Target);
+        Assert.Equal(pinned, setup.Controller.PinnedTarget);
+        Assert.Empty(setup.Targets.Released);
+        await setup.Controller.ShutdownAsync();
+    }
+
+    [Fact]
+    public async Task PinTitleUnpinAndShutdownReleaseEachCapturedTargetOnce()
+    {
+        var setup = CreateController(NewConfig("hold"), []);
+        var first = setup.Targets.CreateAliveTarget();
+        setup.Targets.Active = first;
+        setup.Targets.Title = "First editor";
+        setup.Controller.Start();
+
+        await setup.Controller.TogglePinAsync();
+        Assert.Equal(first, setup.Controller.PinnedTarget);
+        Assert.Contains(setup.Shell.States, state => state.Text.Contains("First editor"));
+        Assert.Equal((first, setup.Controller.CurrentConfig.FocusBorderColorPinned), setup.Targets.Indicators.Last());
+
+        await setup.Controller.TogglePinAsync();
+        Assert.Null(setup.Controller.PinnedTarget);
+        Assert.Equal([first], setup.Targets.Released);
+        Assert.True(setup.Targets.HideCount >= 2);
+
+        var second = setup.Targets.CreateAliveTarget();
+        setup.Targets.Active = second;
+        setup.Targets.Title = "Second editor";
+        await setup.Controller.TogglePinAsync();
+        await setup.Controller.ShutdownAsync();
+
+        Assert.Equal([first, second], setup.Targets.Released);
+        Assert.True(setup.Targets.Disposed);
+    }
+
+    [Fact]
+    public async Task UnpinDefersReleaseUntilStreamingTargetDeliveryCompletes()
+    {
+        var deliveryStarted = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var releaseDelivery = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var sink = new RecordingTextSink(async (_, _, _) =>
+        {
+            deliveryStarted.TrySetResult();
+            await releaseDelivery.Task;
+            return TextDeliveryResult.Delivered;
+        });
+        var setup = CreateController(NewConfig("push"), ["text"], sink);
+        var pinned = setup.Targets.CreateAliveTarget();
+        setup.Targets.Active = pinned;
+        setup.Controller.Start();
+        await setup.Controller.TogglePinAsync();
+        await setup.Controller.HandleDictationKeyAsync(true);
+        EmitPhrase(setup.Audio);
+        await deliveryStarted.Task;
+
+        await setup.Controller.TogglePinAsync();
+
+        Assert.Null(setup.Controller.PinnedTarget);
+        Assert.Empty(setup.Targets.Released);
+
+        releaseDelivery.TrySetResult();
+        await setup.Controller.HandleDictationKeyAsync(false);
+
+        Assert.Equal([pinned], setup.Targets.Released);
+        await setup.Controller.ShutdownAsync();
+    }
+
+    [Fact]
+    public async Task IndicatorUsesConfiguredValuesAndTracksIdleRecordingBusyAndReload()
+    {
+        var deliveryStarted = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var releaseDelivery = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var sink = new RecordingTextSink(async (_, _, _) =>
+        {
+            deliveryStarted.TrySetResult();
+            await releaseDelivery.Task;
+            return TextDeliveryResult.Delivered;
+        });
+        Config initial = NewConfig(
+            "hold",
+            focusBorder: true,
+            focusColor: "#111111",
+            busyColor: "#222222",
+            thickness: 7,
+            opacity: 0.6f);
+        var setup = CreateController(initial, ["text"], sink);
+        setup.Controller.Start();
+
+        var initialConfiguration = Assert.Single(setup.Targets.Configurations);
+        Assert.True(initialConfiguration.Enabled);
+        Assert.Equal("#111111", initialConfiguration.Color);
+        Assert.Equal(7, initialConfiguration.Thickness);
+        Assert.Equal(0.6, initialConfiguration.Opacity, precision: 5);
+        int initialHideCount = setup.Targets.HideCount;
+        Assert.True(initialHideCount >= 1);
+
+        await setup.Controller.HandleDictationKeyAsync(true);
+        Assert.Equal((null, "#111111"), setup.Targets.Indicators.Last());
+
+        Task stop = setup.Controller.HandleDictationKeyAsync(false);
+        await deliveryStarted.Task;
+        Assert.Equal((null, "#222222"), setup.Targets.Indicators.Last());
+        releaseDelivery.TrySetResult();
+        await stop;
+        int completedHideCount = setup.Targets.HideCount;
+        Assert.True(completedHideCount > initialHideCount);
+
+        Config updated = NewConfig(
+            "hold",
+            focusBorder: false,
+            focusColor: "#333333",
+            busyColor: "#444444",
+            thickness: 3,
+            opacity: 0.4f);
+        await setup.Controller.ApplyConfigAsync(updated);
+
+        var updatedConfiguration = setup.Targets.Configurations.Last();
+        Assert.False(updatedConfiguration.Enabled);
+        Assert.Equal("#333333", updatedConfiguration.Color);
+        Assert.Equal(3, updatedConfiguration.Thickness);
+        Assert.Equal(0.4, updatedConfiguration.Opacity, precision: 5);
+        Assert.True(setup.Targets.HideCount > completedHideCount);
         await setup.Controller.ShutdownAsync();
     }
 
@@ -553,7 +814,14 @@ public sealed class DictationControllerTests
         string mode,
         bool autoEnter = false,
         string inputDevice = "",
-        string modelPath = "fake-model") => new()
+        string modelPath = "fake-model",
+        string pinDelivery = "focus",
+        string pasteMethod = "unicode",
+        bool focusBorder = true,
+        string focusColor = "#E81123",
+        string busyColor = "#FFB900",
+        int thickness = 4,
+        float opacity = 0.9f) => new()
     {
         ModelPath = modelPath,
         Mode = mode,
@@ -561,6 +829,13 @@ public sealed class DictationControllerTests
         InputDevice = inputDevice,
         Beep = false,
         IdleUnloadMinutes = 0,
+        PinDelivery = pinDelivery,
+        PasteMethod = pasteMethod,
+        FocusBorder = focusBorder,
+        FocusBorderColor = focusColor,
+        FocusBorderColorBusy = busyColor,
+        FocusBorderThickness = thickness,
+        FocusBorderOpacity = opacity,
     };
 
     private static string NewTemporaryDirectory()

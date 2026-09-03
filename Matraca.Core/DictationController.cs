@@ -5,6 +5,7 @@ public sealed class DictationController : IDisposable
     private const int MaximumMuteWindowMilliseconds = 900;
 
     private readonly object _commandGate = new();
+    private readonly object _targetGate = new();
     private readonly IAudioCapture _audio;
     private readonly ITargetWindow _targets;
     private readonly IShell _shell;
@@ -15,6 +16,8 @@ public sealed class DictationController : IDisposable
     private readonly DeliveryQueue _delivery;
     private readonly CancellationTokenSource _shutdownCancellation = new();
     private readonly List<TextPostProcessor> _retiredPostProcessors = new();
+    private readonly Dictionary<TargetToken, int> _targetUseCounts = new();
+    private readonly HashSet<TargetToken> _targetsPendingRelease = new();
 
     private IKeyboardHook _keyboard;
     private Config _config;
@@ -70,7 +73,7 @@ public sealed class DictationController : IDisposable
     public bool IsSessionActive => _session != null;
     public bool IsBusy => Volatile.Read(ref _busy) != 0;
     public Config CurrentConfig => _config;
-    public TargetToken? PinnedTarget => _pinnedTarget;
+    public TargetToken? PinnedTarget { get { lock (_targetGate) return _pinnedTarget; } }
 
     public void Start()
     {
@@ -406,21 +409,40 @@ public sealed class DictationController : IDisposable
     {
         if (addToHistory) session.History?.Add(text);
 
-        if (_pinnedTarget != null)
+        TargetToken? pinnedTarget = AcquirePinnedTarget();
+        if (pinnedTarget != null)
         {
-            if (!_targets.IsAlive(_pinnedTarget))
+            try
             {
-                Unpin("Janela fixada sumiu", "Ela foi fechada; o ditado volta pra janela em foco.");
+                if (!_targets.IsAlive(pinnedTarget))
+                {
+                    Unpin(pinnedTarget, "Janela fixada sumiu", "Ela foi fechada; o ditado volta pra janela em foco.");
+                }
+                else
+                {
+                    bool noFocus = session.Config.PinDelivery == "nofocus";
+                    var result = await _delivery.EnqueueAsync(new TextDeliveryRequest(
+                        text,
+                        pressEnter,
+                        noFocus ? TextDeliveryMethod.TargetWithoutFocus : TextDeliveryMethod.TargetWithFocus,
+                        pinnedTarget)).ConfigureAwait(false);
+
+                    if (noFocus && result == TextDeliveryResult.Unsupported)
+                    {
+                        result = await _delivery.EnqueueAsync(new TextDeliveryRequest(
+                            text,
+                            pressEnter,
+                            TextDeliveryMethod.TargetWithFocus,
+                            pinnedTarget)).ConfigureAwait(false);
+                    }
+
+                    if (result != TextDeliveryResult.TargetUnavailable) return result;
+                    Unpin(pinnedTarget, "Janela fixada sumiu", "Ela foi fechada; o ditado volta pra janela em foco.");
+                }
             }
-            else
+            finally
             {
-                bool noFocus = session.Config.PinDelivery == "nofocus";
-                var result = await _delivery.EnqueueAsync(new TextDeliveryRequest(
-                    text,
-                    pressEnter,
-                    noFocus ? TextDeliveryMethod.TargetWithoutFocus : TextDeliveryMethod.TargetWithFocus,
-                    _pinnedTarget)).ConfigureAwait(false);
-                if (result == TextDeliveryResult.Delivered || noFocus) return result;
+                ReleaseTargetUse(pinnedTarget);
             }
         }
 
@@ -436,9 +458,11 @@ public sealed class DictationController : IDisposable
     private Task TogglePinCoreAsync()
     {
         if (_config.DiscoverMode) return Task.CompletedTask;
-        if (_pinnedTarget != null)
+        TargetToken? pinnedTarget;
+        lock (_targetGate) pinnedTarget = _pinnedTarget;
+        if (pinnedTarget != null)
         {
-            Unpin("Destino liberado", "O ditado volta pra janela em foco.");
+            Unpin(pinnedTarget, "Destino liberado", "O ditado volta pra janela em foco.");
             return Task.CompletedTask;
         }
 
@@ -449,23 +473,76 @@ public sealed class DictationController : IDisposable
             return Task.CompletedTask;
         }
 
-        _pinnedTarget = target;
-        _pinnedTitle = _targets.GetTitle(target);
-        Logger.Info($"Destino fixado: token={target.Value} \"{_pinnedTitle}\"");
-        Notify("Destino fixado", $"O ditado vai sempre para: {ShortTitle(_pinnedTitle)}\n" +
+        string pinnedTitle;
+        try { pinnedTitle = _targets.GetTitle(target); }
+        catch (Exception exception)
+        {
+            ReleaseTarget(target);
+            Logger.Error("Falha ao identificar destino fixo", exception);
+            Notify("Nada pra fixar", "Nao consegui identificar a janela em foco.", ShellNotificationLevel.Warning);
+            return Task.CompletedTask;
+        }
+        lock (_targetGate)
+        {
+            _pinnedTarget = target;
+            _pinnedTitle = pinnedTitle;
+        }
+        Logger.Info($"Destino fixado: token={target.Value} \"{pinnedTitle}\"");
+        Notify("Destino fixado", $"O ditado vai sempre para: {ShortTitle(pinnedTitle)}\n" +
             $"Aperte {_config.PinHotkeyName} de novo para liberar.");
         RefreshState();
         return Task.CompletedTask;
     }
 
-    private void Unpin(string title, string message)
+    private void Unpin(TargetToken target, string title, string message)
     {
-        if (_pinnedTarget != null) _targets.Release(_pinnedTarget);
-        _pinnedTarget = null;
-        _pinnedTitle = "";
+        bool release;
+        lock (_targetGate)
+        {
+            if (!ReferenceEquals(_pinnedTarget, target)) return;
+            _pinnedTarget = null;
+            _pinnedTitle = "";
+            release = !_targetUseCounts.ContainsKey(target);
+            if (!release) _targetsPendingRelease.Add(target);
+        }
+        if (release) ReleaseTarget(target);
         Logger.Info("Destino fixo liberado.");
         Notify(title, message);
         RefreshState();
+    }
+
+    private TargetToken? AcquirePinnedTarget()
+    {
+        lock (_targetGate)
+        {
+            TargetToken? target = _pinnedTarget;
+            if (target != null)
+                _targetUseCounts[target] = _targetUseCounts.GetValueOrDefault(target) + 1;
+            return target;
+        }
+    }
+
+    private void ReleaseTargetUse(TargetToken target)
+    {
+        bool release = false;
+        lock (_targetGate)
+        {
+            int remaining = _targetUseCounts[target] - 1;
+            if (remaining > 0)
+                _targetUseCounts[target] = remaining;
+            else
+            {
+                _targetUseCounts.Remove(target);
+                release = _targetsPendingRelease.Remove(target);
+            }
+        }
+        if (release) ReleaseTarget(target);
+    }
+
+    private void ReleaseTarget(TargetToken target)
+    {
+        try { _targets.Release(target); }
+        catch (Exception exception) { Logger.Error("Falha ao liberar destino fixo", exception); }
     }
 
     private async Task ApplyConfigCoreAsync(
@@ -598,18 +675,28 @@ public sealed class DictationController : IDisposable
 
     private void SetIdle()
     {
+        TargetToken? pinnedTarget;
+        string pinnedTitle;
+        lock (_targetGate)
+        {
+            pinnedTarget = _pinnedTarget;
+            pinnedTitle = _pinnedTitle;
+        }
         string text = _config.DiscoverMode
             ? "Matraca — MODO DESCOBERTA"
-            : _pinnedTarget != null
-                ? $"Matraca — fixado em: {ShortTitle(_pinnedTitle)}"
+            : pinnedTarget != null
+                ? $"Matraca — fixado em: {ShortTitle(pinnedTitle)}"
                 : $"Matraca — pronto ({_config.HotkeyName})";
         SetShellState(ShellState.Idle, text);
         Dispatch(() =>
         {
-            if (_pinnedTarget != null)
-                _targets.ShowIndicator(_pinnedTarget, _config.FocusBorderColorPinned);
-            else
-                _targets.HideIndicator();
+            lock (_targetGate)
+            {
+                if (_pinnedTarget != null)
+                    _targets.ShowIndicator(_pinnedTarget, _config.FocusBorderColorPinned);
+                else
+                    _targets.HideIndicator();
+            }
         });
     }
 
@@ -619,17 +706,29 @@ public sealed class DictationController : IDisposable
             ? "solte para parar"
             : "aperte de novo p/ parar";
         SetShellState(ShellState.Recording, $"Matraca — GRAVANDO ({instruction})");
-        Dispatch(() => _targets.ShowIndicator(
-            _pinnedTarget,
-            _pinnedTarget != null ? config.FocusBorderColorPinned : config.FocusBorderColor));
+        Dispatch(() =>
+        {
+            lock (_targetGate)
+            {
+                _targets.ShowIndicator(
+                    _pinnedTarget,
+                    _pinnedTarget != null ? config.FocusBorderColorPinned : config.FocusBorderColor);
+            }
+        });
     }
 
     private void SetBusy(Config config)
     {
         SetShellState(ShellState.Busy, "Matraca — transcrevendo...");
-        Dispatch(() => _targets.ShowIndicator(
-            _pinnedTarget,
-            _pinnedTarget != null ? config.FocusBorderColorPinned : config.FocusBorderColorBusy));
+        Dispatch(() =>
+        {
+            lock (_targetGate)
+            {
+                _targets.ShowIndicator(
+                    _pinnedTarget,
+                    _pinnedTarget != null ? config.FocusBorderColorPinned : config.FocusBorderColorBusy);
+            }
+        });
     }
 
     private void ConfigureIndicator(Config config)
@@ -811,6 +910,7 @@ public sealed class DictationController : IDisposable
         {
             await _delivery.ShutdownAsync(cancelPending: true).ConfigureAwait(false);
         }
+        ReleaseTargetsForShutdown();
         _delivery.Dispose();
         _models.Dispose();
         _shutdownCancellation.Dispose();
@@ -825,12 +925,25 @@ public sealed class DictationController : IDisposable
                 new ObjectDisposedException(nameof(DictationController)));
             _pendingKeyboardCompletion = null;
         }
-        if (_pinnedTarget != null) _targets.Release(_pinnedTarget);
         try { _keyboard.Dispose(); } catch { }
         try { _audio.Dispose(); } catch { }
         try { _targets.Dispose(); } catch { }
         try { _shell.Dispose(); } catch { }
         Interlocked.Exchange(ref _disposed, 1);
+    }
+
+    private void ReleaseTargetsForShutdown()
+    {
+        TargetToken[] targets;
+        lock (_targetGate)
+        {
+            if (_pinnedTarget != null) _targetsPendingRelease.Add(_pinnedTarget);
+            _pinnedTarget = null;
+            _pinnedTitle = "";
+            targets = _targetsPendingRelease.ToArray();
+            _targetsPendingRelease.Clear();
+        }
+        foreach (TargetToken target in targets) ReleaseTarget(target);
     }
 
     public void Dispose()

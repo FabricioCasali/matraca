@@ -9,6 +9,7 @@ internal sealed class FakeTargetWindow : ITargetWindow
     public TargetToken? Active { get; set; }
     public string Title { get; set; } = "fake target";
     public List<TargetToken> Released { get; } = new();
+    public List<(bool Enabled, string Color, int Thickness, double Opacity)> Configurations { get; } = new();
     public List<(TargetToken? Target, string Color)> Indicators { get; } = new();
     public int HideCount { get; private set; }
     public bool Disposed { get; private set; }
@@ -31,7 +32,8 @@ internal sealed class FakeTargetWindow : ITargetWindow
         _alive.Remove(target);
     }
 
-    public void ConfigureIndicator(bool enabled, string color, int thickness, double opacity) { }
+    public void ConfigureIndicator(bool enabled, string color, int thickness, double opacity)
+        => Configurations.Add((enabled, color, thickness, opacity));
 
     public void ShowIndicator(TargetToken? target, string color)
         => Indicators.Add((target, color));
