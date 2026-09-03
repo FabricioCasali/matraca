@@ -20,9 +20,15 @@ rm -rf "$PUBLISH" "$APP"
 "$DOTNET" publish "$ROOT/Matraca.Mac.csproj" -c Release -r osx-arm64 \
   --self-contained true -o "$PUBLISH"
 
-mkdir -p "$APP/Contents/MacOS" "$APP/Contents/Resources"
+mkdir -p "$APP/Contents/MacOS" "$APP/Contents/Resources/Web"
 cp "$ROOT/Info.plist" "$APP/Contents/Info.plist"
 cp -R "$PUBLISH"/ "$APP/Contents/MacOS/"
+if [[ ! -d "$APP/Contents/MacOS/Web" ]]; then
+  echo "Published web assets were not found." >&2
+  exit 1
+fi
+mv "$APP/Contents/MacOS/Web"/* "$APP/Contents/Resources/Web/"
+rmdir "$APP/Contents/MacOS/Web"
 chmod +x "$APP/Contents/MacOS/Matraca"
 
 if [[ -d "$APP/Contents/MacOS/runtimes" ]]; then

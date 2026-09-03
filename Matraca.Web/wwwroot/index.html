@@ -1,0 +1,115 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; connect-src 'none'; frame-src 'none'; object-src 'none'; media-src 'none'; form-action 'none'; base-uri 'none'; img-src 'self' data:; font-src 'self'; style-src 'self'; script-src 'self'">
+  <title>Matraca</title>
+  <link rel="stylesheet" href="styles.css">
+  <script src="bridge.js" defer></script>
+  <script src="app.js" defer></script>
+</head>
+<body>
+  <div class="ambient ambient-one"></div>
+  <div class="ambient ambient-two"></div>
+
+  <div class="app-shell">
+    <header class="titlebar">
+      <div></div>
+      <div class="titlebar-name">Matraca</div>
+      <button class="theme-button" type="button" data-theme-toggle aria-label="Alternar tema">◐</button>
+    </header>
+
+    <div class="app-layout">
+      <aside class="sidebar">
+        <div class="logo">m<span>.</span></div>
+        <nav aria-label="Navegação principal">
+          <button class="active" type="button" data-route="home"><span>◉</span>Agora</button>
+          <button type="button" data-route="microphone"><span>≋</span>Microfone</button>
+          <button type="button" data-route="history"><span>⌁</span>Histórico</button>
+          <button type="button" data-route="settings"><span>⌘</span>Parâmetros</button>
+          <button type="button" data-route="onboarding"><span>◎</span>Primeiro uso</button>
+        </nav>
+        <div class="privacy"><i></i><span>Áudio processado<br><b>somente aqui</b></span></div>
+      </aside>
+
+      <main class="pages">
+        <section class="page active" data-page="home">
+          <div class="page-heading">
+            <div><small>BOA TARDE, FABICIO</small><h1>Sua voz está pronta.</h1></div>
+            <div class="hotkey"><span>ATALHO</span><kbd>F15</kbd></div>
+          </div>
+
+          <section class="voice-card">
+            <div class="voice-copy"><span class="status-pill ready"><i></i> PRONTO</span><h2>Fale. O resto<br>acontece aqui.</h2><p>Modelo large-v3-turbo<br>acelerado por Metal.</p></div>
+            <div class="voice-orbit" aria-hidden="true"><i class="ring ring-one"></i><i class="ring ring-two"></i><i class="ring ring-three"></i><div class="voice-core"><span></span><span></span><span></span><span></span><span></span></div></div>
+            <div class="level"><small>NÍVEL</small><strong>-18<em>dB</em></strong><div><i></i><i></i><i></i><i></i><i></i><i></i></div></div>
+          </section>
+
+          <div class="card-row">
+            <section class="glass-card target-card"><small>DESTINO</small><div><span class="app-icon">&gt;_</span><p><strong>node-terminal</strong><em>Janela fixada</em></p><b>Conectado</b></div></section>
+            <section class="glass-card"><small>FLUXO</small><div class="segments"><span>Toggle</span><span class="active">Live</span><span>Push</span></div><p class="supporting">Entrega após cada pausa natural.</p></section>
+          </div>
+
+          <section class="last-phrase"><span class="quote">“</span><div><small>ÚLTIMA FRASE · 11:42</small><p>Vamos iniciar a próxima fase e avaliar os mocks antes de implementar.</p></div><button type="button" aria-label="Mais opções">•••</button></section>
+
+          <section class="runtime-preview">
+            <div><small>ESTADOS DO HUD</small><h2>O trabalho aparece.<br>O foco não muda.</h2></div>
+            <div class="runtime-states">
+              <article class="runtime-state listening"><span class="state-icon bars"><i></i><i></i><i></i><i></i></span><div><strong>Ouvindo você</strong><small>00:08 · live</small></div></article>
+              <article class="runtime-state thinking"><span class="state-icon spinner"></span><div><strong>Pensando</strong><small>Whisper local · Metal</small></div></article>
+              <article class="runtime-state writing"><span class="state-icon arrow">↗</span><div><strong>Escrevendo</strong><small>node-terminal</small></div></article>
+              <article class="runtime-state done"><span class="state-icon check">✓</span><div><strong>Texto entregue</strong><small>142 caracteres</small></div></article>
+            </div>
+          </section>
+        </section>
+
+        <section class="page" data-page="microphone">
+          <div class="page-heading"><div><small>CALIBRAÇÃO AO VIVO</small><h1>Microfone</h1></div><div class="device"><i></i> MacBook Pro Microphone <span>⌄</span></div></div>
+          <section class="calibration-card">
+            <div class="calibration-copy"><span class="status-pill listening"><i></i> ESCUTANDO</span><h2>Fale como você<br>fala normalmente.</h2><p>A área verde mostra exatamente quando o Matraca considera que existe voz.</p></div>
+            <div class="spectrum"><div class="spectrum-head"><span>ESPECTRO · 48 BANDAS</span><span>30 FPS</span></div><div class="spectrum-bars" data-spectrum></div><div class="spectrum-scale"><span>80 Hz</span><span>500</span><span>2k</span><span>8k</span></div></div>
+          </section>
+          <section class="threshold-card"><div class="threshold-head"><div><small>SENSIBILIDADE</small><strong>O ambiente está sendo ignorado. Sua voz será capturada.</strong></div><div><small>LIMIAR</small><b>0.012</b></div></div><div class="threshold"><span class="noise">RUÍDO</span><span class="speech">VOZ<i></i></span><em><b></b></em></div><div class="threshold-scale"><span>mais sensível</span><span>arraste a marca</span><span>ignora mais ruído</span></div></section>
+          <div class="stat-row"><article><small>NÍVEL AGORA</small><strong>-18.4 dB</strong></article><article><small>PICO</small><strong>-8.1 dB</strong></article><article><small>LATÊNCIA</small><strong>12 ms</strong></article><article class="speech-stat"><small>DECISÃO DO VAD</small><strong><i></i> voz detectada</strong></article></div>
+        </section>
+
+        <section class="page" data-page="history">
+          <div class="page-heading"><div><small>SEUS DITADOS</small><h1>Histórico</h1></div><label class="search"><span>⌕</span><input type="search" placeholder="Buscar no histórico"></label></div>
+          <div class="history-shell">
+            <div class="history-list">
+              <div class="day">HOJE <span>6 ditados</span></div>
+              <button class="history-item active" type="button"><time>11:42</time><span><strong>Vamos iniciar a próxima fase e avaliar os mocks antes de implementar qualquer coisa.</strong><small>18 segundos · 86 caracteres</small></span><i></i></button>
+              <button class="history-item" type="button"><time>11:37</time><span><strong>Liste as próximas etapas e deixe o teste de repouso registrado como pendência.</strong><small>12 segundos · 78 caracteres</small></span></button>
+              <button class="history-item" type="button"><time>10:58</time><span><strong>O Spectrum Glass tem a presença certa para os estados do aplicativo.</strong><small>9 segundos · 67 caracteres</small></span></button>
+              <button class="history-item" type="button"><time>09:14</time><span><strong>Confirme se o clipboard foi preservado nos quatro aplicativos.</strong><small>8 segundos · 60 caracteres</small></span></button>
+              <div class="day previous">ONTEM <span>14 ditados</span></div>
+            </div>
+            <section class="history-detail"><div class="detail-meta"><span>HOJE · 11:42</span><button type="button">•••</button></div><blockquote>Vamos iniciar a próxima fase e avaliar os mocks antes de implementar qualquer coisa.</blockquote><div class="detail-info"><span><small>MODO</small>Live</span><span><small>IDIOMA</small>Português</span><span><small>DESTINO</small>node-terminal</span></div><div class="detail-actions"><button class="primary" type="button">Recolar no destino</button><button type="button">Copiar</button><button class="danger" type="button">Apagar</button></div><p class="local-note"><i></i> Este texto está guardado apenas neste computador.</p></section>
+          </div>
+        </section>
+
+        <section class="page" data-page="settings">
+          <div class="page-heading"><div><small>PARÂMETROS</small><h1>Tecla e modo</h1></div><span class="saved"><i></i> Tudo salvo</span></div>
+          <div class="tabs"><button class="active" type="button">Tecla</button><button type="button">Modelo</button><button type="button">Áudio</button><button type="button">Entrega</button><button type="button">Claude</button></div>
+          <section class="setting featured"><div><span class="setting-icon">⌨</span><div><strong>Tecla de ditado</strong><p>Use uma tecla dedicada ou uma combinação.</p></div></div><div class="key-control"><kbd>F15</kbd><button type="button">Capturar nova</button></div></section>
+          <section class="setting"><div><span class="setting-icon">◌</span><div><strong>Modo de ditado</strong><p>Escolha como cada sessão começa e termina.</p></div></div><div class="mode-options"><button type="button">Toggle</button><button type="button">Hold</button><button class="active" type="button">Live</button><button type="button">Push</button></div></section>
+          <section class="setting compact"><div><span class="setting-icon">文</span><div><strong>Idioma</strong><p>Idioma principal reconhecido pelo Whisper.</p></div></div><button class="select" type="button">Português <span>PT-BR⌄</span></button></section>
+          <section class="setting compact"><div><span class="setting-icon">↵</span><div><strong>Enter automático</strong><p>Deixe desligado para revisar antes de enviar.</p></div></div><button class="toggle" type="button" aria-label="Enter automático desligado"><i></i></button></section>
+        </section>
+
+        <section class="page onboarding-page" data-page="onboarding">
+          <header class="onboarding-heading"><div class="logo">m<span>.</span></div><small>CONFIGURAÇÃO INICIAL · 3 DE 3</small><h1>Quase pronto para<br>ouvir você.</h1><p>O áudio nunca sai deste computador. Precisamos apenas preparar o modelo, o atalho e as permissões locais.</p></header>
+          <div class="step-progress"><i class="complete"></i><i class="complete"></i><i class="active"></i></div>
+          <div class="setup-grid">
+            <section class="setup-card complete"><span class="setup-icon">✓</span><div><small>PASSO 1</small><h2>Modelo local</h2><p>large-v3-turbo · 1,5 GB</p></div><b>PRONTO</b></section>
+            <section class="setup-card complete"><span class="setup-icon">F15</span><div><small>PASSO 2</small><h2>Tecla de ditado</h2><p>Pressione quando quiser falar.</p></div><button type="button">Trocar</button></section>
+            <section class="setup-card permissions"><span class="setup-icon">◎</span><div><small>PASSO 3</small><h2>Permissões do sistema</h2><p>O Matraca precisa ouvir o microfone e escrever onde está seu cursor.</p></div><div class="permission-list"><span><i>✓</i><strong>Microfone</strong><em>Permitido</em></span><span><i class="pending">→</i><strong>Acessibilidade</strong><em>Abrir Ajustes</em></span></div></section>
+          </div>
+          <footer class="onboarding-footer"><p><i></i> Sem conta, sem telemetria, sem áudio na rede.</p><button type="button">Começar a usar <span>→</span></button></footer>
+        </section>
+      </main>
+    </div>
+  </div>
+</body>
+</html>

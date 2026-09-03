@@ -31,6 +31,19 @@ internal sealed class ObjCClassBuilder
         return this;
     }
 
+    public ObjCClassBuilder AddProtocol(string name)
+    {
+        if (_registered) return this;
+
+        IntPtr protocol = ObjC.objc_getProtocol(name);
+        if (protocol == IntPtr.Zero)
+            throw new TypeLoadException($"Objective-C protocol not found: {name}.");
+        if (!ObjC.class_addProtocol(_class, protocol))
+            throw new InvalidOperationException(
+                $"Could not add protocol {name} to Objective-C class {_name}.");
+        return this;
+    }
+
     public IntPtr Register()
     {
         if (!_registered)

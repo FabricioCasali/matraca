@@ -20,10 +20,11 @@ O desenho da frente 2.0 está em [`PLANO-2.0.md`](PLANO-2.0.md).
   este último está aceito provisoriamente, sem prova, porque a máquina não pôde ser
   suspensa durante a sessão. Contrato em
   [`PLANO-2.0.md`](PLANO-2.0.md). · `[2.0]` · G · importante
-- **MT-005** **Fase 3 — a UI unificada** — exploração visual iniciada. Spectrum Glass
-  aprovado como base visual; mock estático cobre principal, parâmetros, microfone,
-  histórico, onboarding e os estados do HUD. Próxima fatia define o contrato da ponte e
-  sobe o casco `WKWebView`, sem ainda ligar as telas ao Core. · `[2.0]` · G · importante
+- **MT-005** **Fase 3 — a UI unificada** — Spectrum Glass aprovado e extraído para o
+  projeto compartilhado `Matraca.Web`. Primeira fatia técnica verde no Mac: casco
+  `WKWebView` aberto apenas pelo menu, ponte versionada com placeholders, assets locais
+  empacotados e navegação externa bloqueada. Restam ligar as telas ao Core e portar o
+  mesmo contrato para o WebView2 no Windows. · `[2.0]` · G · importante
 
 ## 📋 A fazer
 

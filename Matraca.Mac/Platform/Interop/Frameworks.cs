@@ -9,6 +9,7 @@ internal static class Frameworks
     private const string AudioToolbox = "/System/Library/Frameworks/AudioToolbox.framework/AudioToolbox";
     private const string CoreFoundation = "/System/Library/Frameworks/CoreFoundation.framework/CoreFoundation";
     private const string CoreGraphics = "/System/Library/Frameworks/CoreGraphics.framework/CoreGraphics";
+    private const string WebKit = "/System/Library/Frameworks/WebKit.framework/WebKit";
 
     private static readonly object Gate = new();
     private static bool _loaded;
@@ -24,6 +25,7 @@ internal static class Frameworks
             CoreFoundationHandle = Load(CoreFoundation);
             Load(Foundation);
             Load(AppKit);
+            Load(WebKit);
             Load(AudioToolbox);
             CoreGraphicsHandle = Load(CoreGraphics);
             _loaded = true;

@@ -22,6 +22,13 @@ internal static class ObjC
     [return: MarshalAs(UnmanagedType.I1)]
     public static extern bool class_addMethod(IntPtr cls, IntPtr selector, IntPtr implementation, string types);
 
+    [DllImport(Library, CharSet = CharSet.Ansi)]
+    public static extern IntPtr objc_getProtocol(string name);
+
+    [DllImport(Library)]
+    [return: MarshalAs(UnmanagedType.I1)]
+    public static extern bool class_addProtocol(IntPtr cls, IntPtr protocol);
+
     [DllImport(Library, EntryPoint = "objc_msgSend")]
     public static extern IntPtr Send(IntPtr receiver, IntPtr selector);
 
@@ -69,6 +76,21 @@ internal static class ObjC
         IntPtr receiver,
         IntPtr selector,
         IntPtr first,
+        IntPtr second);
+
+    [DllImport(Library, EntryPoint = "objc_msgSend")]
+    public static extern void SendVoid(
+        IntPtr receiver,
+        IntPtr selector,
+        IntPtr first,
+        IntPtr second,
+        IntPtr third);
+
+    [DllImport(Library, EntryPoint = "objc_msgSend")]
+    public static extern void SendVoid(
+        IntPtr receiver,
+        IntPtr selector,
+        IntPtr first,
         IntPtr second,
         IntPtr third,
         IntPtr fourth);
@@ -82,6 +104,10 @@ internal static class ObjC
     [DllImport(Library, EntryPoint = "objc_msgSend")]
     [return: MarshalAs(UnmanagedType.I1)]
     public static extern bool SendBool(IntPtr receiver, IntPtr selector);
+
+    [DllImport(Library, EntryPoint = "objc_msgSend")]
+    [return: MarshalAs(UnmanagedType.I1)]
+    public static extern bool SendBool(IntPtr receiver, IntPtr selector, IntPtr argument);
 
     [DllImport(Library, EntryPoint = "objc_msgSend")]
     [return: MarshalAs(UnmanagedType.I1)]
@@ -132,6 +158,37 @@ internal static class ObjC
         nuint styleMask,
         nuint backing,
         [MarshalAs(UnmanagedType.I1)] bool defer);
+
+    [DllImport(Library, EntryPoint = "objc_msgSend")]
+    public static extern IntPtr SendInitWebView(
+        IntPtr receiver,
+        IntPtr selector,
+        CGRect frame,
+        IntPtr configuration);
+
+    [DllImport(Library, EntryPoint = "objc_msgSend")]
+    public static extern IntPtr SendInitUrlResponse(
+        IntPtr receiver,
+        IntPtr selector,
+        IntPtr url,
+        IntPtr mimeType,
+        nint expectedContentLength,
+        IntPtr textEncodingName);
+
+    [DllImport(Library, EntryPoint = "objc_msgSend")]
+    public static extern IntPtr SendBytesNUInt(
+        IntPtr receiver,
+        IntPtr selector,
+        byte[] bytes,
+        nuint length);
+
+    [DllImport(Library, EntryPoint = "objc_msgSend")]
+    public static extern IntPtr SendNIntPtr(
+        IntPtr receiver,
+        IntPtr selector,
+        IntPtr first,
+        nint second,
+        IntPtr third);
 
     [DllImport(Library, EntryPoint = "objc_msgSend")]
     public static extern void SendVoidRectBool(

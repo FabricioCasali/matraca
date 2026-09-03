@@ -37,6 +37,7 @@ internal static class ObjCSelectors
     public static readonly IntPtr AddItem = Register("addItem:");
     public static readonly IntPtr SeparatorItem = Register("separatorItem");
     public static readonly IntPtr SetEnabled = Register("setEnabled:");
+    public static readonly IntPtr OpenMatraca = Register("openMatraca:");
     public static readonly IntPtr IsMainThread = Register("isMainThread");
     public static readonly IntPtr Screens = Register("screens");
     public static readonly IntPtr Count = Register("count");
@@ -74,4 +75,51 @@ internal static class ObjCSelectors
     public static readonly IntPtr RunUntilDate = Register("runUntilDate:");
     public static readonly IntPtr WorkspaceWillSleep = Register("workspaceWillSleep:");
     public static readonly IntPtr WorkspaceDidWake = Register("workspaceDidWake:");
+    public static readonly IntPtr SetContentView = Register("setContentView:");
+    public static readonly IntPtr SetTitlebarAppearsTransparent =
+        Register("setTitlebarAppearsTransparent:");
+    public static readonly IntPtr Center = Register("center");
+    public static readonly IntPtr MakeKeyAndOrderFront = Register("makeKeyAndOrderFront:");
+    public static readonly IntPtr ActivateIgnoringOtherApps = Register("activateIgnoringOtherApps:");
+    public static readonly IntPtr InitWithFrameConfiguration =
+        Register("initWithFrame:configuration:");
+    public static readonly IntPtr SetURLSchemeHandlerForURLScheme =
+        Register("setURLSchemeHandler:forURLScheme:");
+    public static readonly IntPtr UserContentController = Register("userContentController");
+    public static readonly IntPtr AddScriptMessageHandlerName =
+        Register("addScriptMessageHandler:name:");
+    public static readonly IntPtr RemoveScriptMessageHandlerForName =
+        Register("removeScriptMessageHandlerForName:");
+    public static readonly IntPtr SetNavigationDelegate = Register("setNavigationDelegate:");
+    public static readonly IntPtr SetUIDelegate = Register("setUIDelegate:");
+    public static readonly IntPtr EvaluateJavaScriptCompletionHandler =
+        Register("evaluateJavaScript:completionHandler:");
+    public static readonly IntPtr StopLoading = Register("stopLoading");
+    public static readonly IntPtr Reload = Register("reload");
+    public static readonly IntPtr URLWithString = Register("URLWithString:");
+    public static readonly IntPtr RequestWithURL = Register("requestWithURL:");
+    public static readonly IntPtr LoadRequest = Register("loadRequest:");
+    public static readonly IntPtr Request = Register("request");
+    public static readonly IntPtr URL = Register("URL");
+    public static readonly IntPtr AbsoluteString = Register("absoluteString");
+    public static readonly IntPtr TargetFrame = Register("targetFrame");
+    public static readonly IntPtr Body = Register("body");
+    public static readonly IntPtr IsKindOfClass = Register("isKindOfClass:");
+    public static readonly IntPtr DataWithBytesLength = Register("dataWithBytes:length:");
+    public static readonly IntPtr InitWithUrlMimeTypeExpectedContentLengthTextEncodingName =
+        Register("initWithURL:MIMEType:expectedContentLength:textEncodingName:");
+    public static readonly IntPtr ErrorWithDomainCodeUserInfo =
+        Register("errorWithDomain:code:userInfo:");
+    public static readonly IntPtr DidReceiveResponse = Register("didReceiveResponse:");
+    public static readonly IntPtr DidReceiveData = Register("didReceiveData:");
+    public static readonly IntPtr DidFinish = Register("didFinish");
+    public static readonly IntPtr DidFailWithError = Register("didFailWithError:");
+    public static readonly IntPtr StartUrlSchemeTask = Register("webView:startURLSchemeTask:");
+    public static readonly IntPtr StopUrlSchemeTask = Register("webView:stopURLSchemeTask:");
+    public static readonly IntPtr DidReceiveScriptMessage =
+        Register("userContentController:didReceiveScriptMessage:");
+    public static readonly IntPtr DecidePolicyForNavigationAction =
+        Register("webView:decidePolicyForNavigationAction:decisionHandler:");
+    public static readonly IntPtr CreateWebViewForNavigationAction = Register(
+        "webView:createWebViewWithConfiguration:forNavigationAction:windowFeatures:");
 }

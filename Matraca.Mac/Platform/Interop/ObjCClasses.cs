@@ -22,6 +22,13 @@ internal static class ObjCClasses
     public static readonly IntPtr NSNotificationCenter = Get("NSNotificationCenter");
     public static readonly IntPtr NSDate = Get("NSDate");
     public static readonly IntPtr NSRunLoop = Get("NSRunLoop");
+    public static readonly IntPtr NSURL = Get("NSURL");
+    public static readonly IntPtr NSURLRequest = Get("NSURLRequest");
+    public static readonly IntPtr NSURLResponse = Get("NSURLResponse");
+    public static readonly IntPtr NSData = Get("NSData");
+    public static readonly IntPtr NSError = Get("NSError");
+    public static readonly IntPtr WKWebView = Get("WKWebView");
+    public static readonly IntPtr WKWebViewConfiguration = Get("WKWebViewConfiguration");
 
     public static void Warm() => _ = NSApplication;
 

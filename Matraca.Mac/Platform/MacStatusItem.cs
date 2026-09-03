@@ -9,7 +9,10 @@ internal sealed class MacStatusItem : IDisposable
     private readonly IntPtr _statusBar;
     private readonly IntPtr _button;
     private readonly IntPtr _stateItem;
+    private readonly MacMenuActionTarget _openTarget;
     private IntPtr _statusItem;
+
+    public event Action? OpenRequested;
 
     public MacStatusItem(MacApplication application)
     {
@@ -35,6 +38,16 @@ internal sealed class MacStatusItem : IDisposable
         ObjC.SendVoidBool(_stateItem, ObjCSelectors.SetEnabled, false);
         ObjC.SendVoid(menu, ObjCSelectors.AddItem, _stateItem);
         ObjC.SendVoid(_stateItem, ObjCSelectors.Release);
+        ObjC.SendVoid(menu, ObjCSelectors.AddItem,
+            ObjC.Send(ObjCClasses.NSMenuItem, ObjCSelectors.SeparatorItem));
+
+        _openTarget = new MacMenuActionTarget(() => OpenRequested?.Invoke());
+        IntPtr openItem = CreateMenuItem("Abrir Matraca...", ObjCSelectors.OpenMatraca, "");
+        if (openItem == IntPtr.Zero)
+            throw new InvalidOperationException("Failed to create the open menu item.");
+        ObjC.SendVoid(openItem, ObjCSelectors.SetTarget, _openTarget.Handle);
+        ObjC.SendVoid(menu, ObjCSelectors.AddItem, openItem);
+        ObjC.SendVoid(openItem, ObjCSelectors.Release);
         ObjC.SendVoid(menu, ObjCSelectors.AddItem,
             ObjC.Send(ObjCClasses.NSMenuItem, ObjCSelectors.SeparatorItem));
 
@@ -66,7 +79,9 @@ internal sealed class MacStatusItem : IDisposable
     public void Dispose()
     {
         if (_statusItem == IntPtr.Zero) return;
+        OpenRequested = null;
         ObjC.SendVoid(_statusBar, ObjCSelectors.RemoveStatusItem, _statusItem);
         _statusItem = IntPtr.Zero;
+        _openTarget.Dispose();
     }
 }

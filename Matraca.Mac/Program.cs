@@ -6,6 +6,7 @@ using Matraca.Mac.Platform.Audio;
 using Matraca.Mac.Platform.Interop;
 using Matraca.Mac.Platform.Speech;
 using Matraca.Mac.Platform.Text;
+using Matraca.Mac.Platform.Web;
 
 namespace Matraca.Mac;
 
@@ -29,6 +30,8 @@ internal static class Program
                 return MacTargetSmoke.Run(args);
             if (args.Length > 0 && args[0] == "--indicator-smoke")
                 return MacIndicatorSmoke.Run(args);
+            if (args.Length > 0 && args[0] == "--webview-smoke")
+                return MacWebViewSmoke.Run(args);
 
             using MacSingleInstance? singleInstance = MacSingleInstance.TryAcquire(AppPaths.Current());
             if (singleInstance == null)
@@ -45,6 +48,7 @@ internal static class Program
             application.ConfigureAsAccessory();
             MainThread.Initialize();
             using var statusItem = new MacStatusItem(application);
+            using var webWindow = new MacWebWindowController(statusItem, WebAssetRoot.Resolve());
 
             Matraca.Core.Config config = MacConfig.Load();
             bool trusted = Accessibility.IsTrusted(prompt: true);

@@ -42,4 +42,13 @@
     </None>
   </ItemGroup>
 
+  <ItemGroup>
+    <Content Include="../Matraca.Web/wwwroot/**/*">
+      <Link>Web/%(RecursiveDir)%(Filename)%(Extension)</Link>
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+      <CopyToPublishDirectory>PreserveNewest</CopyToPublishDirectory>
+      <TargetPath>Web/%(RecursiveDir)%(Filename)%(Extension)</TargetPath>
+    </Content>
+  </ItemGroup>
+
 </Project>
