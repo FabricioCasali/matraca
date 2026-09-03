@@ -25,6 +25,8 @@ internal static class Program
                 return RunAudioSmoke(args).GetAwaiter().GetResult();
             if (args.Length > 0 && args[0] == "--whisper-smoke")
                 return RunWhisperSmoke(args).GetAwaiter().GetResult();
+            if (args.Length > 0 && args[0] == "--target-smoke")
+                return MacTargetSmoke.Run(args);
 
             Frameworks.EnsureLoaded();
             ObjCClasses.Warm();
