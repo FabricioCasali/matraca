@@ -14,7 +14,9 @@ O desenho da frente 2.0 está em [`PLANO-2.0.md`](PLANO-2.0.md).
 - **MT-004** **Fase 2 — o Mac dita** — fatias 1–6 verdes e marco de uso pessoal
   entregue. Fatia 7 em execução: contrato seguro de fallback, registro AX, entrega
   pinada com e sem foco por capacidade, moldura click-through, Spaces e monitores.
-  Depois falta o endurecimento e a prova assistida final. Contrato em
+  No endurecimento, instância única por usuário e shutdown nativo com cinco segundos
+  para drenar entregas já aceitas estão implementados; sleep/wake e troca de microfone
+  ainda não. Depois falta a prova assistida final. Contrato em
   [`PLANO-2.0.md`](PLANO-2.0.md). · `[2.0]` · G · importante
 
 ## 📋 A fazer

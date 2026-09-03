@@ -33,4 +33,13 @@ internal sealed class MacApplication
     }
 
     public void Run() => ObjC.SendVoid(Handle, ObjCSelectors.Run);
+
+    public void SetDelegate(IntPtr applicationDelegate)
+        => ObjC.SendVoid(Handle, ObjCSelectors.SetDelegate, applicationDelegate);
+
+    public void ReplyToTermination(bool terminate)
+        => ObjC.SendVoidBool(
+            Handle,
+            ObjCSelectors.ReplyToApplicationShouldTerminate,
+            terminate);
 }

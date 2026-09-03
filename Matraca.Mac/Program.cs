@@ -28,6 +28,13 @@ internal static class Program
             if (args.Length > 0 && args[0] == "--target-smoke")
                 return MacTargetSmoke.Run(args);
 
+            using MacSingleInstance? singleInstance = MacSingleInstance.TryAcquire(AppPaths.Current());
+            if (singleInstance == null)
+            {
+                Logger.Info("Outra instancia do Matraca ja esta ativa para este usuario.");
+                return 0;
+            }
+
             Frameworks.EnsureLoaded();
             ObjCClasses.Warm();
             using var pool = AutoreleasePool.New();
@@ -42,16 +49,21 @@ internal static class Program
             if (trusted)
             {
                 using var trayApp = new MacTrayApp(config, statusItem);
+                using var termination = new MacTerminationHandshake(application, trayApp.ShutdownAsync);
                 trayApp.Start();
                 Logger.Info("Matraca.Mac iniciado como app Accessory.");
                 application.Run();
-                trayApp.ShutdownAsync().GetAwaiter().GetResult();
+                termination.RequestShutdownAsync().GetAwaiter().GetResult();
             }
             else
             {
+                using var termination = new MacTerminationHandshake(
+                    application,
+                    _ => Task.CompletedTask);
                 statusItem.SetState("Matraca !", "Acessibilidade necessaria; conceda e reinicie o Matraca.");
                 Logger.Warn("Permissao de Acessibilidade ausente; conceda e reinicie o Matraca.");
                 application.Run();
+                termination.RequestShutdownAsync().GetAwaiter().GetResult();
             }
             return 0;
         }

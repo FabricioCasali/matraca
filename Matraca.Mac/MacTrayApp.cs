@@ -128,7 +128,7 @@ internal sealed class MacTrayApp : IDisposable
             TaskContinuationOptions.OnlyOnFaulted,
             TaskScheduler.Default);
 
-    public async Task ShutdownAsync()
+    public async Task ShutdownAsync(CancellationToken cancellationToken = default)
     {
         if (Interlocked.Exchange(ref _stopping, 1) != 0) return;
         if (_configWatcher != null)
@@ -137,8 +137,8 @@ internal sealed class MacTrayApp : IDisposable
             _configWatcher.Dispose();
             _configWatcher = null;
         }
-        await _controller.ShutdownAsync().ConfigureAwait(false);
-        await _configGate.WaitAsync().ConfigureAwait(false);
+        await _controller.ShutdownAsync(cancellationToken).ConfigureAwait(false);
+        await _configGate.WaitAsync(cancellationToken).ConfigureAwait(false);
         _configGate.Release();
     }
 

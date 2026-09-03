@@ -21,6 +21,10 @@ internal static class ObjCSelectors
     public static readonly IntPtr ActivationPolicy = Register("activationPolicy");
     public static readonly IntPtr Run = Register("run");
     public static readonly IntPtr Terminate = Register("terminate:");
+    public static readonly IntPtr SetDelegate = Register("setDelegate:");
+    public static readonly IntPtr ApplicationShouldTerminate = Register("applicationShouldTerminate:");
+    public static readonly IntPtr ReplyToApplicationShouldTerminate =
+        Register("replyToApplicationShouldTerminate:");
     public static readonly IntPtr SystemStatusBar = Register("systemStatusBar");
     public static readonly IntPtr StatusItemWithLength = Register("statusItemWithLength:");
     public static readonly IntPtr RemoveStatusItem = Register("removeStatusItem:");
