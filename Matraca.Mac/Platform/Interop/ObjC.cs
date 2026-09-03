@@ -43,6 +43,15 @@ internal static class ObjC
         IntPtr second,
         IntPtr third);
 
+    [DllImport(Library, EntryPoint = "objc_msgSend")]
+    public static extern IntPtr Send(
+        IntPtr receiver,
+        IntPtr selector,
+        IntPtr first,
+        IntPtr second,
+        IntPtr third,
+        IntPtr fourth);
+
     [DllImport(Library, EntryPoint = "objc_msgSend", CharSet = CharSet.Ansi)]
     public static extern IntPtr SendUtf8(IntPtr receiver, IntPtr selector, byte[] utf8);
 

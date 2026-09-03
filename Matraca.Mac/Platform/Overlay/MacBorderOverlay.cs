@@ -15,6 +15,7 @@ internal sealed class MacBorderOverlay : IDisposable
     private const nuint Stationary = 1 << 4;
     private const nuint IgnoresCycle = 1 << 6;
     private const nuint FullScreenAuxiliary = 1 << 8;
+    private const nuint CanJoinAllApplications = 1 << 18;
 
     private readonly List<IntPtr> _windows = [];
     private MacBorderOverlayConfiguration _configuration;
@@ -125,7 +126,11 @@ internal sealed class MacBorderOverlay : IDisposable
             ObjC.SendVoidNUInt(
                 window,
                 ObjCSelectors.SetCollectionBehavior,
-                CanJoinAllSpaces | Stationary | IgnoresCycle | FullScreenAuxiliary);
+                CanJoinAllSpaces
+                    | Stationary
+                    | IgnoresCycle
+                    | FullScreenAuxiliary
+                    | CanJoinAllApplications);
             _windows.Add(window);
             return window;
         }

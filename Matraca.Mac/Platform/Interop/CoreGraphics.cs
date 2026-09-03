@@ -20,6 +20,9 @@ internal static unsafe class CoreGraphics
     public const uint KeyboardEventKeycode = 9;
     public const uint EventSourceUserData = 42;
     public const uint HidEventTap = 0;
+    public const uint WindowListOptionOnScreenOnly = 1;
+    public const uint WindowListExcludeDesktopElements = 1 << 4;
+    public const uint NullWindow = 0;
     public const int HidSystemState = 1;
     public const ushort ReturnKey = 0x24;
     public const ulong KeyDownUpMask = (1UL << (int)KeyDown) | (1UL << (int)KeyUp);
@@ -65,6 +68,15 @@ internal static unsafe class CoreGraphics
     [DllImport(CoreGraphicsFramework)]
     public static extern void CGEventPost(uint tap, IntPtr @event);
 
+    [DllImport(CoreGraphicsFramework)]
+    public static extern IntPtr CGWindowListCopyWindowInfo(uint option, uint relativeToWindow);
+
+    [DllImport(CoreGraphicsFramework)]
+    [return: MarshalAs(UnmanagedType.I1)]
+    public static extern bool CGRectMakeWithDictionaryRepresentation(
+        IntPtr dictionary,
+        out CGRect rectangle);
+
     [DllImport(CoreFoundationFramework)]
     public static extern IntPtr CFMachPortCreateRunLoopSource(
         IntPtr allocator,
@@ -85,4 +97,16 @@ internal static unsafe class CoreGraphics
 
     public static IntPtr CommonModes
         => Frameworks.Symbol(Frameworks.CoreFoundationHandle, "kCFRunLoopCommonModes");
+
+    public static IntPtr WindowOwnerProcessIdKey
+        => Frameworks.Symbol(Frameworks.CoreGraphicsHandle, "kCGWindowOwnerPID");
+
+    public static IntPtr WindowIsOnscreenKey
+        => Frameworks.Symbol(Frameworks.CoreGraphicsHandle, "kCGWindowIsOnscreen");
+
+    public static IntPtr WindowBoundsKey
+        => Frameworks.Symbol(Frameworks.CoreGraphicsHandle, "kCGWindowBounds");
+
+    public static IntPtr WindowNameKey
+        => Frameworks.Symbol(Frameworks.CoreGraphicsHandle, "kCGWindowName");
 }

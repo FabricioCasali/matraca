@@ -27,6 +27,8 @@ internal static class Program
                 return RunWhisperSmoke(args).GetAwaiter().GetResult();
             if (args.Length > 0 && args[0] == "--target-smoke")
                 return MacTargetSmoke.Run(args);
+            if (args.Length > 0 && args[0] == "--indicator-smoke")
+                return MacIndicatorSmoke.Run(args);
 
             using MacSingleInstance? singleInstance = MacSingleInstance.TryAcquire(AppPaths.Current());
             if (singleInstance == null)

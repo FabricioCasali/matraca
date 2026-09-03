@@ -7,6 +7,7 @@ internal static class CoreFoundation
 {
     private const string CoreFoundationFramework =
         "/System/Library/Frameworks/CoreFoundation.framework/CoreFoundation";
+    private const int NumberSInt64Type = 4;
     private const uint StringEncodingUtf8 = 0x08000100;
 
     [DllImport(CoreFoundationFramework)]
@@ -24,6 +25,23 @@ internal static class CoreFoundation
 
     [DllImport(CoreFoundationFramework)]
     private static extern nuint CFStringGetTypeID();
+
+    [DllImport(CoreFoundationFramework)]
+    private static extern nint CFArrayGetCount(IntPtr array);
+
+    [DllImport(CoreFoundationFramework)]
+    private static extern IntPtr CFArrayGetValueAtIndex(IntPtr array, nint index);
+
+    [DllImport(CoreFoundationFramework)]
+    private static extern IntPtr CFDictionaryGetValue(IntPtr dictionary, IntPtr key);
+
+    [DllImport(CoreFoundationFramework)]
+    [return: MarshalAs(UnmanagedType.I1)]
+    private static extern bool CFNumberGetValue(IntPtr number, int type, out long value);
+
+    [DllImport(CoreFoundationFramework)]
+    [return: MarshalAs(UnmanagedType.I1)]
+    private static extern bool CFBooleanGetValue(IntPtr value);
 
     [DllImport(CoreFoundationFramework)]
     private static extern IntPtr CFStringCreateWithCString(
@@ -87,4 +105,30 @@ internal static class CoreFoundation
         int byteCount = terminator >= 0 ? terminator : buffer.Length;
         return Encoding.UTF8.GetString(buffer, 0, byteCount);
     }
+
+    public static nint GetArrayCount(IntPtr array)
+        => array == IntPtr.Zero ? 0 : CFArrayGetCount(array);
+
+    public static IntPtr GetArrayValue(IntPtr array, nint index)
+        => CFArrayGetValueAtIndex(array, index);
+
+    public static IntPtr GetDictionaryValue(IntPtr dictionary, IntPtr key)
+        => CFDictionaryGetValue(dictionary, key);
+
+    public static bool TryGetInt32(IntPtr number, out int value)
+    {
+        if (number != IntPtr.Zero
+            && CFNumberGetValue(number, NumberSInt64Type, out long raw)
+            && raw is >= int.MinValue and <= int.MaxValue)
+        {
+            value = (int)raw;
+            return true;
+        }
+
+        value = 0;
+        return false;
+    }
+
+    public static bool GetBoolean(IntPtr value)
+        => value != IntPtr.Zero && CFBooleanGetValue(value);
 }

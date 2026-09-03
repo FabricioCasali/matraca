@@ -62,4 +62,14 @@ internal static class ObjCSelectors
     public static readonly IntPtr RunningApplicationWithProcessIdentifier =
         Register("runningApplicationWithProcessIdentifier:");
     public static readonly IntPtr ActivateWithOptions = Register("activateWithOptions:");
+    public static readonly IntPtr SharedWorkspace = Register("sharedWorkspace");
+    public static readonly IntPtr NotificationCenter = Register("notificationCenter");
+    public static readonly IntPtr DefaultCenter = Register("defaultCenter");
+    public static readonly IntPtr AddObserver = Register("addObserver:selector:name:object:");
+    public static readonly IntPtr RemoveObserver = Register("removeObserver:");
+    public static readonly IntPtr EnvironmentChanged = Register("environmentChanged:");
+    public static readonly IntPtr CurrentRunLoop = Register("currentRunLoop");
+    public static readonly IntPtr DateWithTimeIntervalSinceNow =
+        Register("dateWithTimeIntervalSinceNow:");
+    public static readonly IntPtr RunUntilDate = Register("runUntilDate:");
 }

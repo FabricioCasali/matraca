@@ -14,6 +14,7 @@ internal static class Frameworks
     private static bool _loaded;
 
     public static IntPtr CoreFoundationHandle { get; private set; }
+    public static IntPtr CoreGraphicsHandle { get; private set; }
 
     public static void EnsureLoaded()
     {
@@ -24,7 +25,7 @@ internal static class Frameworks
             Load(Foundation);
             Load(AppKit);
             Load(AudioToolbox);
-            Load(CoreGraphics);
+            CoreGraphicsHandle = Load(CoreGraphics);
             _loaded = true;
         }
     }

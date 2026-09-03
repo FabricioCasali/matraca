@@ -34,9 +34,19 @@ internal static unsafe class MainThread
             waitUntilDone: false);
     }
 
+    public static bool HasAccess
+        => ObjC.SendBool(ObjCClasses.NSThread, ObjCSelectors.IsMainThread);
+
+    public static void Run(Action action)
+    {
+        ArgumentNullException.ThrowIfNull(action);
+        if (HasAccess) action();
+        else Post(action);
+    }
+
     public static void VerifyAccess()
     {
-        if (!ObjC.SendBool(ObjCClasses.NSThread, ObjCSelectors.IsMainThread))
+        if (!HasAccess)
             throw new InvalidOperationException("AppKit access must remain on the main thread.");
     }
 

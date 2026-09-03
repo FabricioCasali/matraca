@@ -2,7 +2,7 @@ using System.Runtime.InteropServices;
 
 namespace Matraca.Mac.Platform.Interop;
 
-/// <summary>A rectangle in AppKit's global, bottom-left-origin screen coordinate space.</summary>
+/// <summary>A native rectangle; the caller defines whether its origin is Quartz or AppKit.</summary>
 [StructLayout(LayoutKind.Sequential)]
 internal readonly struct CGRect
 {

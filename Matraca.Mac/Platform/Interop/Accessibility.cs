@@ -19,6 +19,8 @@ internal static class Accessibility
     public const string RoleAttribute = "AXRole";
     public const string TitleAttribute = "AXTitle";
     public const string RaiseAction = "AXRaise";
+    public const string PositionAttribute = "AXPosition";
+    public const string SizeAttribute = "AXSize";
     public const string ApplicationRole = "AXApplication";
     public const string WindowRole = "AXWindow";
 
@@ -55,6 +57,14 @@ internal static class Accessibility
 
     [DllImport(ApplicationServices)]
     private static extern int AXUIElementPerformAction(IntPtr element, IntPtr action);
+
+    [DllImport(ApplicationServices)]
+    [return: MarshalAs(UnmanagedType.I1)]
+    private static extern bool AXValueGetValue(IntPtr value, int type, out CGPoint point);
+
+    [DllImport(ApplicationServices)]
+    [return: MarshalAs(UnmanagedType.I1)]
+    private static extern bool AXValueGetValue(IntPtr value, int type, out CGSize size);
 
     public static bool IsTrusted(bool prompt)
     {
@@ -213,6 +223,37 @@ internal static class Accessibility
         IntPtr actionName = CoreFoundation.CreateString(action);
         try { return AXUIElementPerformAction(element, actionName) == Success; }
         finally { CoreFoundation.Release(actionName); }
+    }
+
+    public static bool TryGetWindowBounds(IntPtr window, out CGRect bounds)
+    {
+        bounds = default;
+        int positionError = CopyAttributeValue(window, PositionAttribute, out IntPtr positionValue);
+        if (positionError != Success) return false;
+
+        try
+        {
+            if (!AXValueGetValue(positionValue, 1, out CGPoint position)) return false;
+
+            int sizeError = CopyAttributeValue(window, SizeAttribute, out IntPtr sizeValue);
+            if (sizeError != Success) return false;
+            try
+            {
+                if (!AXValueGetValue(sizeValue, 2, out CGSize size)
+                    || !double.IsFinite(position.X)
+                    || !double.IsFinite(position.Y)
+                    || !double.IsFinite(size.Width)
+                    || !double.IsFinite(size.Height)
+                    || size.Width <= 0
+                    || size.Height <= 0)
+                    return false;
+
+                bounds = new CGRect(position.X, position.Y, size.Width, size.Height);
+                return true;
+            }
+            finally { CoreFoundation.Release(sizeValue); }
+        }
+        finally { CoreFoundation.Release(positionValue); }
     }
 
     private static bool HasExpectedRole(IntPtr element, string expectedRole)
