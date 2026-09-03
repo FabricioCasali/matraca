@@ -1,0 +1,396 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Matraca 2.0 - estudos visuais</title>
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <header class="gallery-header">
+    <div class="gallery-kicker">MT-005 / exploração visual</div>
+    <h1>Como o Matraca deve parecer<br>quando está trabalhando?</h1>
+    <p>Três direções para a mesma experiência. Cada estudo mostra a tela principal,
+      os parâmetros e a linguagem usada nos estados de ditado.</p>
+    <div class="gallery-legend" aria-label="Legenda dos estados">
+      <span><i class="dot ready"></i>Pronto</span>
+      <span><i class="dot listening"></i>Ouvindo</span>
+      <span><i class="dot thinking"></i>Pensando</span>
+      <span><i class="dot writing"></i>Escrevendo</span>
+      <span><i class="dot done"></i>Entregue</span>
+    </div>
+  </header>
+
+  <main>
+    <section class="concept concept-signal" id="signal-studio">
+      <header class="concept-header">
+        <div>
+          <span class="concept-number">01</span>
+          <p class="concept-eyebrow">Signal Studio</p>
+          <h2>Um instrumento de áudio,<br>não um painel de preferências.</h2>
+        </div>
+        <p class="concept-note">Grafite, âmbar e marfim. Marcas de escala, leitura direta e
+          controles que lembram equipamento de estúdio sem virar nostalgia.</p>
+      </header>
+
+      <div class="screen-label"><span>A</span> Tela principal / tema escuro</div>
+      <article class="app-window signal-window dark-window">
+        <div class="window-chrome">
+          <div class="traffic"><i></i><i></i><i></i></div>
+          <div class="window-title">MATRACA / CENTRAL</div>
+          <div class="chrome-status"><i></i> LOCAL</div>
+        </div>
+        <div class="app-layout">
+          <aside class="side-rail">
+            <div class="brand-mark"><span>M</span></div>
+            <nav aria-label="Navegação do mock Signal Studio">
+              <a class="active" href="#signal-studio"><b>01</b><span>Agora</span></a>
+              <a href="#signal-studio"><b>02</b><span>Microfone</span></a>
+              <a href="#signal-studio"><b>03</b><span>Histórico</span></a>
+              <a href="#signal-settings"><b>04</b><span>Parâmetros</span></a>
+            </nav>
+            <div class="rail-version">2.0<br>MAC</div>
+          </aside>
+          <div class="app-content">
+            <div class="page-heading">
+              <div><small>QUINTA, 3 SET</small><h3>Pronto para ditar.</h3></div>
+              <div class="hotkey-chip"><span>ATALHO</span><kbd>F15</kbd></div>
+            </div>
+
+            <div class="signal-dashboard">
+              <section class="signal-hero">
+                <div class="hero-topline"><span>ENTRADA 01</span><span>MACBOOK PRO MICROPHONE</span></div>
+                <div class="meter-readout">
+                  <div class="db-value"><strong>-18</strong><span>dB</span></div>
+                  <div class="level-track"><i style="width: 62%"></i><em style="left: 74%"></em></div>
+                </div>
+                <div class="scale"><span>-48</span><span>-36</span><span>-24</span><span>-12</span><span>0</span></div>
+                <div class="signal-wave" aria-hidden="true">
+                  <span style="height:15%"></span><span style="height:31%"></span><span style="height:46%"></span>
+                  <span style="height:74%"></span><span style="height:42%"></span><span style="height:88%"></span>
+                  <span style="height:58%"></span><span style="height:34%"></span><span style="height:70%"></span>
+                  <span style="height:96%"></span><span style="height:62%"></span><span style="height:41%"></span>
+                  <span style="height:78%"></span><span style="height:51%"></span><span style="height:27%"></span>
+                  <span style="height:47%"></span><span style="height:68%"></span><span style="height:38%"></span>
+                  <span style="height:21%"></span><span style="height:13%"></span>
+                </div>
+                <div class="hero-footer"><span><i class="status-lamp"></i> SINAL ESTÁVEL</span><strong>LIVE</strong></div>
+              </section>
+
+              <section class="signal-side-stack">
+                <div class="target-card">
+                  <span class="micro-label">DESTINO ATUAL</span>
+                  <div class="target-app"><b>&gt;_</b><div><strong>node-terminal</strong><span>Prompt do OpenCode</span></div></div>
+                  <div class="target-meta"><span>FIXADO</span><span>SPACE 1</span></div>
+                </div>
+                <div class="mode-card">
+                  <span class="micro-label">MODO DE DITADO</span>
+                  <div class="mode-switch"><span>TOGGLE</span><span class="active">LIVE</span><span>PUSH</span></div>
+                  <p>O texto sai a cada pausa natural.</p>
+                </div>
+              </section>
+            </div>
+
+            <section class="transcript-strip">
+              <div><span class="micro-label">ÚLTIMO DITADO / 11:42</span>
+                <p>“Vamos iniciar a próxima fase e avaliar os mocks antes de implementar.”</p></div>
+              <button type="button">COPIAR</button>
+            </section>
+          </div>
+        </div>
+      </article>
+
+      <div class="screen-label" id="signal-settings"><span>B</span> Parâmetros / tema claro</div>
+      <article class="app-window signal-window light-window">
+        <div class="window-chrome">
+          <div class="traffic"><i></i><i></i><i></i></div>
+          <div class="window-title">MATRACA / PARÂMETROS</div>
+          <div class="chrome-status"><i></i> SALVO</div>
+        </div>
+        <div class="settings-layout">
+          <aside class="settings-index">
+            <div class="settings-brand">M/</div>
+            <span>PARÂMETROS</span>
+            <a class="active" href="#signal-settings">Tecla e modo</a>
+            <a href="#signal-settings">Modelo e vocabulário</a>
+            <a href="#signal-settings">Áudio</a>
+            <a href="#signal-settings">Entrega</a>
+            <a href="#signal-settings">Claude</a>
+            <small>Alterações aplicam<br>na próxima sessão.</small>
+          </aside>
+          <div class="settings-content">
+            <div class="settings-title"><div><small>01 / 05</small><h3>Tecla e modo</h3></div><span class="save-state">SALVO AGORA</span></div>
+            <div class="setting-row prominent">
+              <div><label>Tecla de ditado</label><p>Pressione para começar e terminar.</p></div>
+              <div class="key-capture"><kbd>F15</kbd><button type="button">CAPTURAR</button></div>
+            </div>
+            <div class="setting-row">
+              <div><label>Modo</label><p>Como a tecla controla cada sessão.</p></div>
+              <div class="choice-grid">
+                <span>TOGGLE<small>Aperta / solta</small></span>
+                <span>HOLD<small>Segura para falar</small></span>
+                <span class="selected">LIVE<small>Flui a cada pausa</small></span>
+                <span>PUSH<small>Segura e flui</small></span>
+              </div>
+            </div>
+            <div class="setting-row">
+              <div><label>Idioma</label><p>Idioma principal reconhecido pelo Whisper.</p></div>
+              <div class="select-mock">Português <span>PT-BR</span></div>
+            </div>
+            <div class="setting-row compact-row">
+              <div><label>Enter automático</label><p>Envia a mensagem após escrever.</p></div>
+              <div class="toggle-mock"><i></i><span>DESLIGADO</span></div>
+            </div>
+          </div>
+        </div>
+      </article>
+
+      <div class="screen-label"><span>C</span> Linguagem de estado / HUD</div>
+      <div class="state-board signal-state-board">
+        <div class="state-board-copy"><small>SISTEMA DE FEEDBACK</small><h3>O trabalho aparece.<br>O foco não muda.</h3>
+          <p>O HUD é compacto, não recebe clique e desaparece sozinho. Cor, ritmo e verbo deixam claro o que ocorre.</p></div>
+        <div class="hud-column">
+          <div class="hud signal-hud state-ready"><div class="hud-code">00</div><div><small>F15</small><strong>Pronto</strong><span>Aguardando você</span></div><i class="hud-light"></i></div>
+          <div class="hud signal-hud state-listening"><div class="hud-code">REC</div><div><small>ENTRADA 01</small><strong>Ouvindo</strong><span class="mini-wave">||||||||||||||||</span></div><i class="hud-light"></i></div>
+          <div class="hud signal-hud state-thinking"><div class="hud-code spinner-code">•••</div><div><small>WHISPER / METAL</small><strong>Pensando</strong><span>Transcrevendo localmente</span></div><i class="hud-light"></i></div>
+          <div class="hud signal-hud state-writing"><div class="hud-code">→</div><div><small>NODE-TERMINAL</small><strong>Escrevendo</strong><span>142 caracteres</span></div><i class="hud-light"></i></div>
+          <div class="hud signal-hud state-done"><div class="hud-code">OK</div><div><small>CONCLUÍDO</small><strong>Entregue</strong><span>Clipboard preservado</span></div><i class="hud-light"></i></div>
+          <div class="hud signal-hud state-error"><div class="hud-code">!</div><div><small>PRECISA DE VOCÊ</small><strong>Destino fechado</strong><span>O texto ficou no histórico</span></div><i class="hud-light"></i></div>
+        </div>
+      </div>
+    </section>
+
+    <section class="concept concept-spectrum selected-concept" id="spectrum-glass">
+      <header class="concept-header">
+        <div>
+          <span class="concept-number">02</span>
+          <p class="concept-eyebrow">Spectrum Glass <b>direção escolhida</b></p>
+          <h2>Voz transformada em<br>luz, espaço e movimento.</h2>
+        </div>
+        <p class="concept-note">Violeta, ciano e superfícies translúcidas. Mais digital e imersivo,
+          com a atividade do áudio como elemento central da identidade.</p>
+      </header>
+
+      <div class="screen-label"><span>A</span> Tela principal / tema escuro</div>
+      <article class="app-window spectrum-window dark-window">
+        <div class="spectrum-ambient one"></div><div class="spectrum-ambient two"></div>
+        <div class="window-chrome glass-chrome">
+          <div class="traffic"><i></i><i></i><i></i></div>
+          <div class="window-title">Matraca</div>
+          <div class="profile-orb">FC</div>
+        </div>
+        <div class="spectrum-layout">
+          <aside class="spectrum-nav">
+            <div class="spectrum-logo">m<span>.</span></div>
+            <a class="active" href="#spectrum-glass"><span class="nav-glyph">◉</span>Agora</a>
+            <a href="#spectrum-glass"><span class="nav-glyph">≋</span>Microfone</a>
+            <a href="#spectrum-glass"><span class="nav-glyph">⌁</span>Histórico</a>
+            <a href="#spectrum-settings"><span class="nav-glyph">⌘</span>Parâmetros</a>
+            <div class="privacy-pill"><i></i><span>Áudio local<br><b>sempre</b></span></div>
+          </aside>
+          <div class="spectrum-content">
+            <div class="spectrum-heading"><div><small>BOA TARDE, FABRICIO</small><h3>Sua voz está pronta.</h3></div><div class="spectrum-key"><span>ATALHO</span><kbd>F15</kbd></div></div>
+            <section class="voice-orbit-card">
+              <div class="orbit-copy"><span class="live-pill"><i></i> PRONTO</span><h4>Fale. O resto<br>acontece aqui.</h4><p>Modelo large-v3-turbo<br>acelerado por Metal.</p></div>
+              <div class="voice-orbit" aria-hidden="true"><div class="orbit-ring r1"></div><div class="orbit-ring r2"></div><div class="orbit-ring r3"></div><div class="orbit-core"><span></span><span></span><span></span><span></span><span></span></div></div>
+              <div class="orbit-level"><span>NÍVEL</span><strong>-18<small>dB</small></strong><div><i style="height:26%"></i><i style="height:48%"></i><i style="height:72%"></i><i style="height:91%"></i><i style="height:63%"></i><i style="height:38%"></i></div></div>
+            </section>
+            <div class="glass-card-row">
+              <section class="glass-card target-glass"><small>DESTINO</small><div><span class="app-orb">&gt;_</span><p><strong>node-terminal</strong><em>Janela fixada</em></p><b class="connected">Conectado</b></div></section>
+              <section class="glass-card mode-glass"><small>FLUXO</small><div class="flow-options"><span>Toggle</span><span class="active">Live</span><span>Push</span></div><p>Entrega após cada pausa natural.</p></section>
+            </div>
+            <section class="last-voice"><div class="quote-mark">“</div><div><small>ÚLTIMA FRASE · 11:42</small><p>Vamos iniciar a próxima fase e avaliar os mocks antes de implementar.</p></div><button type="button">•••</button></section>
+          </div>
+        </div>
+      </article>
+
+      <div class="screen-label" id="spectrum-settings"><span>B</span> Parâmetros / tema claro</div>
+      <article class="app-window spectrum-window light-window spectrum-light">
+        <div class="spectrum-ambient one"></div><div class="spectrum-ambient two"></div>
+        <div class="window-chrome glass-chrome">
+          <div class="traffic"><i></i><i></i><i></i></div><div class="window-title">Matraca</div><div class="profile-orb">FC</div>
+        </div>
+        <div class="spectrum-layout">
+          <aside class="spectrum-nav">
+            <div class="spectrum-logo">m<span>.</span></div>
+            <a href="#spectrum-settings"><span class="nav-glyph">◉</span>Agora</a>
+            <a href="#spectrum-settings"><span class="nav-glyph">≋</span>Microfone</a>
+            <a href="#spectrum-settings"><span class="nav-glyph">⌁</span>Histórico</a>
+            <a class="active" href="#spectrum-settings"><span class="nav-glyph">⌘</span>Parâmetros</a>
+          </aside>
+          <div class="spectrum-settings-content">
+            <div class="settings-title"><div><small>PARÂMETROS</small><h3>Tecla e modo</h3></div><span class="soft-saved"><i></i> Tudo salvo</span></div>
+            <div class="glass-tabs"><span class="active">Tecla</span><span>Modelo</span><span>Áudio</span><span>Entrega</span><span>Claude</span></div>
+            <section class="soft-setting featured"><div><span class="setting-icon">⌨</span><div><label>Tecla de ditado</label><p>Use uma tecla dedicada ou uma combinação.</p></div></div><div class="soft-key"><kbd>F15</kbd><button type="button">Capturar nova</button></div></section>
+            <section class="soft-setting"><div><span class="setting-icon">◌</span><div><label>Modo de ditado</label><p>Escolha como cada sessão começa e termina.</p></div></div><div class="soft-segments"><span>Toggle</span><span>Hold</span><span class="active">Live</span><span>Push</span></div></section>
+            <section class="soft-setting two-col"><div><span class="setting-icon">文</span><div><label>Idioma</label><p>Português</p></div></div><div class="soft-select">pt-BR <span>⌄</span></div></section>
+            <section class="soft-setting two-col"><div><span class="setting-icon">↵</span><div><label>Enter automático</label><p>Não envia sem sua revisão.</p></div></div><div class="soft-toggle"><i></i></div></section>
+          </div>
+        </div>
+      </article>
+
+      <div class="screen-label"><span>C</span> Linguagem de estado / HUD</div>
+      <div class="state-board spectrum-state-board">
+        <div class="spectrum-state-copy"><span class="live-pill"><i></i> FEEDBACK CONTÍNUO</span><h3>Um pulso para<br>cada momento.</h3><p>Forma e luz mudam com o estado. O texto explica apenas o que ainda não ficou óbvio.</p></div>
+        <div class="floating-huds">
+          <div class="spectrum-hud state-ready"><div class="spectrum-state-icon"><i></i></div><div><strong>Pronto</strong><span>F15 para começar</span></div><kbd>F15</kbd></div>
+          <div class="spectrum-hud state-listening"><div class="spectrum-state-icon sound"><i></i><i></i><i></i><i></i></div><div><strong>Ouvindo você</strong><span>00:08 · live</span></div><div class="hud-spectrum"><i></i><i></i><i></i><i></i><i></i></div></div>
+          <div class="spectrum-hud state-thinking"><div class="spectrum-state-icon thinking-orb"><i></i></div><div><strong>Pensando</strong><span>Whisper local · Metal</span></div><div class="progress-ring">62</div></div>
+          <div class="spectrum-hud state-writing"><div class="spectrum-state-icon writing-arrow">↗</div><div><strong>Escrevendo</strong><span>node-terminal</span></div><div class="typing-dots"><i></i><i></i><i></i></div></div>
+          <div class="spectrum-hud state-done"><div class="spectrum-state-icon done-check">✓</div><div><strong>Texto entregue</strong><span>142 caracteres</span></div><span class="done-time">agora</span></div>
+          <div class="spectrum-hud state-error"><div class="spectrum-state-icon error-mark">!</div><div><strong>Destino indisponível</strong><span>Texto salvo no histórico</span></div><button type="button">Ver</button></div>
+        </div>
+      </div>
+
+      <div class="screen-label"><span>D</span> Calibração do microfone / tema escuro</div>
+      <article class="app-window spectrum-window dark-window">
+        <div class="spectrum-ambient one"></div><div class="spectrum-ambient two"></div>
+        <div class="window-chrome glass-chrome">
+          <div class="traffic"><i></i><i></i><i></i></div><div class="window-title">Matraca</div><div class="profile-orb">FC</div>
+        </div>
+        <div class="spectrum-layout">
+          <aside class="spectrum-nav">
+            <div class="spectrum-logo">m<span>.</span></div>
+            <a href="#spectrum-glass"><span class="nav-glyph">◉</span>Agora</a>
+            <a class="active" href="#spectrum-mic"><span class="nav-glyph">≋</span>Microfone</a>
+            <a href="#spectrum-history"><span class="nav-glyph">⌁</span>Histórico</a>
+            <a href="#spectrum-settings"><span class="nav-glyph">⌘</span>Parâmetros</a>
+            <div class="privacy-pill"><i></i><span>Monitoramento<br><b>somente local</b></span></div>
+          </aside>
+          <div class="mic-content" id="spectrum-mic">
+            <div class="spectrum-heading"><div><small>CALIBRAÇÃO AO VIVO</small><h3>Microfone</h3></div><div class="device-pill"><i></i> MacBook Pro Microphone <span>⌄</span></div></div>
+            <section class="spectrum-calibration">
+              <div class="calibration-copy"><span class="live-pill"><i></i> ESCUTANDO</span><h4>Fale como você<br>fala normalmente.</h4><p>A área verde mostra exatamente quando o Matraca considera que existe voz.</p></div>
+              <div class="fft-panel">
+                <div class="fft-head"><span>ESPECTRO · 48 BANDAS</span><span>30 FPS</span></div>
+                <div class="fft-bars" aria-label="Espectro simulado de 48 bandas">
+                  <i style="height:18%"></i><i style="height:25%"></i><i style="height:32%"></i><i style="height:29%"></i><i style="height:37%"></i><i style="height:46%"></i><i style="height:58%"></i><i style="height:71%"></i><i style="height:82%"></i><i style="height:74%"></i><i style="height:67%"></i><i style="height:86%"></i><i style="height:95%"></i><i style="height:78%"></i><i style="height:69%"></i><i style="height:62%"></i><i style="height:73%"></i><i style="height:88%"></i><i style="height:81%"></i><i style="height:68%"></i><i style="height:55%"></i><i style="height:61%"></i><i style="height:72%"></i><i style="height:66%"></i><i style="height:59%"></i><i style="height:49%"></i><i style="height:55%"></i><i style="height:63%"></i><i style="height:51%"></i><i style="height:44%"></i><i style="height:48%"></i><i style="height:53%"></i><i style="height:41%"></i><i style="height:36%"></i><i style="height:43%"></i><i style="height:38%"></i><i style="height:31%"></i><i style="height:35%"></i><i style="height:28%"></i><i style="height:25%"></i><i style="height:29%"></i><i style="height:23%"></i><i style="height:19%"></i><i style="height:21%"></i><i style="height:16%"></i><i style="height:14%"></i><i style="height:12%"></i><i style="height:9%"></i>
+                </div>
+                <div class="frequency-scale"><span>80 Hz</span><span>500</span><span>2k</span><span>8k</span></div>
+              </div>
+            </section>
+            <section class="threshold-card">
+              <div class="threshold-head"><div><small>SENSIBILIDADE</small><strong>O ambiente está sendo ignorado. Sua voz será capturada.</strong></div><div class="threshold-value"><span>LIMIAR</span><b>0.012</b></div></div>
+              <div class="threshold-meter"><div class="noise-zone"><span>RUÍDO</span></div><div class="voice-zone"><span>VOZ</span><i style="width:43%"></i></div><em style="left:38%"><b></b></em></div>
+              <div class="threshold-scale"><span>mais sensível</span><span>arraste a marca</span><span>ignora mais ruído</span></div>
+            </section>
+            <div class="mic-stats"><div><small>NÍVEL AGORA</small><strong>-18.4 dB</strong></div><div><small>PICO</small><strong>-8.1 dB</strong></div><div><small>LATÊNCIA</small><strong>12 ms</strong></div><div class="speech-stat"><small>DECISÃO DO VAD</small><strong><i></i> voz detectada</strong></div></div>
+          </div>
+        </div>
+      </article>
+
+      <div class="screen-label"><span>E</span> Histórico / tema claro</div>
+      <article class="app-window spectrum-window light-window spectrum-light" id="spectrum-history">
+        <div class="spectrum-ambient one"></div><div class="spectrum-ambient two"></div>
+        <div class="window-chrome glass-chrome"><div class="traffic"><i></i><i></i><i></i></div><div class="window-title">Matraca</div><div class="profile-orb">FC</div></div>
+        <div class="spectrum-layout">
+          <aside class="spectrum-nav">
+            <div class="spectrum-logo">m<span>.</span></div>
+            <a href="#spectrum-glass"><span class="nav-glyph">◉</span>Agora</a><a href="#spectrum-mic"><span class="nav-glyph">≋</span>Microfone</a><a class="active" href="#spectrum-history"><span class="nav-glyph">⌁</span>Histórico</a><a href="#spectrum-settings"><span class="nav-glyph">⌘</span>Parâmetros</a>
+          </aside>
+          <div class="history-content">
+            <div class="history-head"><div><small>SEUS DITADOS</small><h3>Histórico</h3></div><label class="history-search"><span>⌕</span><input type="text" value="" placeholder="Buscar no histórico" readonly></label></div>
+            <div class="history-layout">
+              <div class="history-list">
+                <div class="history-day">HOJE <span>6 ditados</span></div>
+                <article class="history-item active"><time>11:42</time><div><p>Vamos iniciar a próxima fase e avaliar os mocks antes de implementar qualquer coisa.</p><span>18 segundos · 86 caracteres</span></div><i></i></article>
+                <article class="history-item"><time>11:37</time><div><p>Liste as próximas etapas e deixe o teste de repouso registrado como pendência.</p><span>12 segundos · 78 caracteres</span></div></article>
+                <article class="history-item"><time>10:58</time><div><p>O Spectrum Glass tem a presença certa para os estados do aplicativo.</p><span>9 segundos · 67 caracteres</span></div></article>
+                <article class="history-item"><time>09:14</time><div><p>Confirme se o clipboard foi preservado nos quatro aplicativos.</p><span>8 segundos · 60 caracteres</span></div></article>
+                <div class="history-day previous">ONTEM <span>14 ditados</span></div>
+                <article class="history-item muted"><time>18:31</time><div><p>Executar o build cruzado antes de fechar a fatia.</p><span>7 segundos · 49 caracteres</span></div></article>
+              </div>
+              <section class="history-detail">
+                <div class="detail-meta"><span>HOJE · 11:42</span><button type="button">•••</button></div>
+                <blockquote>Vamos iniciar a próxima fase e avaliar os mocks antes de implementar qualquer coisa.</blockquote>
+                <div class="detail-info"><span><small>MODO</small>Live</span><span><small>IDIOMA</small>Português</span><span><small>DESTINO</small>node-terminal</span></div>
+                <div class="detail-actions"><button class="primary" type="button">Recolar no destino</button><button type="button">Copiar</button><button class="danger" type="button">Apagar</button></div>
+                <p class="history-privacy"><i></i> Este texto está guardado apenas neste Mac.</p>
+              </section>
+            </div>
+          </div>
+        </div>
+      </article>
+
+      <div class="screen-label"><span>F</span> Primeiro uso / tema escuro</div>
+      <article class="app-window spectrum-window dark-window onboarding-window">
+        <div class="spectrum-ambient one"></div><div class="spectrum-ambient two"></div>
+        <div class="window-chrome glass-chrome"><div class="traffic"><i></i><i></i><i></i></div><div class="window-title">Matraca · primeiro uso</div><div></div></div>
+        <div class="onboarding-content">
+          <header class="onboarding-head"><div class="spectrum-logo">m<span>.</span></div><small>CONFIGURAÇÃO INICIAL · 3 DE 3</small><h3>Quase pronto para<br>ouvir você.</h3><p>O áudio nunca sai deste Mac. Precisamos apenas preparar o modelo, o atalho e as permissões locais.</p></header>
+          <div class="onboarding-progress"><i class="complete"></i><i class="complete"></i><i class="active"></i></div>
+          <div class="onboarding-grid">
+            <section class="setup-card complete"><div class="setup-icon">✓</div><div><small>PASSO 1</small><h4>Modelo local</h4><p>large-v3-turbo · 1,5 GB</p></div><span>PRONTO</span></section>
+            <section class="setup-card complete"><div class="setup-icon">F15</div><div><small>PASSO 2</small><h4>Tecla de ditado</h4><p>Pressione quando quiser falar.</p></div><button type="button">Trocar</button></section>
+            <section class="setup-card permissions"><div class="setup-icon">◎</div><div><small>PASSO 3</small><h4>Permissões do Mac</h4><p>O Matraca precisa ouvir o microfone e escrever onde está seu cursor.</p></div><div class="permission-list"><span><i class="granted">✓</i><b>Microfone</b><em>Permitido</em></span><span><i>→</i><b>Acessibilidade</b><em>Abrir Ajustes</em></span></div></section>
+          </div>
+          <footer class="onboarding-actions"><p><i></i> Sem conta, sem telemetria, sem áudio na rede.</p><button type="button">Começar a usar <span>→</span></button></footer>
+        </div>
+      </article>
+    </section>
+
+    <section class="concept concept-quiet" id="quiet-wave">
+      <header class="concept-header">
+        <div>
+          <span class="concept-number">03</span>
+          <p class="concept-eyebrow">Quiet Wave</p>
+          <h2>Presença quando importa.<br>Silêncio no resto do tempo.</h2>
+        </div>
+        <p class="concept-note">Preto suave, creme e verde mineral. Tipografia ampla, poucos
+          contornos e um sinal de voz contínuo que organiza toda a experiência.</p>
+      </header>
+
+      <div class="screen-label"><span>A</span> Tela principal / tema escuro</div>
+      <article class="app-window quiet-window dark-window">
+        <div class="quiet-topbar"><div class="quiet-brand">matraca<span>°</span></div><nav><a class="active" href="#quiet-wave">Agora</a><a href="#quiet-wave">Microfone</a><a href="#quiet-wave">Histórico</a><a href="#quiet-settings">Parâmetros</a></nav><div class="quiet-local"><i></i> somente local</div></div>
+        <div class="quiet-content">
+          <div class="quiet-intro"><span class="quiet-date">quinta-feira · 3 de setembro</span><h3>Quando quiser,<br>é só falar.</h3><p>O Matraca está ouvindo o atalho <kbd>F15</kbd> e vai escrever em <strong>node-terminal</strong>.</p></div>
+          <section class="quiet-voice-panel">
+            <div class="quiet-wave-line" aria-hidden="true">
+              <i style="height:7%"></i><i style="height:15%"></i><i style="height:22%"></i><i style="height:48%"></i><i style="height:31%"></i><i style="height:69%"></i><i style="height:43%"></i><i style="height:91%"></i><i style="height:57%"></i><i style="height:28%"></i><i style="height:66%"></i><i style="height:39%"></i><i style="height:81%"></i><i style="height:53%"></i><i style="height:24%"></i><i style="height:13%"></i><i style="height:7%"></i>
+            </div>
+            <div class="quiet-level"><span>nível da sala</span><strong>-42 dB</strong><i></i></div>
+          </section>
+          <div class="quiet-grid">
+            <section><small>MODO</small><strong>Live</strong><p>Uma frase por pausa.</p><span class="quiet-arrow">↗</span></section>
+            <section><small>MICROFONE</small><strong>MacBook Pro</strong><p>Sinal limpo e estável.</p><span class="quiet-ok">bom</span></section>
+            <section class="quiet-recent"><small>DITADO MAIS RECENTE · 11:42</small><blockquote>Vamos iniciar a próxima fase e avaliar os mocks antes de implementar.</blockquote><button type="button">Copiar texto</button></section>
+          </div>
+        </div>
+      </article>
+
+      <div class="screen-label" id="quiet-settings"><span>B</span> Parâmetros / tema claro</div>
+      <article class="app-window quiet-window light-window quiet-light">
+        <div class="quiet-topbar"><div class="quiet-brand">matraca<span>°</span></div><nav><a href="#quiet-settings">Agora</a><a href="#quiet-settings">Microfone</a><a href="#quiet-settings">Histórico</a><a class="active" href="#quiet-settings">Parâmetros</a></nav><div class="quiet-local"><i></i> salvo</div></div>
+        <div class="quiet-settings">
+          <aside><span>PARÂMETROS</span><a class="active" href="#quiet-settings">Tecla e modo <b>01</b></a><a href="#quiet-settings">Modelo e vocabulário <b>02</b></a><a href="#quiet-settings">Áudio <b>03</b></a><a href="#quiet-settings">Entrega <b>04</b></a><a href="#quiet-settings">Claude <b>05</b></a></aside>
+          <div class="quiet-settings-body">
+            <div class="quiet-settings-head"><span>01</span><div><small>COMO VOCÊ CHAMA O MATRACA</small><h3>Tecla e modo</h3></div></div>
+            <section class="quiet-setting-row"><div><label>Tecla de ditado</label><p>Uma tecla dedicada evita conflitos com seus aplicativos.</p></div><div class="quiet-key"><kbd>F15</kbd><button type="button">Capturar</button></div></section>
+            <section class="quiet-setting-row block"><div><label>Modo de ditado</label><p>Live escreve cada frase assim que você faz uma pausa.</p></div><div class="quiet-mode-list"><span><i></i>Toggle<small>aperte para começar e terminar</small></span><span><i></i>Hold<small>segure enquanto estiver falando</small></span><span class="active"><i></i>Live<small>texto contínuo a cada pausa</small></span><span><i></i>Push<small>segure e receba por frase</small></span></div></section>
+            <section class="quiet-setting-row"><div><label>Enter automático</label><p>Deixe desligado para revisar antes de enviar.</p></div><div class="quiet-toggle"><i></i><span>Desligado</span></div></section>
+          </div>
+        </div>
+      </article>
+
+      <div class="screen-label"><span>C</span> Linguagem de estado / HUD</div>
+      <div class="state-board quiet-state-board">
+        <div class="quiet-state-copy"><small>UMA FRASE POR VEZ</small><h3>O estado cabe<br>na margem da tela.</h3><p>O HUD fica leve quando está ocioso e cresce só para mostrar voz, progresso ou ação necessária.</p></div>
+        <div class="quiet-hud-list">
+          <div class="quiet-hud state-ready"><div class="quiet-hud-symbol"><i></i></div><div><strong>Pronto</strong><span>F15 para falar</span></div></div>
+          <div class="quiet-hud state-listening"><div class="quiet-hud-symbol wave-symbol"><i></i><i></i><i></i><i></i><i></i></div><div><strong>Estou ouvindo</strong><span>Fale no seu ritmo</span></div><time>00:08</time></div>
+          <div class="quiet-hud state-thinking"><div class="quiet-hud-symbol think-symbol"><i></i></div><div><strong>Organizando suas palavras</strong><span>Whisper está trabalhando aqui no Mac</span></div><b>62%</b></div>
+          <div class="quiet-hud state-writing"><div class="quiet-hud-symbol write-symbol">↗</div><div><strong>Escrevendo</strong><span>em node-terminal</span></div><span class="quiet-typing">•••</span></div>
+          <div class="quiet-hud state-done"><div class="quiet-hud-symbol check-symbol">✓</div><div><strong>Pronto, foi entregue</strong><span>142 caracteres · agora</span></div></div>
+          <div class="quiet-hud state-error"><div class="quiet-hud-symbol alert-symbol">!</div><div><strong>A janela não está mais aberta</strong><span>Seu texto continua seguro no histórico</span></div><button type="button">Abrir histórico</button></div>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <footer class="gallery-footer">
+    <span>MT-005 · MATRACA 2.0</span>
+    <p>Estudos estáticos. Nenhuma tela acessa microfone, modelo, configuração ou rede.</p>
+  </footer>
+</body>
+</html>
