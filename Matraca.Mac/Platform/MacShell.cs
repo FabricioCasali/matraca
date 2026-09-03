@@ -1,10 +1,12 @@
 using Matraca.Core;
+using Matraca.Mac.Platform.Audio;
 
 namespace Matraca.Mac.Platform;
 
 internal sealed class MacShell : IShell
 {
     private readonly MacStatusItem _statusItem;
+    private readonly MacSoundPlayer _soundPlayer = new();
 
     public MacShell(MacStatusItem statusItem)
         => _statusItem = statusItem ?? throw new ArgumentNullException(nameof(statusItem));
@@ -34,12 +36,15 @@ internal sealed class MacShell : IShell
         else Logger.Info(text);
     }
 
-    public int PlaySound(bool start, string? filePath, float volume) => 0;
+    public int PlaySound(bool start, string? filePath, float volume)
+        => _soundPlayer.Play(start, filePath, volume);
 
-    public bool IsSoundActive(TimeSpan quietPeriod) => false;
+    public bool IsSoundActive(TimeSpan quietPeriod)
+        => _soundPlayer.IsActive(quietPeriod);
 
     public void Dispose()
     {
+        _soundPlayer.Dispose();
         // MacStatusItem is owned by Program and outlives the dictation controller.
     }
 }

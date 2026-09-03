@@ -24,6 +24,8 @@
              Link="Compatibility/MacAudioDevice.cs" />
     <Compile Include="../../Matraca.Mac/Platform/Audio/MacAudioDeviceSelector.cs"
              Link="Compatibility/MacAudioDeviceSelector.cs" />
+    <Compile Include="../../Matraca.Mac/Platform/Audio/MacSoundWave.cs"
+             Link="Compatibility/MacSoundWave.cs" />
     <Compile Include="../../Matraca.Windows/WindowsHotkeyTranslator.cs"
              Link="Compatibility/WindowsHotkeyTranslator.cs" />
     <None Include="../../Matraca.Windows/appsettings.json"
