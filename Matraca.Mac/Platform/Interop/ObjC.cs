@@ -59,8 +59,18 @@ internal static class ObjC
     public static extern nint SendNInt(IntPtr receiver, IntPtr selector);
 
     [DllImport(Library, EntryPoint = "objc_msgSend")]
+    public static extern nuint SendNUInt(IntPtr receiver, IntPtr selector);
+
+    [DllImport(Library, EntryPoint = "objc_msgSend")]
+    [return: MarshalAs(UnmanagedType.I1)]
+    public static extern bool SendBool(IntPtr receiver, IntPtr selector);
+
+    [DllImport(Library, EntryPoint = "objc_msgSend")]
     [return: MarshalAs(UnmanagedType.I1)]
     public static extern bool SendBoolNInt(IntPtr receiver, IntPtr selector, nint value);
+
+    [DllImport(Library, EntryPoint = "objc_msgSend")]
+    public static extern IntPtr SendNUInt(IntPtr receiver, IntPtr selector, nuint value);
 
     [DllImport(Library, EntryPoint = "objc_msgSend")]
     public static extern IntPtr SendWithBool(
@@ -73,6 +83,40 @@ internal static class ObjC
         IntPtr receiver,
         IntPtr selector,
         [MarshalAs(UnmanagedType.I1)] bool value);
+
+    [DllImport(Library, EntryPoint = "objc_msgSend")]
+    public static extern void SendVoidNInt(IntPtr receiver, IntPtr selector, nint value);
+
+    [DllImport(Library, EntryPoint = "objc_msgSend")]
+    public static extern void SendVoidNUInt(IntPtr receiver, IntPtr selector, nuint value);
+
+    [DllImport(Library, EntryPoint = "objc_msgSend")]
+    public static extern IntPtr SendColor(
+        IntPtr receiver,
+        IntPtr selector,
+        double red,
+        double green,
+        double blue,
+        double alpha);
+
+    [DllImport(Library, EntryPoint = "objc_msgSend")]
+    public static extern CGRect SendRect(IntPtr receiver, IntPtr selector);
+
+    [DllImport(Library, EntryPoint = "objc_msgSend")]
+    public static extern IntPtr SendInitWindow(
+        IntPtr receiver,
+        IntPtr selector,
+        CGRect frame,
+        nuint styleMask,
+        nuint backing,
+        [MarshalAs(UnmanagedType.I1)] bool defer);
+
+    [DllImport(Library, EntryPoint = "objc_msgSend")]
+    public static extern void SendVoidRectBool(
+        IntPtr receiver,
+        IntPtr selector,
+        CGRect frame,
+        [MarshalAs(UnmanagedType.I1)] bool display);
 
     [DllImport(Library, EntryPoint = "objc_msgSend")]
     public static extern void SendPerformOnMain(

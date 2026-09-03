@@ -34,6 +34,12 @@ internal static unsafe class MainThread
             waitUntilDone: false);
     }
 
+    public static void VerifyAccess()
+    {
+        if (!ObjC.SendBool(ObjCClasses.NSThread, ObjCSelectors.IsMainThread))
+            throw new InvalidOperationException("AppKit access must remain on the main thread.");
+    }
+
     [UnmanagedCallersOnly]
     private static void Pump(IntPtr self, IntPtr command)
     {

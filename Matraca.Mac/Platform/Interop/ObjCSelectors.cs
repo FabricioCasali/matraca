@@ -33,4 +33,26 @@ internal static class ObjCSelectors
     public static readonly IntPtr AddItem = Register("addItem:");
     public static readonly IntPtr SeparatorItem = Register("separatorItem");
     public static readonly IntPtr SetEnabled = Register("setEnabled:");
+    public static readonly IntPtr IsMainThread = Register("isMainThread");
+    public static readonly IntPtr Screens = Register("screens");
+    public static readonly IntPtr Count = Register("count");
+    public static readonly IntPtr ObjectAtIndex = Register("objectAtIndex:");
+    public static readonly IntPtr Frame = Register("frame");
+    public static readonly IntPtr InitWithContentRect =
+        Register("initWithContentRect:styleMask:backing:defer:");
+    public static readonly IntPtr SetFrameDisplay = Register("setFrame:display:");
+    public static readonly IntPtr SetOpaque = Register("setOpaque:");
+    public static readonly IntPtr SetBackgroundColor = Register("setBackgroundColor:");
+    public static readonly IntPtr SetHasShadow = Register("setHasShadow:");
+    public static readonly IntPtr SetLevel = Register("setLevel:");
+    public static readonly IntPtr SetIgnoresMouseEvents = Register("setIgnoresMouseEvents:");
+    public static readonly IntPtr SetCollectionBehavior = Register("setCollectionBehavior:");
+    public static readonly IntPtr SetReleasedWhenClosed = Register("setReleasedWhenClosed:");
+    public static readonly IntPtr OrderFrontRegardless = Register("orderFrontRegardless");
+    public static readonly IntPtr OrderOut = Register("orderOut:");
+    public static readonly IntPtr Close = Register("close");
+    public static readonly IntPtr CanBecomeKeyWindow = Register("canBecomeKeyWindow");
+    public static readonly IntPtr CanBecomeMainWindow = Register("canBecomeMainWindow");
+    public static readonly IntPtr ColorWithSrgb =
+        Register("colorWithSRGBRed:green:blue:alpha:");
 }

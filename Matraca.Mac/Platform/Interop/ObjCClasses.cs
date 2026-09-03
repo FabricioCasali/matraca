@@ -13,6 +13,10 @@ internal static class ObjCClasses
     public static readonly IntPtr NSStatusBar = Get("NSStatusBar");
     public static readonly IntPtr NSMenu = Get("NSMenu");
     public static readonly IntPtr NSMenuItem = Get("NSMenuItem");
+    public static readonly IntPtr NSColor = Get("NSColor");
+    public static readonly IntPtr NSScreen = Get("NSScreen");
+    public static readonly IntPtr NSThread = Get("NSThread");
+    public static readonly IntPtr NSWindow = Get("NSWindow");
 
     public static void Warm() => _ = NSApplication;
 
