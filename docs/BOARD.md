@@ -39,6 +39,10 @@ O desenho da frente 2.0 está em [`PLANO-2.0.md`](PLANO-2.0.md).
   finalizar. Reproduzido no `node-terminal` e em editor de texto durante a validação da
   UI 2.0. A entrega por `clipboard` funciona; a falha ocorre com `pasteMethod: "unicode"`.
   · `[2.0]` · P · importante
+- **MT-020** **Onboarding mostra modelos como `undefined`** — o seletor do passo "Modelo
+  local" lista opções sem nome, incluindo `undefined` e `undefined · pronto`, embora o
+  modelo ativo seja exibido corretamente fora do seletor. Reproduzido visualmente na UI
+  2.0 do Mac. · `[2.0]` · P · importante
 - **MT-006** **Fase 4 — o Windows muda de casa** — WebView2 em HWND cru, Shell_NotifyIcon,
   e as quatro telas WinForms aposentadas. Só apaga quando a paridade estiver de
   pé. · `[2.0]` · G · importante
