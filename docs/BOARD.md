@@ -47,6 +47,10 @@ O desenho da frente 2.0 está em [`PLANO-2.0.md`](PLANO-2.0.md).
   o título desenhado pela UI aparecem na mesma posição, deixando dois textos "Matraca"
   sobrepostos no centro da barra superior. Reproduzido visualmente na janela principal
   da UI 2.0. · `[2.0]` · P · melhoria
+- **MT-022** **Permitir outros modelos de IA na revisão** — o pós-processamento deve
+  permitir configurar outros provedores e modelos de IA, em vez de limitar a revisão
+  do texto ao Claude. O recurso continua opcional e desligado por padrão. · `[2.0]` · M ·
+  melhoria
 - **MT-006** **Fase 4 — o Windows muda de casa** — WebView2 em HWND cru, Shell_NotifyIcon,
   e as quatro telas WinForms aposentadas. Só apaga quando a paridade estiver de
   pé. · `[2.0]` · G · importante
