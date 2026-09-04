@@ -15,6 +15,8 @@ internal sealed class MacWebViewHost : IDisposable
     private readonly MacUrlSchemeHandler _schemeHandler;
     private readonly MacScriptMessageHandler _messageHandler;
     private readonly MacWebNavigationDelegate _navigationDelegate;
+    private readonly MacWebWindowDelegate _windowDelegate;
+    private MacWindowDragView? _dragView;
     private readonly IntPtr _application;
     private IntPtr _configuration;
     private IntPtr _userContentController;
@@ -37,11 +39,14 @@ internal sealed class MacWebViewHost : IDisposable
         MacUrlSchemeHandler? schemeHandler = null;
         MacScriptMessageHandler? messageHandler = null;
         MacWebNavigationDelegate? navigationDelegate = null;
+        MacWebWindowDelegate? windowDelegate = null;
         try
         {
             schemeHandler = new MacUrlSchemeHandler(authorizedAssetRoot);
             messageHandler = new MacScriptMessageHandler();
             navigationDelegate = new MacWebNavigationDelegate();
+            windowDelegate = new MacWebWindowDelegate();
+            _windowDelegate = windowDelegate;
             _schemeHandler = schemeHandler;
             _messageHandler = messageHandler;
             _navigationDelegate = navigationDelegate;
@@ -62,11 +67,15 @@ internal sealed class MacWebViewHost : IDisposable
             }
             finally
             {
-                try { navigationDelegate?.Dispose(); }
+                try { windowDelegate?.Dispose(); }
                 finally
                 {
-                    try { messageHandler?.Dispose(); }
-                    finally { schemeHandler?.Dispose(); }
+                    try { navigationDelegate?.Dispose(); }
+                    finally
+                    {
+                        try { messageHandler?.Dispose(); }
+                        finally { schemeHandler?.Dispose(); }
+                    }
                 }
             }
             throw;
@@ -74,14 +83,21 @@ internal sealed class MacWebViewHost : IDisposable
     }
 
     public event Action<string>? MessageReceived;
+    public event Action? WindowWillClose;
     public int ServedAssetCount => _schemeHandler.ServedAssetCount;
     public int BlockedAssetCount => _schemeHandler.BlockedAssetCount;
     public int BlockedNavigationCount => _navigationDelegate.BlockedNavigationCount;
     public string? LastAssetError => _schemeHandler.LastError;
+    internal IntPtr WindowHandle => _window;
+    internal bool IsVisible => ObjC.SendBool(_window, ObjCSelectors.IsVisible);
+    internal bool IsMiniaturized => ObjC.SendBool(_window, ObjCSelectors.IsMiniaturized);
+    internal CGRect DragRegionFrame => _dragView?.Frame ?? default;
 
     public void ShowExplicitly()
     {
         VerifyUsable();
+        if (IsMiniaturized)
+            ObjC.SendVoid(_window, ObjCSelectors.Deminiaturize, IntPtr.Zero);
         ObjC.SendVoidBool(_application, ObjCSelectors.ActivateIgnoringOtherApps, true);
         ObjC.SendVoid(_window, ObjCSelectors.MakeKeyAndOrderFront, IntPtr.Zero);
     }
@@ -96,6 +112,18 @@ internal sealed class MacWebViewHost : IDisposable
     {
         VerifyUsable();
         ObjC.Send(_webView, ObjCSelectors.Reload);
+    }
+
+    internal void Miniaturize()
+    {
+        VerifyUsable();
+        ObjC.SendVoid(_window, ObjCSelectors.Miniaturize, IntPtr.Zero);
+    }
+
+    internal void Close()
+    {
+        VerifyUsable();
+        ObjC.SendVoid(_window, ObjCSelectors.PerformClose, IntPtr.Zero);
     }
 
     public void PostJson(string json)
@@ -120,7 +148,9 @@ internal sealed class MacWebViewHost : IDisposable
         _disposed = true;
 
         MessageReceived = null;
+        WindowWillClose = null;
         _messageHandler.MessageReceived -= ForwardMessage;
+        _windowDelegate.WindowWillClose -= ForwardWindowWillClose;
         try
         {
             DisposeNativeObjects();
@@ -131,7 +161,11 @@ internal sealed class MacWebViewHost : IDisposable
             finally
             {
                 try { _messageHandler.Dispose(); }
-                finally { _schemeHandler.Dispose(); }
+                finally
+                {
+                    try { _schemeHandler.Dispose(); }
+                    finally { _windowDelegate.Dispose(); }
+                }
             }
         }
     }
@@ -189,6 +223,10 @@ internal sealed class MacWebViewHost : IDisposable
         ObjC.SendVoidBool(_window, ObjCSelectors.SetTitlebarAppearsTransparent, true);
         ObjC.SendVoid(_window, ObjCSelectors.SetTitle, NSStringRef.From(title));
         ObjC.SendVoid(_window, ObjCSelectors.SetContentView, _webView);
+        _windowDelegate.WindowWillClose += ForwardWindowWillClose;
+        ObjC.SendVoid(_window, ObjCSelectors.SetDelegate, _windowDelegate.Handle);
+        _dragView = new MacWindowDragView(new CGRect(80, height - 48, width - 144, 48));
+        ObjC.SendVoid(_webView, ObjCSelectors.AddSubview, _dragView.Handle);
         ObjC.SendVoid(_window, ObjCSelectors.Center);
     }
 
@@ -223,6 +261,9 @@ internal sealed class MacWebViewHost : IDisposable
         }
         if (_window != IntPtr.Zero)
         {
+            ObjC.SendVoid(_window, ObjCSelectors.SetDelegate, IntPtr.Zero);
+            _dragView?.Dispose();
+            _dragView = null;
             ObjC.SendVoid(_window, ObjCSelectors.OrderOut, IntPtr.Zero);
             ObjC.SendVoid(_window, ObjCSelectors.Close);
             ObjC.SendVoid(_window, ObjCSelectors.Release);
@@ -242,6 +283,7 @@ internal sealed class MacWebViewHost : IDisposable
     }
 
     private void ForwardMessage(string json) => MessageReceived?.Invoke(json);
+    private void ForwardWindowWillClose() => WindowWillClose?.Invoke();
 
     private void VerifyUsable()
     {

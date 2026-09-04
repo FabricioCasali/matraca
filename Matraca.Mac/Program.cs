@@ -32,6 +32,8 @@ internal static class Program
                 return MacIndicatorSmoke.Run(args);
             if (args.Length > 0 && args[0] == "--webview-smoke")
                 return MacWebViewSmoke.Run(args);
+            if (args.Length > 0 && args[0] == "--window-smoke")
+                return MacWebWindowSmoke.Run(args);
 
             using MacSingleInstance? singleInstance = MacSingleInstance.TryAcquire(AppPaths.Current());
             if (singleInstance == null)
@@ -48,7 +50,10 @@ internal static class Program
             application.ConfigureAsAccessory();
             MainThread.Initialize();
             using var statusItem = new MacStatusItem(application);
-            using var webWindow = new MacWebWindowController(statusItem, WebAssetRoot.Resolve());
+            using var webWindow = new MacWebWindowController(
+                application,
+                statusItem,
+                WebAssetRoot.Resolve());
 
             Matraca.Core.Config config = MacConfig.Load();
             bool trusted = Accessibility.IsTrusted(prompt: true);

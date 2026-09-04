@@ -167,6 +167,12 @@ internal static class ObjC
         IntPtr configuration);
 
     [DllImport(Library, EntryPoint = "objc_msgSend")]
+    public static extern IntPtr SendInitView(
+        IntPtr receiver,
+        IntPtr selector,
+        CGRect frame);
+
+    [DllImport(Library, EntryPoint = "objc_msgSend")]
     public static extern IntPtr SendInitUrlResponse(
         IntPtr receiver,
         IntPtr selector,

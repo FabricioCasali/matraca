@@ -7,13 +7,18 @@ namespace Matraca.Mac.Platform.Web;
 internal sealed class MacWebWindowController : IDisposable
 {
     private readonly MacStatusItem _statusItem;
+    private readonly MacApplication _application;
     private readonly string _assetRoot;
     private MacWebViewHost? _host;
     private bool _disposed;
 
-    public MacWebWindowController(MacStatusItem statusItem, string assetRoot)
+    public MacWebWindowController(
+        MacApplication application,
+        MacStatusItem statusItem,
+        string assetRoot)
     {
         MainThread.VerifyAccess();
+        _application = application ?? throw new ArgumentNullException(nameof(application));
         _statusItem = statusItem ?? throw new ArgumentNullException(nameof(statusItem));
         ArgumentException.ThrowIfNullOrWhiteSpace(assetRoot);
         _assetRoot = assetRoot;
@@ -29,25 +34,49 @@ internal sealed class MacWebWindowController : IDisposable
         if (_host != null)
         {
             _host.MessageReceived -= OnMessageReceived;
+            _host.WindowWillClose -= OnWindowWillClose;
             _host.Dispose();
             _host = null;
         }
     }
 
-    private void Open()
+    internal void Open()
     {
         MainThread.VerifyAccess();
         if (_disposed) return;
 
         _host ??= CreateHost();
-        _host.ShowExplicitly();
+        try
+        {
+            _application.ConfigureAsRegular();
+            _host.ShowExplicitly();
+        }
+        catch
+        {
+            TryConfigureAsAccessory();
+            throw;
+        }
     }
 
     private MacWebViewHost CreateHost()
     {
         var host = new MacWebViewHost(_assetRoot);
         host.MessageReceived += OnMessageReceived;
+        host.WindowWillClose += OnWindowWillClose;
         return host;
+    }
+
+    internal MacWebViewHost? Host => _host;
+
+    private void OnWindowWillClose() => TryConfigureAsAccessory();
+
+    private void TryConfigureAsAccessory()
+    {
+        try { _application.ConfigureAsAccessory(); }
+        catch (Exception exception)
+        {
+            Logger.Error("Falha ao restaurar o Matraca para o modo de bandeja", exception);
+        }
     }
 
     private void OnMessageReceived(string json)

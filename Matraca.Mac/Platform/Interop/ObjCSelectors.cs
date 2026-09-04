@@ -53,6 +53,11 @@ internal static class ObjCSelectors
     public static readonly IntPtr SetIgnoresMouseEvents = Register("setIgnoresMouseEvents:");
     public static readonly IntPtr SetCollectionBehavior = Register("setCollectionBehavior:");
     public static readonly IntPtr SetReleasedWhenClosed = Register("setReleasedWhenClosed:");
+    public static readonly IntPtr IsVisible = Register("isVisible");
+    public static readonly IntPtr IsMiniaturized = Register("isMiniaturized");
+    public static readonly IntPtr Miniaturize = Register("miniaturize:");
+    public static readonly IntPtr Deminiaturize = Register("deminiaturize:");
+    public static readonly IntPtr PerformClose = Register("performClose:");
     public static readonly IntPtr OrderFrontRegardless = Register("orderFrontRegardless");
     public static readonly IntPtr OrderOut = Register("orderOut:");
     public static readonly IntPtr Close = Register("close");
@@ -76,6 +81,15 @@ internal static class ObjCSelectors
     public static readonly IntPtr WorkspaceWillSleep = Register("workspaceWillSleep:");
     public static readonly IntPtr WorkspaceDidWake = Register("workspaceDidWake:");
     public static readonly IntPtr SetContentView = Register("setContentView:");
+    public static readonly IntPtr InitWithFrame = Register("initWithFrame:");
+    public static readonly IntPtr AddSubview = Register("addSubview:");
+    public static readonly IntPtr RemoveFromSuperview = Register("removeFromSuperview");
+    public static readonly IntPtr SetAutoresizingMask = Register("setAutoresizingMask:");
+    public static readonly IntPtr MouseDown = Register("mouseDown:");
+    public static readonly IntPtr Window = Register("window");
+    public static readonly IntPtr PerformWindowDragWithEvent =
+        Register("performWindowDragWithEvent:");
+    public static readonly IntPtr WindowWillClose = Register("windowWillClose:");
     public static readonly IntPtr SetTitlebarAppearsTransparent =
         Register("setTitlebarAppearsTransparent:");
     public static readonly IntPtr Center = Register("center");

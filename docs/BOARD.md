@@ -23,8 +23,10 @@ O desenho da frente 2.0 está em [`PLANO-2.0.md`](PLANO-2.0.md).
 - **MT-005** **Fase 3 — a UI unificada** — Spectrum Glass aprovado e extraído para o
   projeto compartilhado `Matraca.Web`. Primeira fatia técnica verde no Mac: casco
   `WKWebView` aberto apenas pelo menu, ponte versionada com placeholders, assets locais
-  empacotados e navegação externa bloqueada. Restam ligar as telas ao Core e portar o
-  mesmo contrato para o WebView2 no Windows. · `[2.0]` · G · importante
+  empacotados e navegação externa bloqueada. Correções do casco implementadas para
+  aparecer no Dock/Command-Tab apenas com a janela aberta e permitir arraste pela barra
+  nativa; smoke verde, falta validação manual dos dois gestos. Restam ligar as telas ao
+  Core e portar o mesmo contrato para o WebView2 no Windows. · `[2.0]` · G · importante
 
 ## 📋 A fazer
 

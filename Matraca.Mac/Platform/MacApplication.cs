@@ -4,6 +4,7 @@ namespace Matraca.Mac.Platform;
 
 internal sealed class MacApplication
 {
+    private const nint RegularActivationPolicy = 0;
     private const nint AccessoryActivationPolicy = 1;
 
     private MacApplication(IntPtr handle) => Handle = handle;
@@ -20,16 +21,27 @@ internal sealed class MacApplication
         return new MacApplication(handle);
     }
 
-    public void ConfigureAsAccessory()
+    internal nint ActivationPolicy
+        => ObjC.SendNInt(Handle, ObjCSelectors.ActivationPolicy);
+
+    public void ConfigureAsAccessory() => SetActivationPolicy(
+        AccessoryActivationPolicy,
+        "Accessory");
+
+    public void ConfigureAsRegular() => SetActivationPolicy(
+        RegularActivationPolicy,
+        "Regular");
+
+    private void SetActivationPolicy(nint policy, string name)
     {
         ObjC.SendBoolNInt(
             Handle,
             ObjCSelectors.SetActivationPolicy,
-            AccessoryActivationPolicy);
-        nint actualPolicy = ObjC.SendNInt(Handle, ObjCSelectors.ActivationPolicy);
-        if (actualPolicy != AccessoryActivationPolicy)
+            policy);
+        nint actualPolicy = ActivationPolicy;
+        if (actualPolicy != policy)
             throw new InvalidOperationException(
-                $"NSApplication activation policy is {actualPolicy}, expected Accessory (1).");
+                $"NSApplication activation policy is {actualPolicy}, expected {name} ({policy}).");
     }
 
     public void Run() => ObjC.SendVoid(Handle, ObjCSelectors.Run);
