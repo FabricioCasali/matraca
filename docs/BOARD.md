@@ -51,6 +51,10 @@ O desenho da frente 2.0 está em [`PLANO-2.0.md`](PLANO-2.0.md).
   permitir configurar outros provedores e modelos de IA, em vez de limitar a revisão
   do texto ao Claude. O recurso continua opcional e desligado por padrão. · `[2.0]` · M ·
   melhoria
+- **MT-023** **Aumentar contraste do tema claro** — fundos e bordas dos cards têm tons
+  próximos demais e dificultam distinguir seus limites; a tipografia também é clara
+  demais sobre o fundo. Reproduzido visualmente em diferentes telas da UI 2.0 com o
+  tema claro. · `[2.0]` · M · importante
 - **MT-006** **Fase 4 — o Windows muda de casa** — WebView2 em HWND cru, Shell_NotifyIcon,
   e as quatro telas WinForms aposentadas. Só apaga quando a paridade estiver de
   pé. · `[2.0]` · G · importante
