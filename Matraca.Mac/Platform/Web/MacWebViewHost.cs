@@ -12,6 +12,7 @@ internal sealed class MacWebViewHost : IDisposable
     private const nuint Resizable = 1 << 3;
     private const nuint FullSizeContentView = 1 << 15;
     private const nuint BufferedBackingStore = 2;
+    private const nint HiddenTitle = 1;
     private const nint FloatingWindowLevel = 3;
     private const nuint CanJoinAllSpaces = 1 << 0;
     private const nuint Stationary = 1 << 4;
@@ -108,6 +109,8 @@ internal sealed class MacWebViewHost : IDisposable
     internal bool CanBecomeKeyWindow => ObjC.SendBool(_window, ObjCSelectors.CanBecomeKeyWindow);
     internal bool CanBecomeMainWindow => ObjC.SendBool(_window, ObjCSelectors.CanBecomeMainWindow);
     internal bool IgnoresMouseEvents => ObjC.SendBool(_window, ObjCSelectors.IgnoresMouseEvents);
+    internal bool IsNativeTitleHidden
+        => ObjC.SendNInt(_window, ObjCSelectors.TitleVisibility) == HiddenTitle;
     internal CGRect DragRegionFrame => _dragView?.Frame ?? default;
 
     internal void PositionOverlayForTarget(CGRect target)
@@ -265,6 +268,7 @@ internal sealed class MacWebViewHost : IDisposable
         ObjC.SendVoidBool(_window, ObjCSelectors.SetReleasedWhenClosed, false);
         ObjC.SendVoidBool(_window, ObjCSelectors.SetTitlebarAppearsTransparent, true);
         ObjC.SendVoid(_window, ObjCSelectors.SetTitle, NSStringRef.From(title));
+        ObjC.SendVoidNInt(_window, ObjCSelectors.SetTitleVisibility, HiddenTitle);
         ObjC.SendVoid(_window, ObjCSelectors.SetContentView, _webView);
         _windowDelegate.WindowWillClose += ForwardWindowWillClose;
         ObjC.SendVoid(_window, ObjCSelectors.SetDelegate, _windowDelegate.Handle);

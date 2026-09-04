@@ -35,6 +35,7 @@ internal static class MacWebWindowSmoke
             IntPtr originalWindow = host.WindowHandle;
             CGRect dragFrame = host.DragRegionFrame;
             bool opensRegular = application.ActivationPolicy == 0 && host.IsVisible;
+            bool nativeTitleHidden = host.IsNativeTitleHidden;
             bool dragRegionValid = dragFrame.Origin.X == 80
                 && dragFrame.Origin.Y == 672
                 && dragFrame.Size.Width == 896
@@ -72,6 +73,7 @@ internal static class MacWebWindowSmoke
 
             bool success = startsAccessory
                 && opensRegular
+                && nativeTitleHidden
                 && dragRegionValid
                 && minimizeKeepsRegular
                 && menuRestoresMinimized
@@ -83,6 +85,7 @@ internal static class MacWebWindowSmoke
                 success,
                 startsAccessory,
                 opensRegular,
+                nativeTitleHidden,
                 dragRegionValid,
                 minimizeKeepsRegular,
                 menuRestoresMinimized,

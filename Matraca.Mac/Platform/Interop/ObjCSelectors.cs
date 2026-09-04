@@ -94,6 +94,8 @@ internal static class ObjCSelectors
     public static readonly IntPtr WindowWillClose = Register("windowWillClose:");
     public static readonly IntPtr SetTitlebarAppearsTransparent =
         Register("setTitlebarAppearsTransparent:");
+    public static readonly IntPtr SetTitleVisibility = Register("setTitleVisibility:");
+    public static readonly IntPtr TitleVisibility = Register("titleVisibility");
     public static readonly IntPtr SetUnderPageBackgroundColor =
         Register("setUnderPageBackgroundColor:");
     public static readonly IntPtr Center = Register("center");
