@@ -73,6 +73,9 @@ public sealed class ConfigPersistenceTests
             Assert.Equal("F15", json.GetProperty("hotkey").GetString());
             Assert.True(json.GetProperty("autoEnter").GetBoolean());
             Assert.False(json.TryGetProperty("pinHotkey", out _));
+            Assert.Empty(Directory.EnumerateFiles(
+                paths.DataDirectory,
+                $".{Path.GetFileName(paths.ConfigFile)}.*.tmp"));
         }
         finally
         {

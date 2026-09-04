@@ -105,6 +105,17 @@ internal sealed unsafe class MacPasteboard : IPasteboard
         }
     }
 
+    public bool WriteText(string text)
+    {
+        if (!TryCapture(out PasteboardSnapshot previous, out long changeCount)) return false;
+        return TryWriteText(
+            previous,
+            text,
+            Guid.NewGuid().ToByteArray(),
+            changeCount,
+            out _);
+    }
+
     public PasteboardRestoreResult RestoreIfOwned(
         PasteboardSnapshot snapshot,
         long ownChangeCount,

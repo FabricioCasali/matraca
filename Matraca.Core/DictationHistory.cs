@@ -73,6 +73,20 @@ public sealed class DictationHistory
         }
     }
 
+    public bool Remove(DateTime at, string text)
+    {
+        lock (_gate)
+        {
+            int index = _items.FindIndex(entry => entry.At == at && entry.Text == text);
+            if (index < 0) return false;
+            DictationHistoryEntry removed = _items[index];
+            _items.RemoveAt(index);
+            if (Save()) return true;
+            _items.Insert(index, removed);
+            return false;
+        }
+    }
+
     private void Load()
     {
         try
@@ -87,7 +101,7 @@ public sealed class DictationHistory
         }
     }
 
-    private void Save()
+    private bool Save()
     {
         string? temporaryPath = null;
         try
@@ -110,10 +124,12 @@ public sealed class DictationHistory
             }
             _replaceFile(temporaryPath, _path);
             temporaryPath = null;
+            return true;
         }
         catch (Exception ex)
         {
             Logger.Warn("Falha ao gravar o historico: " + ex.Message);
+            return false;
         }
         finally
         {

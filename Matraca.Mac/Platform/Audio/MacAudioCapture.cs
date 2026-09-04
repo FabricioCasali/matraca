@@ -20,6 +20,7 @@ internal sealed class MacAudioCapture : IAudioCapture
     private readonly object _nativeGate = new();
     private readonly SemaphoreSlim _lifecycle = new(1, 1);
     private readonly List<float> _captured = new();
+    private readonly bool _bufferSamples;
 
     private Channel<short[]>? _frames;
     private Task? _frameProcessor;
@@ -35,6 +36,9 @@ internal sealed class MacAudioCapture : IAudioCapture
     private int _disposed;
 
     public event Action<ReadOnlyMemory<float>>? FrameCaptured;
+
+    public MacAudioCapture(bool bufferSamples = true)
+        => _bufferSamples = bufferSamples;
 
     public bool IsCapturing => Volatile.Read(ref _capturing) != 0;
 
@@ -273,7 +277,7 @@ internal sealed class MacAudioCapture : IAudioCapture
                 for (int index = 0; index < samples.Length; index++)
                     samples[index] = pcm[offset + index] / 32768f;
 
-                _captured.AddRange(samples);
+                if (_bufferSamples) _captured.AddRange(samples);
                 try { FrameCaptured?.Invoke(samples); }
                 catch (Exception exception) { Logger.Error("Falha ao consumir frame de audio", exception); }
             }

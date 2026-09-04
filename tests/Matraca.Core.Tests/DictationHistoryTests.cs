@@ -124,6 +124,33 @@ public sealed class DictationHistoryTests
         }
     }
 
+    [Fact]
+    public void RemoveDeletesOnlyTheMatchingPersistedEntry()
+    {
+        var home = NewTemporaryDirectory();
+        try
+        {
+            var paths = AppPaths.ForMac(home);
+            DateTime firstAt = new(2026, 9, 4, 10, 0, 0);
+            DateTime secondAt = firstAt.AddMinutes(1);
+            var times = new Queue<DateTime>([firstAt, secondAt]);
+            var history = new DictationHistory(paths, 10, () => times.Dequeue());
+            history.Add("first");
+            history.Add("second");
+
+            Assert.False(history.Remove(firstAt, "other"));
+            Assert.True(history.Remove(firstAt, "first"));
+            Assert.False(history.Remove(firstAt, "first"));
+            Assert.Equal(["second"], history.Snapshot().Select(entry => entry.Text));
+            Assert.Equal(["second"],
+                new DictationHistory(paths, 10).Snapshot().Select(entry => entry.Text));
+        }
+        finally
+        {
+            Directory.Delete(home, recursive: true);
+        }
+    }
+
     private static string NewTemporaryDirectory()
     {
         var path = Path.Combine(Path.GetTempPath(), "matraca-tests", Guid.NewGuid().ToString("N"));

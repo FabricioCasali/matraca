@@ -8,6 +8,7 @@ internal sealed class MacWebWindowController : IDisposable
 {
     private readonly MacStatusItem _statusItem;
     private readonly MacApplication _application;
+    private readonly MacWebBridge? _bridge;
     private readonly string _assetRoot;
     private MacWebViewHost? _host;
     private bool _disposed;
@@ -15,14 +16,21 @@ internal sealed class MacWebWindowController : IDisposable
     public MacWebWindowController(
         MacApplication application,
         MacStatusItem statusItem,
-        string assetRoot)
+        string assetRoot,
+        MacWebBridge? bridge = null)
     {
         MainThread.VerifyAccess();
         _application = application ?? throw new ArgumentNullException(nameof(application));
         _statusItem = statusItem ?? throw new ArgumentNullException(nameof(statusItem));
+        _bridge = bridge;
         ArgumentException.ThrowIfNullOrWhiteSpace(assetRoot);
         _assetRoot = assetRoot;
         _statusItem.OpenRequested += Open;
+        if (_bridge != null)
+        {
+            _bridge.MessageProduced += PostToHost;
+            _bridge.CloseWindowRequested += Close;
+        }
     }
 
     public void Dispose()
@@ -31,6 +39,11 @@ internal sealed class MacWebWindowController : IDisposable
         if (_disposed) return;
         _disposed = true;
         _statusItem.OpenRequested -= Open;
+        if (_bridge != null)
+        {
+            _bridge.MessageProduced -= PostToHost;
+            _bridge.CloseWindowRequested -= Close;
+        }
         if (_host != null)
         {
             _host.MessageReceived -= OnMessageReceived;
@@ -48,6 +61,7 @@ internal sealed class MacWebWindowController : IDisposable
         _host ??= CreateHost();
         try
         {
+            if (!_host.IsVisible || _host.IsMiniaturized) _bridge?.PrepareToOpen();
             _application.ConfigureAsRegular();
             _host.ShowExplicitly();
         }
@@ -68,7 +82,13 @@ internal sealed class MacWebWindowController : IDisposable
 
     internal MacWebViewHost? Host => _host;
 
-    private void OnWindowWillClose() => TryConfigureAsAccessory();
+    private void OnWindowWillClose()
+    {
+        _bridge?.WindowClosed();
+        TryConfigureAsAccessory();
+    }
+
+    private void Close() => MainThread.Run(() => _host?.Close());
 
     private void TryConfigureAsAccessory()
     {
@@ -81,6 +101,12 @@ internal sealed class MacWebWindowController : IDisposable
 
     private void OnMessageReceived(string json)
     {
+        if (_bridge != null)
+        {
+            Observe(HandleMessageAsync(json));
+            return;
+        }
+
         try
         {
             using JsonDocument document = JsonDocument.Parse(json);
@@ -112,4 +138,25 @@ internal sealed class MacWebWindowController : IDisposable
             Logger.Error("Falha ao responder mensagem da interface web", exception);
         }
     }
+
+    private async Task HandleMessageAsync(string json)
+    {
+        string? response = await _bridge!.HandleAsync(json).ConfigureAwait(false);
+        if (response != null) PostToHost(response);
+    }
+
+    private void PostToHost(string json)
+        => MainThread.Run(() =>
+        {
+            if (!_disposed) _host?.PostJson(json);
+        });
+
+    private static void Observe(Task task)
+        => _ = task.ContinueWith(
+            failed => Logger.Error(
+                "Falha ao processar mensagem da interface web",
+                failed.Exception!.GetBaseException()),
+            CancellationToken.None,
+            TaskContinuationOptions.OnlyOnFaulted,
+            TaskScheduler.Default);
 }

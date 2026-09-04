@@ -132,7 +132,32 @@ public sealed class Config
         ArgumentNullException.ThrowIfNull(paths);
         ArgumentNullException.ThrowIfNull(raw);
         Directory.CreateDirectory(paths.DataDirectory);
-        File.WriteAllText(paths.ConfigFile, JsonSerializer.Serialize(raw, WriteOptions));
+        string temporaryPath = Path.Combine(
+            paths.DataDirectory,
+            $".{Path.GetFileName(paths.ConfigFile)}.{Guid.NewGuid():N}.tmp");
+        try
+        {
+            using (var stream = new FileStream(
+                temporaryPath,
+                FileMode.CreateNew,
+                FileAccess.Write,
+                FileShare.None,
+                bufferSize: 4096,
+                FileOptions.WriteThrough))
+            {
+                JsonSerializer.Serialize(stream, raw, WriteOptions);
+                stream.Flush(flushToDisk: true);
+            }
+            File.Move(temporaryPath, paths.ConfigFile, overwrite: true);
+            temporaryPath = "";
+        }
+        finally
+        {
+            if (temporaryPath.Length > 0)
+            {
+                try { File.Delete(temporaryPath); } catch { }
+            }
+        }
     }
 
     public static Config FromRaw(

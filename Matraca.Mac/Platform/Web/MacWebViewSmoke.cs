@@ -103,23 +103,50 @@ internal static class MacWebViewSmoke
 
             host.Hide();
             bool uiReady = false;
+            bool uiDataReady = false;
+            bool microphoneReady = false;
             int pageCount = 0;
             int spectrumBandCount = 0;
-            using var appHost = new MacWebViewHost(assetRoot, "Matraca UI Smoke");
+            int deviceCount = 0;
+            using var appHost = new MacWebViewHost(
+                assetRoot,
+                "Matraca UI Smoke",
+                entryPath: "#microphone");
+            using var bridge = new MacWebBridge(app: null);
+            bridge.MessageProduced += message => MainThread.Post(() => appHost.PostJson(message));
             appHost.MessageReceived += message =>
             {
                 using JsonDocument document = JsonDocument.Parse(message);
                 JsonElement root = document.RootElement;
-                if (!root.TryGetProperty("type", out JsonElement type)
-                    || type.GetString() != "ui.ready"
-                    || !root.TryGetProperty("payload", out JsonElement payload))
-                    return;
-                uiReady = true;
-                pageCount = payload.GetProperty("pageCount").GetInt32();
-                spectrumBandCount = payload.GetProperty("spectrumBandCount").GetInt32();
+                if (!root.TryGetProperty("type", out JsonElement type)) return;
+                if (type.GetString() == "request")
+                {
+                    string? response = bridge.HandleAsync(message).GetAwaiter().GetResult();
+                    if (response != null) appHost.PostJson(response);
+                }
+                else if (type.GetString() == "ui.ready"
+                    && root.TryGetProperty("payload", out JsonElement readyPayload))
+                {
+                    uiReady = true;
+                    pageCount = readyPayload.GetProperty("pageCount").GetInt32();
+                    spectrumBandCount = readyPayload.GetProperty("spectrumBandCount").GetInt32();
+                }
+                else if (type.GetString() == "ui.dataReady"
+                    && root.TryGetProperty("payload", out JsonElement dataPayload))
+                {
+                    uiDataReady = true;
+                    deviceCount = dataPayload.GetProperty("deviceCount").GetInt32();
+                }
+                else if (type.GetString() == "ui.micReady"
+                    && root.TryGetProperty("payload", out JsonElement microphonePayload))
+                {
+                    microphoneReady = microphonePayload.GetProperty("hasFiniteLevel").GetBoolean()
+                        && microphonePayload.GetProperty("bandCount").GetInt32() == 48;
+                }
             };
             var uiElapsed = Stopwatch.StartNew();
-            while (!uiReady && uiElapsed.ElapsedMilliseconds < 5000)
+            while ((!uiReady || !uiDataReady || !microphoneReady)
+                && uiElapsed.ElapsedMilliseconds < 7000)
             {
                 IntPtr until = ObjC.SendDouble(
                     ObjCClasses.NSDate,
@@ -137,8 +164,11 @@ internal static class MacWebViewSmoke
                 && host.BlockedAssetCount >= 1
                 && host.BlockedNavigationCount >= 1
                 && uiReady
+                && uiDataReady
+                && microphoneReady
                 && pageCount == 5
                 && spectrumBandCount == 48
+                && deviceCount > 0
                 && appHost.ServedAssetCount >= 4
                 && appHost.LastAssetError == null;
             File.WriteAllText(resultPath, JsonSerializer.Serialize(new
@@ -154,8 +184,11 @@ internal static class MacWebViewSmoke
                 host.BlockedNavigationCount,
                 host.LastAssetError,
                 uiReady,
+                uiDataReady,
+                microphoneReady,
                 pageCount,
                 spectrumBandCount,
+                deviceCount,
                 uiServedAssetCount = appHost.ServedAssetCount,
                 uiAssetError = appHost.LastAssetError,
                 receivedMessages = messages,

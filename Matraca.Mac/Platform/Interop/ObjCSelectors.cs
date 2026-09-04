@@ -69,6 +69,7 @@ internal static class ObjCSelectors
         Register("runningApplicationWithProcessIdentifier:");
     public static readonly IntPtr ActivateWithOptions = Register("activateWithOptions:");
     public static readonly IntPtr SharedWorkspace = Register("sharedWorkspace");
+    public static readonly IntPtr OpenURL = Register("openURL:");
     public static readonly IntPtr NotificationCenter = Register("notificationCenter");
     public static readonly IntPtr DefaultCenter = Register("defaultCenter");
     public static readonly IntPtr AddObserver = Register("addObserver:selector:name:object:");

@@ -18,11 +18,19 @@ internal static class MacConfig
     public static Matraca.Core.Config Load()
     {
         EnsureUserConfig();
-        string json = File.ReadAllText(Paths.ConfigFile);
-        RawConfig raw = JsonSerializer.Deserialize<RawConfig>(json, ReadOptions)
-            ?? throw new JsonException("appsettings.json is empty.");
-        return Matraca.Core.Config.FromRaw(raw, warning: Logger.Warn, paths: Paths);
+        return Matraca.Core.Config.FromRaw(LoadRaw(), warning: Logger.Warn, paths: Paths);
     }
+
+    public static RawConfig LoadRaw()
+    {
+        EnsureUserConfig();
+        string json = File.ReadAllText(Paths.ConfigFile);
+        return JsonSerializer.Deserialize<RawConfig>(json, ReadOptions)
+            ?? throw new JsonException("appsettings.json is empty.");
+    }
+
+    public static void SaveRaw(RawConfig raw)
+        => Matraca.Core.Config.SaveRaw(Paths, raw);
 
     private static void EnsureUserConfig()
     {

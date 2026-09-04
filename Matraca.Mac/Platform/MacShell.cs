@@ -11,8 +11,14 @@ internal sealed class MacShell : IShell
     public MacShell(MacStatusItem statusItem)
         => _statusItem = statusItem ?? throw new ArgumentNullException(nameof(statusItem));
 
+    public event Action<ShellState, string>? StateChanged;
+    public ShellState CurrentState { get; private set; } = ShellState.Idle;
+    public string CurrentText { get; private set; } = "Matraca pronto.";
+
     public void SetState(ShellState state, string text)
     {
+        CurrentState = state;
+        CurrentText = text;
         string title = state switch
         {
             ShellState.Recording => "Matraca REC",
@@ -21,6 +27,7 @@ internal sealed class MacShell : IShell
             _ => "Matraca",
         };
         _statusItem.SetState(title, text);
+        StateChanged?.Invoke(state, text);
     }
 
     public void ShowNotification(
@@ -44,6 +51,7 @@ internal sealed class MacShell : IShell
 
     public void Dispose()
     {
+        StateChanged = null;
         _soundPlayer.Dispose();
         // MacStatusItem is owned by Program and outlives the dictation controller.
     }

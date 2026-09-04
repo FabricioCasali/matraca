@@ -50,32 +50,35 @@ internal static class Program
             application.ConfigureAsAccessory();
             MainThread.Initialize();
             using var statusItem = new MacStatusItem(application);
+            Matraca.Core.Config config = MacConfig.Load();
+            bool trusted = Accessibility.IsTrusted(prompt: true);
+            using MacTrayApp? trayApp = trusted ? new MacTrayApp(config, statusItem) : null;
+            using var bridge = new MacWebBridge(trayApp);
             using var webWindow = new MacWebWindowController(
                 application,
                 statusItem,
-                WebAssetRoot.Resolve());
-
-            Matraca.Core.Config config = MacConfig.Load();
-            bool trusted = Accessibility.IsTrusted(prompt: true);
-            if (trusted)
+                WebAssetRoot.Resolve(),
+                bridge);
+            using var termination = new MacTerminationHandshake(
+                application,
+                async cancellation =>
+                {
+                    await bridge.ShutdownAsync(cancellation).ConfigureAwait(false);
+                    if (trayApp != null)
+                        await trayApp.ShutdownAsync(cancellation).ConfigureAwait(false);
+                });
+            if (trayApp != null)
             {
-                using var trayApp = new MacTrayApp(config, statusItem);
-                using var termination = new MacTerminationHandshake(application, trayApp.ShutdownAsync);
                 trayApp.Start();
                 Logger.Info("Matraca.Mac iniciado como app Accessory.");
-                application.Run();
-                termination.RequestShutdownAsync().GetAwaiter().GetResult();
             }
             else
             {
-                using var termination = new MacTerminationHandshake(
-                    application,
-                    _ => Task.CompletedTask);
                 statusItem.SetState("Matraca !", "Acessibilidade necessaria; conceda e reinicie o Matraca.");
                 Logger.Warn("Permissao de Acessibilidade ausente; conceda e reinicie o Matraca.");
-                application.Run();
-                termination.RequestShutdownAsync().GetAwaiter().GetResult();
             }
+            application.Run();
+            termination.RequestShutdownAsync().GetAwaiter().GetResult();
             return 0;
         }
         catch (Exception exception)

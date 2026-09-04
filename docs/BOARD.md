@@ -25,8 +25,10 @@ O desenho da frente 2.0 está em [`PLANO-2.0.md`](PLANO-2.0.md).
   `WKWebView` aberto apenas pelo menu, ponte versionada com placeholders, assets locais
   empacotados e navegação externa bloqueada. Correções do casco implementadas para
   aparecer no Dock/Command-Tab apenas com a janela aberta e permitir arraste pela barra
-  nativa; smoke verde, falta validação manual dos dois gestos. Restam ligar as telas ao
-  Core e portar o mesmo contrato para o WebView2 no Windows. · `[2.0]` · G · importante
+  nativa; smoke verde, falta validação manual dos dois gestos. Ponte real já liga estado,
+  histórico, modo, Enter automático, limiar e monitor de microfone com FFT/VAD ao Core.
+  Restam captura de tecla, demais parâmetros, onboarding/download, HUD overlay e portar
+  o contrato para o WebView2 no Windows. · `[2.0]` · G · importante
 
 ## 📋 A fazer
 
