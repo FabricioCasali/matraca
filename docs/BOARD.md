@@ -37,7 +37,8 @@ O desenho da frente 2.0 está em [`PLANO-2.0.md`](PLANO-2.0.md).
 - **MT-019** **Ditado grava, mas não entrega texto no Mac** — com `F15`, o Matraca marca
   corretamente a janela de destino e grava o áudio, porém nenhum texto é inserido ao
   finalizar. Reproduzido no `node-terminal` e em editor de texto durante a validação da
-  UI 2.0. · `[2.0]` · P · importante
+  UI 2.0. A entrega por `clipboard` funciona; a falha ocorre com `pasteMethod: "unicode"`.
+  · `[2.0]` · P · importante
 - **MT-006** **Fase 4 — o Windows muda de casa** — WebView2 em HWND cru, Shell_NotifyIcon,
   e as quatro telas WinForms aposentadas. Só apaga quando a paridade estiver de
   pé. · `[2.0]` · G · importante
