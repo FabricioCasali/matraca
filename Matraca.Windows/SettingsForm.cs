@@ -74,6 +74,8 @@ internal sealed class SettingsForm : Form
     private readonly TextBox _postApiKeyBox;
     private readonly NumericUpDown _postTimeoutBox;
     private readonly TextBox _postPromptBox;
+    private string _postAnthropicApiKey;
+    private string _postOpenAiApiKey;
 
     private string _hotkeyValue;      // o que vai pro JSON ("F15", "Ctrl+Alt+X" ou "discover")
     private string _pinHotkeyValue;   // idem p/ fixar janela; vazio = recurso desligado
@@ -98,6 +100,8 @@ internal sealed class SettingsForm : Form
         _shell = shell;
         var cfg = WindowsConfig.Load();
         var raw = WindowsConfig.LoadRaw();
+        _postAnthropicApiKey = raw.postProcessApiKey?.Trim() ?? "";
+        _postOpenAiApiKey = raw.postProcessOpenAiApiKey?.Trim() ?? "";
 
         _hotkeyValue = cfg.HotkeyName;
         _pinHotkeyValue = cfg.PinHotkeyName;
@@ -315,6 +319,7 @@ internal sealed class SettingsForm : Form
 
         // =========================== AVANÇADO ===========================
         var gAdv = NewGrid();
+        bool selectedPostProviderSupported = cfg.PostProcessProvider is "anthropic" or "openai-compatible";
 
         var histPanel = NewRowPanel();
         _historyBox = new CheckBox { Text = "Guardar transcrições recentes", Checked = cfg.History, AutoSize = true };
@@ -329,7 +334,8 @@ internal sealed class SettingsForm : Form
         _postProcessBox = new CheckBox
         {
             Text = "Revisar o texto com um modelo de IA",
-            Checked = cfg.PostProcess,
+            Checked = cfg.PostProcess && selectedPostProviderSupported,
+            Enabled = selectedPostProviderSupported,
             AutoSize = true,
         };
         AddRow(gAdv, "Pós-processamento", _postProcessBox,
@@ -338,7 +344,9 @@ internal sealed class SettingsForm : Form
 
         _postProviderBox = new ComboBox { Width = 220, DropDownStyle = ComboBoxStyle.DropDownList };
         _postProviderBox.Items.AddRange(["anthropic", "openai-compatible"]);
-        _postProviderBox.SelectedItem = cfg.PostProcessProvider;
+        string selectedPostProvider = cfg.PostProcessProvider;
+        if (!selectedPostProviderSupported) _postProviderBox.Items.Add(selectedPostProvider);
+        _postProviderBox.SelectedItem = selectedPostProvider;
         AddRow(gAdv, "Provedor", _postProviderBox);
 
         _postEndpointBox = new TextBox { Width = 320, Text = cfg.PostProcessEndpoint };
@@ -354,9 +362,17 @@ internal sealed class SettingsForm : Form
           + "Endpoints locais OpenAI-compatible podem dispensar chave.");
         _postProviderBox.SelectedIndexChanged += (_, _) =>
         {
-            if ((string?)_postProviderBox.SelectedItem == cfg.PostProcessProvider) return;
+            string provider = (string)_postProviderBox.SelectedItem!;
+            if (provider == selectedPostProvider) return;
+            if (selectedPostProvider == "openai-compatible") _postOpenAiApiKey = "";
+            else if (selectedPostProvider == "anthropic") _postAnthropicApiKey = "";
+            selectedPostProvider = provider;
+            selectedPostProviderSupported = provider is "anthropic" or "openai-compatible";
+            _postProcessBox.Enabled = selectedPostProviderSupported;
             _postProcessBox.Checked = false;
-            _postApiKeyBox.Clear();
+            _postApiKeyBox.Text = provider == "openai-compatible"
+                ? _postOpenAiApiKey
+                : _postAnthropicApiKey;
         };
 
         _postTimeoutBox = NewNumeric(1000m, 60000m, cfg.PostProcessTimeoutMs, 500m, 0);
@@ -621,6 +637,11 @@ internal sealed class SettingsForm : Form
 
         try
         {
+            string postProcessProvider = (string)_postProviderBox.SelectedItem!;
+            if (postProcessProvider == "openai-compatible")
+                _postOpenAiApiKey = _postApiKeyBox.Text.Trim();
+            else
+                _postAnthropicApiKey = _postApiKeyBox.Text.Trim();
             WindowsConfig.SaveRaw(new RawConfig
             {
                 modelPath = _modelPathBox.Text.Trim(),
@@ -652,10 +673,11 @@ internal sealed class SettingsForm : Form
                 history = _historyBox.Checked,
                 historyMaxItems = (int)_historyMaxBox.Value,
                 postProcess = _postProcessBox.Checked,
-                postProcessProvider = (string)_postProviderBox.SelectedItem!,
+                postProcessProvider = postProcessProvider,
                 postProcessEndpoint = NullIfBlank(_postEndpointBox.Text),
                 postProcessModel = _postModelBox.Text.Trim(),
-                postProcessApiKey = _postApiKeyBox.Text.Trim(),
+                postProcessApiKey = NullIfBlank(_postAnthropicApiKey),
+                postProcessOpenAiApiKey = NullIfBlank(_postOpenAiApiKey),
                 postProcessPrompt = NullIfBlank(_postPromptBox.Text),
                 postProcessTimeoutMs = (int)_postTimeoutBox.Value,
             });

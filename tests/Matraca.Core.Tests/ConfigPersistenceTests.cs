@@ -67,6 +67,7 @@ public sealed class ConfigPersistenceTests
                 autoEnter = true,
                 postProcessProvider = "openai-compatible",
                 postProcessEndpoint = "http://localhost:11434/v1/chat/completions",
+                postProcessOpenAiApiKey = "openai-secret",
             });
 
             using var document = JsonDocument.Parse(File.ReadAllText(paths.ConfigFile));
@@ -78,6 +79,7 @@ public sealed class ConfigPersistenceTests
             Assert.Equal(
                 "http://localhost:11434/v1/chat/completions",
                 json.GetProperty("postProcessEndpoint").GetString());
+            Assert.Equal("openai-secret", json.GetProperty("postProcessOpenAiApiKey").GetString());
             Assert.False(json.TryGetProperty("pinHotkey", out _));
             Assert.Empty(Directory.EnumerateFiles(
                 paths.DataDirectory,

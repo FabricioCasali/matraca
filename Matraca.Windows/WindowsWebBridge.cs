@@ -513,10 +513,15 @@ internal sealed class WindowsWebBridge : IDisposable
         var result = new Dictionary<string, object?>();
         foreach (JsonProperty property in serialized.EnumerateObject())
         {
-            if (property.Name == nameof(RawConfig.postProcessApiKey)) continue;
+            if (property.Name is nameof(RawConfig.postProcessApiKey)
+                or nameof(RawConfig.postProcessOpenAiApiKey)) continue;
             result[property.Name] = property.Value.Clone();
         }
-        result["postProcessApiKeyConfigured"] = !string.IsNullOrWhiteSpace(raw.postProcessApiKey);
+        string provider = Config.NormalizePostProcessProvider(raw.postProcessProvider);
+        result["postProcessProvider"] = provider;
+        bool openAiCompatible = provider == "openai-compatible";
+        result["postProcessApiKeyConfigured"] = !string.IsNullOrWhiteSpace(
+            openAiCompatible ? raw.postProcessOpenAiApiKey : raw.postProcessApiKey);
         return result;
     }
 

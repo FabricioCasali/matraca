@@ -124,7 +124,8 @@ The same file can be edited by hand (`appsettings.json`):
 | `postProcessProvider` | `anthropic` | `anthropic` or `openai-compatible`. |
 | `postProcessEndpoint` | `""` | Full chat completions URL. For OpenAI-compatible, empty uses `https://api.openai.com/v1/chat/completions`. |
 | `postProcessModel` | `claude-opus-5` | Model name used for review. |
-| `postProcessApiKey` | `""` | Provider API key. Empty uses `ANTHROPIC_API_KEY` or `OPENAI_API_KEY`; local OpenAI-compatible endpoints may omit it. |
+| `postProcessApiKey` | `""` | Anthropic API key. Empty uses `ANTHROPIC_API_KEY`. |
+| `postProcessOpenAiApiKey` | `""` | OpenAI-compatible API key. Empty uses `OPENAI_API_KEY`; local endpoints may omit it. Credentials are never shared between providers. |
 | `postProcessPrompt` | `""` | Custom cleanup instruction. Empty = built-in default. |
 | `postProcessTimeoutMs` | `8000` | If the model takes longer than this, the original transcription is delivered unchanged. |
 

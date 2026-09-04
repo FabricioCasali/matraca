@@ -28,12 +28,30 @@ public sealed class ConfigTests
     [InlineData("anthropic", "anthropic")]
     [InlineData("openai", "openai-compatible")]
     [InlineData("openai-compatible", "openai-compatible")]
+    [InlineData(" OPENAI ", "openai-compatible")]
     [InlineData("unknown", "unknown")]
     public void PostProcessProviderUsesCanonicalValues(string raw, string expected)
     {
         var config = Config.FromRaw(new RawConfig { postProcessProvider = raw });
 
         Assert.Equal(expected, config.PostProcessProvider);
+    }
+
+    [Fact]
+    public void PostProcessCredentialsAreBoundToTheirProvider()
+    {
+        var raw = new RawConfig
+        {
+            postProcessProvider = "openai-compatible",
+            postProcessApiKey = "anthropic-secret",
+            postProcessOpenAiApiKey = "openai-secret",
+        };
+
+        Assert.Equal("openai-secret", Config.FromRaw(raw).PostProcessApiKey);
+        raw.postProcessOpenAiApiKey = null;
+        Assert.Equal("", Config.FromRaw(raw).PostProcessApiKey);
+        raw.postProcessProvider = "anthropic";
+        Assert.Equal("anthropic-secret", Config.FromRaw(raw).PostProcessApiKey);
     }
 
     [Theory]

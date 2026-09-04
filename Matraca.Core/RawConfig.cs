@@ -26,6 +26,7 @@ public sealed class RawConfig
     public string? postProcessEndpoint { get; set; }
     public string? postProcessModel { get; set; }
     public string? postProcessApiKey { get; set; }
+    public string? postProcessOpenAiApiKey { get; set; }
     public string? postProcessPrompt { get; set; }
     public int? postProcessTimeoutMs { get; set; }
     public int? idleUnloadMinutes { get; set; }

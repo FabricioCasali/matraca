@@ -121,7 +121,8 @@ O mesmo arquivo pode ser editado na mão (`appsettings.json`):
 | `postProcessProvider` | `anthropic` | `anthropic` ou `openai-compatible`. |
 | `postProcessEndpoint` | `""` | URL completa de chat completions. No provedor OpenAI-compatible, vazio usa `https://api.openai.com/v1/chat/completions`. |
 | `postProcessModel` | `claude-opus-5` | Nome do modelo usado na revisão. |
-| `postProcessApiKey` | `""` | Chave do provedor. Vazio usa `ANTHROPIC_API_KEY` ou `OPENAI_API_KEY`; endpoints locais OpenAI-compatible podem dispensar chave. |
+| `postProcessApiKey` | `""` | Chave da Anthropic. Vazio usa `ANTHROPIC_API_KEY`. |
+| `postProcessOpenAiApiKey` | `""` | Chave OpenAI-compatible. Vazio usa `OPENAI_API_KEY`; endpoints locais podem dispensá-la. Credenciais nunca são compartilhadas entre provedores. |
 | `postProcessPrompt` | `""` | Instrução customizada de limpeza. Vazio = usa a padrão embutida. |
 | `postProcessTimeoutMs` | `8000` | Passando disso, entrega a transcrição original sem limpar. |
 

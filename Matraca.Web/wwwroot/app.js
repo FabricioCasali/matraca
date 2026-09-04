@@ -98,6 +98,10 @@
       ? "Configurada; digite apenas para substituir."
       : "Não configurada; nunca é devolvida à interface.");
     const openAiCompatible = state.config.postProcessProvider === "openai-compatible";
+    const apiKey = document.querySelector("[data-config-secret]");
+    if (apiKey) apiKey.dataset.configSecret = openAiCompatible
+      ? "postProcessOpenAiApiKey"
+      : "postProcessApiKey";
     document.querySelectorAll("[data-openai-compatible]")
       .forEach(element => element.hidden = !openAiCompatible);
     text("[data-review-provider-effect]", openAiCompatible
@@ -420,9 +424,14 @@
       const value = control.hasAttribute("data-config-list")
         ? control.value.split(/[\n,]/).map(item => item.trim()).filter(Boolean)
         : numeric ? Number(control.value) : control.value;
-      saveConfig(field === "postProcessProvider" && value !== state.config?.postProcessProvider
-        ? { postProcessProvider: value, postProcess: false, postProcessApiKey: null }
-        : { [field]: value });
+      if (field === "postProcessProvider" && value !== state.config?.postProcessProvider) {
+        const apiKeyField = state.config?.postProcessProvider === "openai-compatible"
+          ? "postProcessOpenAiApiKey"
+          : "postProcessApiKey";
+        saveConfig({ postProcessProvider: value, postProcess: false, [apiKeyField]: null });
+      } else {
+        saveConfig({ [field]: value });
+      }
     });
   });
   document.querySelectorAll("[data-config-toggle]").forEach(control => {

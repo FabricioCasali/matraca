@@ -29,7 +29,7 @@ public sealed class TextPostProcessorTests
             postProcessProvider = "openai-compatible",
             postProcessEndpoint = "file:///tmp/reviewer",
             postProcessModel = "model",
-            postProcessApiKey = "secret",
+            postProcessOpenAiApiKey = "secret",
         });
 
         Assert.Null(TextPostProcessor.TryCreate(config));

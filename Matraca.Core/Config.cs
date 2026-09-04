@@ -195,6 +195,8 @@ public sealed class Config
             }
         }
 
+        string postProcessProvider = NormalizePostProcessProvider(raw.postProcessProvider);
+
         return new Config
         {
             ModelPath = ResolveConfiguredPath(raw.modelPath, paths),
@@ -222,12 +224,14 @@ public sealed class Config
             History = raw.history ?? true,
             HistoryMaxItems = Math.Clamp(raw.historyMaxItems ?? 100, 1, 5000),
             PostProcess = raw.postProcess ?? false,
-            PostProcessProvider = NormalizePostProcessProvider(raw.postProcessProvider),
+            PostProcessProvider = postProcessProvider,
             PostProcessEndpoint = (raw.postProcessEndpoint ?? "").Trim(),
             PostProcessModel = string.IsNullOrWhiteSpace(raw.postProcessModel)
                 ? "claude-opus-5"
                 : raw.postProcessModel.Trim(),
-            PostProcessApiKey = (raw.postProcessApiKey ?? "").Trim(),
+            PostProcessApiKey = ((postProcessProvider == "openai-compatible"
+                ? raw.postProcessOpenAiApiKey
+                : raw.postProcessApiKey) ?? "").Trim(),
             PostProcessPrompt = (raw.postProcessPrompt ?? "").Trim(),
             PostProcessTimeoutMs = Math.Clamp(raw.postProcessTimeoutMs ?? 8000, 1000, 60000),
             IdleUnloadMinutes = Math.Clamp(raw.idleUnloadMinutes ?? 5, 0, 240),
@@ -281,7 +285,7 @@ public sealed class Config
         };
     }
 
-    private static string NormalizePostProcessProvider(string? value)
+    public static string NormalizePostProcessProvider(string? value)
     {
         var provider = (value ?? "").Trim().ToLowerInvariant();
         if (provider.Length == 0 || provider == "anthropic") return "anthropic";
