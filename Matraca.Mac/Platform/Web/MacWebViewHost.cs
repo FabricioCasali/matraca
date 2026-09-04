@@ -19,6 +19,8 @@ internal sealed class MacWebViewHost : IDisposable
     private const nuint IgnoresCycle = 1 << 6;
     private const nuint FullScreenAuxiliary = 1 << 8;
     private const nuint CanJoinAllApplications = 1 << 18;
+    private const nuint WidthSizable = 1 << 1;
+    private const nuint HeightSizable = 1 << 4;
 
     private readonly MacUrlSchemeHandler _schemeHandler;
     private readonly MacScriptMessageHandler _messageHandler;
@@ -31,6 +33,7 @@ internal sealed class MacWebViewHost : IDisposable
     private readonly double _height;
     private IntPtr _configuration;
     private IntPtr _userContentController;
+    private IntPtr _contentView;
     private IntPtr _webView;
     private IntPtr _window;
     private bool _disposed;
@@ -112,6 +115,13 @@ internal sealed class MacWebViewHost : IDisposable
     internal bool IsNativeTitleHidden
         => ObjC.SendNInt(_window, ObjCSelectors.TitleVisibility) == HiddenTitle;
     internal CGRect DragRegionFrame => _dragView?.Frame ?? default;
+    internal bool DragRegionReceivesTitlebarHit
+        => _contentView != IntPtr.Zero
+            && _dragView != null
+            && ObjC.SendPoint(
+                _contentView,
+                ObjCSelectors.HitTest,
+                new CGPoint(_width / 2, _height - 24)) == _dragView.Handle;
 
     internal void PositionOverlayForTarget(CGRect target)
     {
@@ -269,11 +279,22 @@ internal sealed class MacWebViewHost : IDisposable
         ObjC.SendVoidBool(_window, ObjCSelectors.SetTitlebarAppearsTransparent, true);
         ObjC.SendVoid(_window, ObjCSelectors.SetTitle, NSStringRef.From(title));
         ObjC.SendVoidNInt(_window, ObjCSelectors.SetTitleVisibility, HiddenTitle);
-        ObjC.SendVoid(_window, ObjCSelectors.SetContentView, _webView);
+        _contentView = ObjC.SendInitView(
+            ObjC.Send(ObjCClasses.NSView, ObjCSelectors.Alloc),
+            ObjCSelectors.InitWithFrame,
+            new CGRect(0, 0, width, height));
+        if (_contentView == IntPtr.Zero)
+            throw new InvalidOperationException("NSView failed to create the WebKit content container.");
+        ObjC.SendVoidNUInt(
+            _webView,
+            ObjCSelectors.SetAutoresizingMask,
+            WidthSizable | HeightSizable);
+        ObjC.SendVoid(_contentView, ObjCSelectors.AddSubview, _webView);
         _windowDelegate.WindowWillClose += ForwardWindowWillClose;
         ObjC.SendVoid(_window, ObjCSelectors.SetDelegate, _windowDelegate.Handle);
         _dragView = new MacWindowDragView(new CGRect(80, height - 48, width - 144, 48));
-        ObjC.SendVoid(_webView, ObjCSelectors.AddSubview, _dragView.Handle);
+        ObjC.SendVoid(_contentView, ObjCSelectors.AddSubview, _dragView.Handle);
+        ObjC.SendVoid(_window, ObjCSelectors.SetContentView, _contentView);
         ObjC.SendVoid(_window, ObjCSelectors.Center);
     }
 
@@ -374,6 +395,11 @@ internal sealed class MacWebViewHost : IDisposable
             ObjC.SendVoid(_window, ObjCSelectors.Close);
             ObjC.SendVoid(_window, ObjCSelectors.Release);
             _window = IntPtr.Zero;
+        }
+        if (_contentView != IntPtr.Zero)
+        {
+            ObjC.SendVoid(_contentView, ObjCSelectors.Release);
+            _contentView = IntPtr.Zero;
         }
         if (_webView != IntPtr.Zero)
         {

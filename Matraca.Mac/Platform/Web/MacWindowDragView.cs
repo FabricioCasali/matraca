@@ -46,7 +46,14 @@ internal sealed unsafe class MacWindowDragView : IDisposable
                 ObjCSelectors.MouseDown,
                 (IntPtr)(delegate* unmanaged<IntPtr, IntPtr, IntPtr, void>)&OnMouseDown,
                 "v@:@")
+            .AddMethod(
+                ObjCSelectors.AcceptsFirstMouse,
+                (IntPtr)(delegate* unmanaged<IntPtr, IntPtr, IntPtr, byte>)&AcceptFirstMouse,
+                "B@:@")
             .Register();
+
+    [UnmanagedCallersOnly]
+    private static byte AcceptFirstMouse(IntPtr self, IntPtr command, IntPtr mouseEvent) => 1;
 
     [UnmanagedCallersOnly]
     private static void OnMouseDown(IntPtr self, IntPtr command, IntPtr mouseEvent)

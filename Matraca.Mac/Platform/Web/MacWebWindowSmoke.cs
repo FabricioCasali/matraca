@@ -36,6 +36,7 @@ internal static class MacWebWindowSmoke
             CGRect dragFrame = host.DragRegionFrame;
             bool opensRegular = application.ActivationPolicy == 0 && host.IsVisible;
             bool nativeTitleHidden = host.IsNativeTitleHidden;
+            bool dragRegionReceivesTitlebarHit = host.DragRegionReceivesTitlebarHit;
             bool dragRegionValid = dragFrame.Origin.X == 80
                 && dragFrame.Origin.Y == 672
                 && dragFrame.Size.Width == 896
@@ -75,6 +76,7 @@ internal static class MacWebWindowSmoke
                 && opensRegular
                 && nativeTitleHidden
                 && dragRegionValid
+                && dragRegionReceivesTitlebarHit
                 && minimizeKeepsRegular
                 && menuRestoresMinimized
                 && closeRestoresAccessory
@@ -87,6 +89,7 @@ internal static class MacWebWindowSmoke
                 opensRegular,
                 nativeTitleHidden,
                 dragRegionValid,
+                dragRegionReceivesTitlebarHit,
                 minimizeKeepsRegular,
                 menuRestoresMinimized,
                 closeRestoresAccessory,

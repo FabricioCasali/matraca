@@ -66,6 +66,9 @@ internal static class ObjC
     public static extern IntPtr SendDouble(IntPtr receiver, IntPtr selector, double value);
 
     [DllImport(Library, EntryPoint = "objc_msgSend")]
+    public static extern IntPtr SendPoint(IntPtr receiver, IntPtr selector, CGPoint point);
+
+    [DllImport(Library, EntryPoint = "objc_msgSend")]
     public static extern void SendVoid(IntPtr receiver, IntPtr selector);
 
     [DllImport(Library, EntryPoint = "objc_msgSend")]

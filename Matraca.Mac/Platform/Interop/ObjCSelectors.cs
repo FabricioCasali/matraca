@@ -88,6 +88,8 @@ internal static class ObjCSelectors
     public static readonly IntPtr RemoveFromSuperview = Register("removeFromSuperview");
     public static readonly IntPtr SetAutoresizingMask = Register("setAutoresizingMask:");
     public static readonly IntPtr MouseDown = Register("mouseDown:");
+    public static readonly IntPtr AcceptsFirstMouse = Register("acceptsFirstMouse:");
+    public static readonly IntPtr HitTest = Register("hitTest:");
     public static readonly IntPtr Window = Register("window");
     public static readonly IntPtr PerformWindowDragWithEvent =
         Register("performWindowDragWithEvent:");
