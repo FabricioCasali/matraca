@@ -31,30 +31,24 @@ O desenho da frente 2.0 está em [`PLANO-2.0.md`](PLANO-2.0.md).
   aceitar clique e segue o monitor do alvo. A fatia Windows já hospeda o mesmo painel em
   WebView2, com bridge v1, captura guiada, monitor de microfone, download e alvo preservado
   para repaste. Resta validação manual do conjunto nos dois sistemas. · `[2.0]` · G · importante
+- **MT-019** **Ditado grava, mas não entrega texto no Mac** — correção aplicada ao par
+  Unicode `keyDown`/`keyUp`, com smoke passando pela fila real e pelo event tap. Resta a
+  prova assistida de entrega em aplicativos reais. · `[2.0]` · P · importante
+- **MT-020** **Onboarding mostra modelos como `undefined`** — o contrato das bridges e o
+  smoke cobrem rótulo e tamanho do catálogo. Resta confirmar o seletor na UI real. · `[2.0]`
+  · P · importante
+- **MT-021** **Título duplicado na barra superior do Mac** — o título nativo continua como
+  metadado, mas fica oculto por `titleVisibility`; o smoke cobre a propriedade. Resta a
+  confirmação visual. · `[2.0]` · P · melhoria
+- **MT-022** **Permitir outros modelos de IA na revisão** — Anthropic e OpenAI-compatible
+  estão configuráveis a quente, com credenciais isoladas, HTTPS remoto obrigatório e
+  fallback para a transcrição original. Resta a prova assistida da configuração na UI. ·
+  `[2.0]` · M · melhoria
+- **MT-023** **Aumentar contraste do tema claro** — tokens ajustados e protegidos por razões
+  mínimas de contraste. Resta a confirmação visual nas telas da UI. · `[2.0]` · M · importante
 
 ## 📋 A fazer
 
-- **MT-019** **Ditado grava, mas não entrega texto no Mac** — com `F15`, o Matraca marca
-  corretamente a janela de destino e grava o áudio, porém nenhum texto é inserido ao
-  finalizar. Reproduzido no `node-terminal` e em editor de texto durante a validação da
-  UI 2.0. A entrega por `clipboard` funciona; a falha ocorre com `pasteMethod: "unicode"`.
-  · `[2.0]` · P · importante
-- **MT-020** **Onboarding mostra modelos como `undefined`** — o seletor do passo "Modelo
-  local" lista opções sem nome, incluindo `undefined` e `undefined · pronto`, embora o
-  modelo ativo seja exibido corretamente fora do seletor. Reproduzido visualmente na UI
-  2.0 do Mac. · `[2.0]` · P · importante
-- **MT-021** **Título duplicado na barra superior do Mac** — o título nativo da janela e
-  o título desenhado pela UI aparecem na mesma posição, deixando dois textos "Matraca"
-  sobrepostos no centro da barra superior. Reproduzido visualmente na janela principal
-  da UI 2.0. · `[2.0]` · P · melhoria
-- **MT-022** **Permitir outros modelos de IA na revisão** — o pós-processamento deve
-  permitir configurar outros provedores e modelos de IA, em vez de limitar a revisão
-  do texto ao Claude. O recurso continua opcional e desligado por padrão. · `[2.0]` · M ·
-  melhoria
-- **MT-023** **Aumentar contraste do tema claro** — fundos e bordas dos cards têm tons
-  próximos demais e dificultam distinguir seus limites; a tipografia também é clara
-  demais sobre o fundo. Reproduzido visualmente em diferentes telas da UI 2.0 com o
-  tema claro. · `[2.0]` · M · importante
 - **MT-006** **Fase 4 — o Windows muda de casa** — WebView2 em HWND cru, Shell_NotifyIcon,
   e as quatro telas WinForms aposentadas. Só apaga quando a paridade estiver de
   pé. · `[2.0]` · G · importante
