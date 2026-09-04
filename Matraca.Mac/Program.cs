@@ -4,6 +4,7 @@ using Matraca.Mac.Config;
 using Matraca.Mac.Platform;
 using Matraca.Mac.Platform.Audio;
 using Matraca.Mac.Platform.Interop;
+using Matraca.Mac.Platform.Keyboard;
 using Matraca.Mac.Platform.Speech;
 using Matraca.Mac.Platform.Text;
 using Matraca.Mac.Platform.Web;
@@ -34,6 +35,8 @@ internal static class Program
                 return MacWebViewSmoke.Run(args);
             if (args.Length > 0 && args[0] == "--window-smoke")
                 return MacWebWindowSmoke.Run(args);
+            if (args.Length > 0 && args[0] == "--keyboard-capture-smoke")
+                return MacKeyboardCaptureSmoke.Run(args);
 
             using MacSingleInstance? singleInstance = MacSingleInstance.TryAcquire(AppPaths.Current());
             if (singleInstance == null)
@@ -59,6 +62,9 @@ internal static class Program
                 statusItem,
                 WebAssetRoot.Resolve(),
                 bridge);
+            using MacHudWindowController? hudWindow = trayApp == null
+                ? null
+                : new MacHudWindowController(trayApp, WebAssetRoot.Resolve());
             using var termination = new MacTerminationHandshake(
                 application,
                 async cancellation =>

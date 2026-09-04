@@ -22,6 +22,7 @@ internal sealed class MacTrayApp : IDisposable
     private readonly object _webTargetGate = new();
     private readonly string _runtimeGpu;
     private CoreConfig _config;
+    private MacKeyboardHook _keyboard;
     private TargetToken? _webTarget;
     private MacConfigWatcher? _configWatcher;
     private MacSleepWakeMonitor? _sleepWakeMonitor;
@@ -35,13 +36,13 @@ internal sealed class MacTrayApp : IDisposable
         _runtimeGpu = config.Gpu;
         ArgumentNullException.ThrowIfNull(statusItem);
 
-        var keyboard = new MacKeyboardHook(config);
+        _keyboard = new MacKeyboardHook(config);
         _audio = new MacAudioCapture();
         _targets = new MacTargetWindow();
         _shell = new MacShell(statusItem);
         _controller = new DictationController(
             config,
-            keyboard,
+            _keyboard,
             _audio,
             new MacTextSink(_targets),
             _targets,
@@ -69,14 +70,34 @@ internal sealed class MacTrayApp : IDisposable
     }
 
     internal event Action<CoreConfig>? ConfigChanged;
+    internal event Action<bool>? DeliveryStarted
+    {
+        add => _controller.DeliveryStarted += value;
+        remove => _controller.DeliveryStarted -= value;
+    }
+    internal event Action<string, TextDeliveryResult, bool>? DeliveryCompleted
+    {
+        add => _controller.DeliveryCompleted += value;
+        remove => _controller.DeliveryCompleted -= value;
+    }
 
     internal CoreConfig CurrentConfig => _config;
     internal ShellState CurrentState => _shell.CurrentState;
     internal string CurrentStateText => _shell.CurrentText;
     internal RawConfig LoadRawConfig() => MacConfig.LoadRaw();
     internal IReadOnlyList<string> ListAudioDevices() => _audio.ListDevices();
+    internal bool TryGetActiveTargetBounds(out CGRect bounds)
+    {
+        bounds = default;
+        if (!MacTargetWindow.TryCaptureActiveLease(out MacTargetLease? lease)) return false;
+        using (lease)
+            return MacWindowVisibility.TryGetOnScreenBounds(lease, out CGRect quartzBounds)
+                && MacScreenCoordinates.TryQuartzToAppKit(quartzBounds, out bounds);
+    }
     internal List<DictationHistoryEntry> HistorySnapshot()
         => _controller.CurrentHistory?.Snapshot() ?? [];
+    internal Task<HotkeyGesture> CaptureHotkeyAsync(CancellationToken cancellationToken)
+        => _keyboard.CaptureNextAsync(cancellationToken);
 
     internal async Task<(RawConfig Config, bool RestartRequired)> ApplyAndSaveConfigPatchAsync(
         string patchJson)
@@ -286,17 +307,21 @@ internal sealed class MacTrayApp : IDisposable
             || config.DiscoverMode != previous.DiscoverMode;
         if (keyboardChanged)
         {
+            var replacement = new MacKeyboardHook(applicable);
             try
             {
-                await _controller.ApplyConfigAsync(applicable, new MacKeyboardHook(applicable))
+                await _controller.ApplyConfigAsync(applicable, replacement)
                     .ConfigureAwait(false);
+                _keyboard = replacement;
             }
             catch
             {
+                var restore = new MacKeyboardHook(previous);
                 try
                 {
-                    await _controller.ApplyConfigAsync(previous, new MacKeyboardHook(previous))
+                    await _controller.ApplyConfigAsync(previous, restore)
                         .ConfigureAwait(false);
+                    _keyboard = restore;
                 }
                 catch (Exception restoreException)
                 {

@@ -64,9 +64,9 @@ public static class ModelDownloader
             }
 
             var actual = new FileInfo(partPath).Length;
-            if (actual < model.Bytes / 2)
+            if (actual != model.Bytes)
                 throw new IOException(
-                    $"Download incompleto: {actual} bytes, esperado ~{model.Bytes}. Tente de novo.");
+                    $"Download incompleto: {actual} bytes, esperado {model.Bytes}. Tente de novo.");
 
             if (File.Exists(finalPath)) File.Delete(finalPath);
             File.Move(partPath, finalPath);

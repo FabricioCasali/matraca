@@ -15,4 +15,7 @@
 
   if (globalThis.matraca) globalThis.matraca.subscribe(applyState);
   else addEventListener("DOMContentLoaded", () => globalThis.matraca?.subscribe(applyState), { once: true });
+  document.addEventListener("DOMContentLoaded", () => {
+    globalThis.matraca?.notify("ui.hudReady", {});
+  }, { once: true });
 })();

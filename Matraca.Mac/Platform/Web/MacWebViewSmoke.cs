@@ -107,6 +107,8 @@ internal static class MacWebViewSmoke
             bool microphoneReady = false;
             int pageCount = 0;
             int spectrumBandCount = 0;
+            int settingsTabCount = 0;
+            int settingsControlCount = 0;
             int deviceCount = 0;
             using var appHost = new MacWebViewHost(
                 assetRoot,
@@ -130,6 +132,8 @@ internal static class MacWebViewSmoke
                     uiReady = true;
                     pageCount = readyPayload.GetProperty("pageCount").GetInt32();
                     spectrumBandCount = readyPayload.GetProperty("spectrumBandCount").GetInt32();
+                    settingsTabCount = readyPayload.GetProperty("settingsTabCount").GetInt32();
+                    settingsControlCount = readyPayload.GetProperty("settingsControlCount").GetInt32();
                 }
                 else if (type.GetString() == "ui.dataReady"
                     && root.TryGetProperty("payload", out JsonElement dataPayload))
@@ -155,6 +159,37 @@ internal static class MacWebViewSmoke
                 ObjC.SendVoid(runLoop, ObjCSelectors.RunUntilDate, until);
             }
 
+            bool hudReady = false;
+            using var hudHost = new MacWebViewHost(
+                assetRoot,
+                "Matraca HUD Smoke",
+                width: 430,
+                height: 92,
+                entryPath: "hud.html",
+                nonActivatingOverlay: true);
+            hudHost.MessageReceived += message =>
+            {
+                using JsonDocument document = JsonDocument.Parse(message);
+                if (document.RootElement.TryGetProperty("type", out JsonElement type)
+                    && type.GetString() == "ui.hudReady")
+                    hudReady = true;
+            };
+            hudHost.ShowExplicitly();
+            var hudElapsed = Stopwatch.StartNew();
+            while (!hudReady && hudElapsed.ElapsedMilliseconds < 2000)
+            {
+                IntPtr until = ObjC.SendDouble(
+                    ObjCClasses.NSDate,
+                    ObjCSelectors.DateWithTimeIntervalSinceNow,
+                    0.05);
+                ObjC.SendVoid(runLoop, ObjCSelectors.RunUntilDate, until);
+            }
+            bool hudNonActivating = !hudHost.CanBecomeKeyWindow
+                && !hudHost.CanBecomeMainWindow
+                && hudHost.IgnoresMouseEvents
+                && application.ActivationPolicy == 1;
+            hudHost.Hide();
+
             bool success = bridgeReady
                 && bridgeRoundTrip
                 && cssLoaded
@@ -168,7 +203,12 @@ internal static class MacWebViewSmoke
                 && microphoneReady
                 && pageCount == 5
                 && spectrumBandCount == 48
+                && settingsTabCount == 5
+                && settingsControlCount >= 26
                 && deviceCount > 0
+                && hudReady
+                && hudNonActivating
+                && hudHost.ServedAssetCount >= 4
                 && appHost.ServedAssetCount >= 4
                 && appHost.LastAssetError == null;
             File.WriteAllText(resultPath, JsonSerializer.Serialize(new
@@ -188,7 +228,12 @@ internal static class MacWebViewSmoke
                 microphoneReady,
                 pageCount,
                 spectrumBandCount,
+                settingsTabCount,
+                settingsControlCount,
                 deviceCount,
+                hudReady,
+                hudNonActivating,
+                hudServedAssetCount = hudHost.ServedAssetCount,
                 uiServedAssetCount = appHost.ServedAssetCount,
                 uiAssetError = appHost.LastAssetError,
                 receivedMessages = messages,

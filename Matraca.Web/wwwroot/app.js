@@ -6,10 +6,24 @@
   const routes = [...document.querySelectorAll("[data-route]")];
   const validRoutes = new Set(pages.map(page => page.dataset.page));
   const spectrum = document.querySelector("[data-spectrum]");
-  const state = { config: null, history: [], selectedHistoryId: null, monitoredDevice: "" };
+  const state = { config: null, history: [], devices: [], models: [], selectedHistoryId: null, monitoredDevice: "" };
+  const configDefaults = {
+    language: "pt", hotkey: "F15", pinHotkey: "", pinDelivery: "focus",
+    mode: "live", autoEnter: false,
+    beep: true, beepVolume: .8, silenceMs: 450, phraseMaxSeconds: 6,
+    startSound: "", stopSound: "", vocabulary: [],
+    inputDevice: "", history: true, historyMaxItems: 100,
+    postProcess: false, postProcessModel: "claude-opus-5", postProcessPrompt: "",
+    postProcessTimeoutMs: 8000, idleUnloadMinutes: 5, gpu: "auto",
+    focusBorder: true, focusBorderThickness: 4, focusBorderOpacity: .9,
+    focusBorderColor: "#E81123", focusBorderColorBusy: "#FFB900",
+    focusBorderColorPinned: "#0078D4",
+    pasteMethod: "unicode"
+  };
   let microphoneRequested = false;
   let microphoneGeneration = 0;
   let microphoneProofSent = false;
+  let capturingHotkey = false;
   let saveQueue = Promise.resolve();
 
   function text(selector, value) {
@@ -39,28 +53,86 @@
 
   function applyConfig(config) {
     if (!config) return;
-    state.config = config;
-    const hotkey = config.hotkey || "F15";
-    const model = config.modelPath?.split(/[\\/]/).pop();
+    state.config = {
+      ...configDefaults,
+      ...Object.fromEntries(Object.entries(config).filter(([, value]) => value != null))
+    };
+    const hotkey = state.config.hotkey;
+    const model = state.config.modelPath?.split(/[\\/]/).pop();
     text("[data-current-hotkey]", hotkey);
     text("[data-config-hotkey]", hotkey);
-    text("[data-config-language]", config.language || "pt");
+    text("[data-config-pin-hotkey]",
+      state.config.pinHotkey && state.config.pinHotkey !== "none"
+        ? state.config.pinHotkey
+        : "Nenhuma");
     text("[data-onboarding-hotkey]", hotkey);
     text("[data-onboarding-model]", model || "Modelo não configurado");
     text("[data-model-summary]", model
-      ? `${model} · ${config.gpu || "auto"}`
+      ? `${model} · ${state.config.gpu}`
       : "Modelo ainda não configurado");
     document.querySelectorAll("[data-config-mode] [data-value]").forEach(button => {
-      button.classList.toggle("active", button.dataset.value === (config.mode || "live"));
+      button.classList.toggle("active", button.dataset.value === state.config.mode);
     });
     document.querySelectorAll("[data-home-mode] [data-mode]").forEach(item => {
-      item.classList.toggle("active", item.dataset.mode === (config.mode || "live"));
+      item.classList.toggle("active", item.dataset.mode === state.config.mode);
     });
     const autoEnter = document.querySelector("[data-config-auto-enter]");
-    autoEnter?.classList.toggle("active", config.autoEnter === true);
+    autoEnter?.classList.toggle("active", state.config.autoEnter === true);
     autoEnter?.setAttribute(
       "aria-label",
-      `Enter automático ${config.autoEnter ? "ligado" : "desligado"}`);
+      `Enter automático ${state.config.autoEnter ? "ligado" : "desligado"}`);
+    document.querySelectorAll("[data-config-field]").forEach(control => {
+      const value = state.config[control.dataset.configField];
+      if (value != null)
+        control.value = control.hasAttribute("data-config-list") && Array.isArray(value)
+          ? value.join("\n")
+          : String(value);
+    });
+    document.querySelectorAll("[data-config-toggle]").forEach(control => {
+      const enabled = state.config[control.dataset.configToggle] === true;
+      control.classList.toggle("active", enabled);
+      control.setAttribute("aria-pressed", String(enabled));
+    });
+    text("[data-api-key-state]", state.config.postProcessApiKeyConfigured
+      ? "Configurada; digite apenas para substituir."
+      : "Não configurada; nunca é devolvida à interface.");
+    const modelSetup = document.querySelector("[data-model-setup]");
+    modelSetup?.classList.toggle("complete", Boolean(state.config.modelPath));
+    text("[data-model-icon]", state.config.modelPath ? "✓" : "↓");
+    updateConfigEffects();
+  }
+
+  function applyDevices(devices) {
+    state.devices = devices || [];
+    const select = document.querySelector("[data-device-select]");
+    if (!select) return;
+    select.replaceChildren(new Option("Padrão do sistema", ""));
+    for (const device of state.devices) select.append(new Option(device, device));
+    if (state.config) select.value = state.config.inputDevice || "";
+  }
+
+  function applyModels(models) {
+    state.models = models?.entries || [];
+    const select = document.querySelector("[data-model-choice]");
+    if (!select) return;
+    const selected = select.value;
+    select.replaceChildren(...state.models.map(model => new Option(
+      `${model.label}${model.downloaded ? " · pronto" : ""}`,
+      model.id)));
+    const preferred = state.models.find(model => model.id === selected)
+      || state.models.find(model => model.downloaded)
+      || state.models.find(model => model.id === "ggml-base.bin")
+      || state.models[0];
+    if (preferred) select.value = preferred.id;
+    const button = document.querySelector("[data-model-download]");
+    if (button && preferred) button.textContent = preferred.downloaded ? "Usar" : "Baixar";
+  }
+
+  function updateConfigEffects() {
+    const value = field => Number(document.querySelector(`[data-config-field="${field}"]`)?.value);
+    text("[data-config-effect=\"beepVolume\"]", `${Math.round(value("beepVolume") * 100)}% do volume máximo.`);
+    text("[data-config-effect=\"focusBorderThickness\"]", `${value("focusBorderThickness")} pixels ao redor do destino.`);
+    text("[data-config-effect=\"focusBorderOpacity\"]", `${Math.round(value("focusBorderOpacity") * 100)}% de opacidade.`);
   }
 
   function applyRuntime(runtime) {
@@ -230,6 +302,8 @@
     try {
       const snapshot = await globalThis.matraca.request("app.get");
       if (!snapshot?.config?.config) return;
+      applyDevices(snapshot.devices);
+      applyModels(snapshot.models);
       applyConfig(snapshot.config.config);
       setHistory(snapshot.history?.entries);
       applyRuntime(snapshot.state);
@@ -272,6 +346,99 @@
   });
   document.querySelector("[data-config-auto-enter]")?.addEventListener("click", () => {
     saveConfig({ autoEnter: state.config?.autoEnter !== true });
+  });
+  document.querySelectorAll("[data-settings-tab]").forEach(button => {
+    button.addEventListener("click", () => {
+      document.querySelectorAll("[data-settings-tab]").forEach(item =>
+        item.classList.toggle("active", item === button));
+      document.querySelectorAll("[data-settings-panel]").forEach(panel =>
+        panel.classList.toggle("active", panel.dataset.settingsPanel === button.dataset.settingsTab));
+    });
+  });
+  document.querySelector("[data-model-choice]")?.addEventListener("change", event => {
+    const model = state.models.find(item => item.id === event.currentTarget.value);
+    const button = document.querySelector("[data-model-download]");
+    if (button && model) button.textContent = model.downloaded ? "Usar" : "Baixar";
+  });
+  document.querySelector("[data-model-download]")?.addEventListener("click", async event => {
+    if (!globalThis.matraca || event.currentTarget.disabled) return;
+    const select = document.querySelector("[data-model-choice]");
+    const progress = document.querySelector("[data-model-progress]");
+    event.currentTarget.disabled = true;
+    event.currentTarget.textContent = "Preparando…";
+    if (progress) {
+      progress.hidden = false;
+      progress.removeAttribute("value");
+    }
+    try {
+      const result = await globalThis.matraca.request("model.download.start", { id: select.value });
+      applyModels(result.models);
+      applyConfig(result.config);
+      text("[data-onboarding-model]", `${result.path.split(/[\\/]/).pop()} pronto para uso`);
+    } catch (error) {
+      text("[data-onboarding-model]", error?.message || "Não foi possível baixar o modelo.");
+    } finally {
+      event.currentTarget.disabled = false;
+      if (progress) progress.hidden = true;
+      const selected = state.models.find(model => model.id === select.value);
+      event.currentTarget.textContent = selected?.downloaded ? "Usar" : "Baixar";
+    }
+  });
+  document.querySelectorAll("[data-config-field]").forEach(control => {
+    if (control.type === "range") control.addEventListener("input", updateConfigEffects);
+    control.addEventListener("change", () => {
+      const field = control.dataset.configField;
+      const numeric = control.type === "number" || control.type === "range";
+      const value = control.hasAttribute("data-config-list")
+        ? control.value.split(/[\n,]/).map(item => item.trim()).filter(Boolean)
+        : numeric ? Number(control.value) : control.value;
+      saveConfig({ [field]: value });
+    });
+  });
+  document.querySelectorAll("[data-config-toggle]").forEach(control => {
+    control.addEventListener("click", () => {
+      const field = control.dataset.configToggle;
+      saveConfig({ [field]: state.config?.[field] !== true });
+    });
+  });
+  document.querySelectorAll("[data-config-secret]").forEach(control => {
+    control.addEventListener("change", async () => {
+      if (!control.value) return;
+      await saveConfig({ [control.dataset.configSecret]: control.value });
+      control.value = "";
+    });
+  });
+  document.querySelectorAll("[data-hotkey-capture]").forEach(button => {
+    button.addEventListener("click", async event => {
+      if (capturingHotkey || !globalThis.matraca) return;
+      const field = event.currentTarget.dataset.hotkeyCapture;
+      const help = event.currentTarget.dataset.hotkeyHelpTarget;
+      const originalLabel = event.currentTarget.textContent;
+      capturingHotkey = true;
+      event.currentTarget.textContent = "Pressione uma tecla";
+      text(help, "O próximo atalho será capturado sem iniciar um ditado.");
+      try {
+        const result = await globalThis.matraca.request("hotkey.capture.start");
+        if (field === "pinHotkey" && result?.hotkey === state.config?.hotkey)
+          throw new Error("Use uma tecla diferente da tecla de ditado.");
+        if (field === "hotkey"
+          && state.config?.pinHotkey
+          && state.config.pinHotkey !== "none"
+          && result?.hotkey === state.config.pinHotkey)
+          throw new Error("Use uma tecla diferente da tecla que fixa o destino.");
+        if (result?.hotkey) await saveConfig({ [field]: result.hotkey });
+        text(help, "Atalho aplicado a quente.");
+      } catch (error) {
+        if (error?.code !== "canceled")
+          text(help, error?.message || "Não foi possível capturar o atalho.");
+      } finally {
+        capturingHotkey = false;
+        event.currentTarget.textContent = originalLabel;
+      }
+    });
+  });
+  document.querySelectorAll("[data-clear-config]").forEach(button => {
+    button.addEventListener("click", () => saveConfig({ [button.dataset.clearConfig]: "none" }));
   });
   document.querySelector("[data-threshold-input]")?.addEventListener("change", event => {
     const threshold = Number(event.currentTarget.value);
@@ -318,6 +485,9 @@
       "permissions.open-settings",
       { name: button.dataset.openPermission }));
   });
+  document.querySelector(".onboarding-footer button")?.addEventListener("click", () => {
+    location.hash = "home";
+  });
   globalThis.matraca?.subscribe(message => {
     if (message.type === "mic.frame") applyMicrophone(message.payload);
     if (message.type === "window.opened") {
@@ -326,6 +496,17 @@
       showRoute(location.hash.slice(1));
     }
     if (message.type === "hud.state") applyRuntime(message.payload);
+    if (message.type === "model.download.progress") {
+      const progress = document.querySelector("[data-model-progress]");
+      if (progress) {
+        progress.max = message.payload.total || 1;
+        progress.value = message.payload.done || 0;
+      }
+      const percent = message.payload.total
+        ? Math.round(message.payload.done / message.payload.total * 100)
+        : 0;
+      text("[data-onboarding-model]", `Baixando modelo local · ${percent}%`);
+    }
     if (message.type === "config.changed" && message.payload?.config)
       applyConfig(message.payload.config);
   });
@@ -334,6 +515,9 @@
   loadSnapshot();
   globalThis.matraca?.notify("ui.ready", {
     pageCount: pages.length,
-    spectrumBandCount: spectrum?.children.length ?? 0
+    spectrumBandCount: spectrum?.children.length ?? 0,
+    settingsTabCount: document.querySelectorAll("[data-settings-tab]").length,
+    settingsControlCount: document.querySelectorAll(
+      "[data-config-field],[data-config-toggle],[data-config-secret],[data-hotkey-capture],[data-config-auto-enter],[data-config-mode] [data-value]").length
   });
 })();

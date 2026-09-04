@@ -18,10 +18,15 @@ internal sealed class MacWebBridge : IDisposable
     private readonly MacTrayApp? _app;
     private readonly MacMicrophoneMonitor _microphone = new();
     private readonly SemaphoreSlim _microphoneGate = new(1, 1);
+    private readonly object _hotkeyCaptureGate = new();
+    private readonly object _modelDownloadGate = new();
     private readonly float[] _smoothedBands = new float[SpectrumAnalyzer.BandCount];
     private string _monitoredDevice = "";
     private float _peak;
     private int _microphoneGeneration;
+    private CancellationTokenSource? _hotkeyCaptureCancellation;
+    private CancellationTokenSource? _modelDownloadCancellation;
+    private Task<object>? _modelDownloadTask;
     private int _stopping;
     private int _disposed;
 
@@ -45,6 +50,7 @@ internal sealed class MacWebBridge : IDisposable
 
     public void WindowClosed()
     {
+        CancelHotkeyCapture();
         _app?.ReleaseWebTarget();
         Observe(StopMicrophoneAsync());
     }
@@ -80,6 +86,10 @@ internal sealed class MacWebBridge : IDisposable
                 "history.delete" => DeleteHistory(parameters),
                 "history.copy" => CopyHistory(parameters),
                 "history.repaste" => await RepasteHistoryAsync(parameters).ConfigureAwait(false),
+                "hotkey.capture.start" => await CaptureHotkeyAsync().ConfigureAwait(false),
+                "hotkey.capture.cancel" => CancelHotkeyCapture(),
+                "model.download.start" => await DownloadModelAsync(parameters).ConfigureAwait(false),
+                "model.download.cancel" => CancelModelDownload(),
                 "mic.monitor.start" => await StartMicrophoneAsync(parameters).ConfigureAwait(false),
                 "mic.monitor.stop" => await StopMicrophoneAsync().ConfigureAwait(false),
                 "permissions.get" => BuildPermissions(),
@@ -100,6 +110,10 @@ internal sealed class MacWebBridge : IDisposable
         {
             return ErrorResponse(GetRequestId(json), "permission_denied", exception.Message);
         }
+        catch (OperationCanceledException exception)
+        {
+            return ErrorResponse(GetRequestId(json), "canceled", exception.Message);
+        }
         catch (Exception exception)
         {
             Logger.Error("Falha ao executar comando da interface web", exception);
@@ -110,6 +124,18 @@ internal sealed class MacWebBridge : IDisposable
     public async Task ShutdownAsync(CancellationToken cancellationToken = default)
     {
         if (Interlocked.Exchange(ref _stopping, 1) != 0) return;
+        Task<object>? modelDownload;
+        lock (_modelDownloadGate)
+        {
+            _modelDownloadCancellation?.Cancel();
+            modelDownload = _modelDownloadTask;
+        }
+        if (modelDownload != null)
+        {
+            try { await modelDownload.WaitAsync(cancellationToken).ConfigureAwait(false); }
+            catch (OperationCanceledException) { }
+            catch (Exception exception) { Logger.Error("Download de modelo falhou no encerramento", exception); }
+        }
         Interlocked.Increment(ref _microphoneGeneration);
         await _microphoneGate.WaitAsync(cancellationToken).ConfigureAwait(false);
         try { await _microphone.StopAsync(cancellationToken).ConfigureAwait(false); }
@@ -126,6 +152,7 @@ internal sealed class MacWebBridge : IDisposable
             _app.ConfigChanged -= OnConfigChanged;
             _app.ReleaseWebTarget();
         }
+        CancelHotkeyCapture();
         _microphone.Frame -= OnMicrophoneFrame;
         _microphone.Dispose();
         MessageProduced = null;
@@ -139,6 +166,7 @@ internal sealed class MacWebBridge : IDisposable
         state = BuildState(),
         permissions = BuildPermissions(),
         devices = _app?.ListAudioDevices() ?? _microphone.ListDevices(),
+        models = BuildModels(),
     };
 
     private object BuildConfig()
@@ -215,6 +243,146 @@ internal sealed class MacWebBridge : IDisposable
             throw new InvalidOperationException(message);
         }
         return new { result = result.ToString().ToLowerInvariant() };
+    }
+
+    private async Task<object> CaptureHotkeyAsync()
+    {
+        if (_app == null)
+            throw new InvalidOperationException("O teclado do Matraca nao esta disponivel.");
+
+        CancellationTokenSource cancellation;
+        lock (_hotkeyCaptureGate)
+        {
+            _hotkeyCaptureCancellation?.Cancel();
+            _hotkeyCaptureCancellation?.Dispose();
+            cancellation = new CancellationTokenSource();
+            _hotkeyCaptureCancellation = cancellation;
+        }
+        try
+        {
+            HotkeyGesture gesture = await _app.CaptureHotkeyAsync(cancellation.Token)
+                .ConfigureAwait(false);
+            return new { hotkey = gesture.ToString() };
+        }
+        finally
+        {
+            lock (_hotkeyCaptureGate)
+            {
+                if (ReferenceEquals(_hotkeyCaptureCancellation, cancellation))
+                    _hotkeyCaptureCancellation = null;
+            }
+            cancellation.Dispose();
+        }
+    }
+
+    private object CancelHotkeyCapture()
+    {
+        lock (_hotkeyCaptureGate) _hotkeyCaptureCancellation?.Cancel();
+        return new { canceled = true };
+    }
+
+    private static object BuildModels()
+    {
+        HashSet<string> existing = ModelDownloader.Existing(MacConfig.Paths)
+            .Select(Path.GetFullPath)
+            .ToHashSet(StringComparer.Ordinal);
+        return new
+        {
+            entries = ModelDownloader.Catalog.Select(model =>
+            {
+                string path = ModelDownloader.PathFor(model, MacConfig.Paths);
+                return new
+                {
+                    id = model.FileName,
+                    model.Label,
+                    model.Bytes,
+                    downloaded = existing.Contains(Path.GetFullPath(path))
+                        && new FileInfo(path).Length == model.Bytes,
+                    path,
+                };
+            }).ToArray(),
+        };
+    }
+
+    private Task<object> DownloadModelAsync(JsonElement parameters)
+    {
+        MacTrayApp app = _app
+            ?? throw new InvalidOperationException("O runtime do Matraca nao esta disponivel.");
+        if (parameters.ValueKind != JsonValueKind.Object
+            || !parameters.TryGetProperty("id", out JsonElement idElement)
+            || idElement.ValueKind != JsonValueKind.String)
+            throw new JsonException("model.download.start exige params.id.");
+        string id = idElement.GetString()!;
+        ModelInfo model = ModelDownloader.Catalog.FirstOrDefault(item => item.FileName == id)
+            ?? throw new JsonException("O modelo solicitado nao pertence ao catalogo.");
+
+        CancellationTokenSource cancellation;
+        Task<object> task;
+        lock (_modelDownloadGate)
+        {
+            if (Volatile.Read(ref _stopping) != 0 || Volatile.Read(ref _disposed) != 0)
+                throw new InvalidOperationException("O Matraca esta encerrando.");
+            if (_modelDownloadCancellation != null)
+                throw new InvalidOperationException("Ja existe um download de modelo em andamento.");
+            cancellation = new CancellationTokenSource();
+            _modelDownloadCancellation = cancellation;
+            task = Task.Run(() => DownloadModelCoreAsync(app, model, cancellation));
+            _modelDownloadTask = task;
+        }
+        return task;
+    }
+
+    private async Task<object> DownloadModelCoreAsync(
+        MacTrayApp app,
+        ModelInfo model,
+        CancellationTokenSource cancellation)
+    {
+        try
+        {
+            string path = ModelDownloader.PathFor(model, MacConfig.Paths);
+            if (File.Exists(path) && new FileInfo(path).Length != model.Bytes)
+                File.Delete(path);
+            if (!File.Exists(path))
+            {
+                var progress = new Progress<(long done, long total)>(value => Emit(
+                    "model.download.progress",
+                    new { id = model.FileName, value.done, value.total }));
+                path = await ModelDownloader.DownloadAsync(
+                        model,
+                        progress,
+                        cancellation.Token,
+                        MacConfig.Paths)
+                    .ConfigureAwait(false);
+            }
+            (RawConfig raw, bool restartRequired) = await app.ApplyAndSaveConfigPatchAsync(
+                    JsonSerializer.Serialize(new { modelPath = path }))
+                .ConfigureAwait(false);
+            return new
+            {
+                path,
+                config = BuildPublicConfig(raw),
+                restartRequired,
+                models = BuildModels(),
+            };
+        }
+        finally
+        {
+            lock (_modelDownloadGate)
+            {
+                if (ReferenceEquals(_modelDownloadCancellation, cancellation))
+                {
+                    _modelDownloadCancellation = null;
+                    _modelDownloadTask = null;
+                }
+            }
+            cancellation.Dispose();
+        }
+    }
+
+    private object CancelModelDownload()
+    {
+        lock (_modelDownloadGate) _modelDownloadCancellation?.Cancel();
+        return new { canceled = true };
     }
 
     private DictationHistoryEntry FindHistoryEntry(JsonElement parameters)

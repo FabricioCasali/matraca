@@ -1,5 +1,6 @@
 using System.Text.Json;
 using Matraca.Mac.Platform.Interop;
+using Matraca.Mac.Platform.Overlay;
 
 namespace Matraca.Mac.Platform.Web;
 
@@ -11,6 +12,12 @@ internal sealed class MacWebViewHost : IDisposable
     private const nuint Resizable = 1 << 3;
     private const nuint FullSizeContentView = 1 << 15;
     private const nuint BufferedBackingStore = 2;
+    private const nint FloatingWindowLevel = 3;
+    private const nuint CanJoinAllSpaces = 1 << 0;
+    private const nuint Stationary = 1 << 4;
+    private const nuint IgnoresCycle = 1 << 6;
+    private const nuint FullScreenAuxiliary = 1 << 8;
+    private const nuint CanJoinAllApplications = 1 << 18;
 
     private readonly MacUrlSchemeHandler _schemeHandler;
     private readonly MacScriptMessageHandler _messageHandler;
@@ -18,6 +25,9 @@ internal sealed class MacWebViewHost : IDisposable
     private readonly MacWebWindowDelegate _windowDelegate;
     private MacWindowDragView? _dragView;
     private readonly IntPtr _application;
+    private readonly bool _nonActivatingOverlay;
+    private readonly double _width;
+    private readonly double _height;
     private IntPtr _configuration;
     private IntPtr _userContentController;
     private IntPtr _webView;
@@ -29,12 +39,16 @@ internal sealed class MacWebViewHost : IDisposable
         string title = "Matraca",
         double width = 1040,
         double height = 720,
-        string entryPath = "")
+        string entryPath = "",
+        bool nonActivatingOverlay = false)
     {
         MainThread.VerifyAccess();
         ArgumentException.ThrowIfNullOrWhiteSpace(title);
         if (!double.IsFinite(width) || !double.IsFinite(height) || width <= 0 || height <= 0)
             throw new ArgumentOutOfRangeException(nameof(width), "Window dimensions must be positive.");
+        _nonActivatingOverlay = nonActivatingOverlay;
+        _width = width;
+        _height = height;
 
         MacUrlSchemeHandler? schemeHandler = null;
         MacScriptMessageHandler? messageHandler = null;
@@ -91,11 +105,30 @@ internal sealed class MacWebViewHost : IDisposable
     internal IntPtr WindowHandle => _window;
     internal bool IsVisible => ObjC.SendBool(_window, ObjCSelectors.IsVisible);
     internal bool IsMiniaturized => ObjC.SendBool(_window, ObjCSelectors.IsMiniaturized);
+    internal bool CanBecomeKeyWindow => ObjC.SendBool(_window, ObjCSelectors.CanBecomeKeyWindow);
+    internal bool CanBecomeMainWindow => ObjC.SendBool(_window, ObjCSelectors.CanBecomeMainWindow);
+    internal bool IgnoresMouseEvents => ObjC.SendBool(_window, ObjCSelectors.IgnoresMouseEvents);
     internal CGRect DragRegionFrame => _dragView?.Frame ?? default;
+
+    internal void PositionOverlayForTarget(CGRect target)
+    {
+        VerifyUsable();
+        if (!_nonActivatingOverlay) return;
+        ObjC.SendVoidRectBool(
+            _window,
+            ObjCSelectors.SetFrameDisplay,
+            OverlayFrame(_width, _height, target),
+            true);
+    }
 
     public void ShowExplicitly()
     {
         VerifyUsable();
+        if (_nonActivatingOverlay)
+        {
+            ObjC.SendVoid(_window, ObjCSelectors.OrderFrontRegardless);
+            return;
+        }
         if (IsMiniaturized)
             ObjC.SendVoid(_window, ObjCSelectors.Deminiaturize, IntPtr.Zero);
         ObjC.SendVoidBool(_application, ObjCSelectors.ActivateIgnoringOtherApps, true);
@@ -200,6 +233,11 @@ internal sealed class MacWebViewHost : IDisposable
             _configuration);
         if (_webView == IntPtr.Zero)
             throw new InvalidOperationException("WKWebView failed to initialize.");
+        if (_nonActivatingOverlay)
+        {
+            IntPtr clear = ObjC.SendColor(ObjCClasses.NSColor, ObjCSelectors.ColorWithSrgb, 0, 0, 0, 0);
+            ObjC.SendVoid(_webView, ObjCSelectors.SetUnderPageBackgroundColor, clear);
+        }
         ObjC.SendVoid(
             _webView,
             ObjCSelectors.SetNavigationDelegate,
@@ -209,6 +247,11 @@ internal sealed class MacWebViewHost : IDisposable
 
     private void CreateWindow(string title, double width, double height)
     {
+        if (_nonActivatingOverlay)
+        {
+            CreateOverlayWindow(width, height);
+            return;
+        }
         _window = ObjC.SendInitWindow(
             ObjC.Send(ObjCClasses.NSWindow, ObjCSelectors.Alloc),
             ObjCSelectors.InitWithContentRect,
@@ -228,6 +271,65 @@ internal sealed class MacWebViewHost : IDisposable
         _dragView = new MacWindowDragView(new CGRect(80, height - 48, width - 144, 48));
         ObjC.SendVoid(_webView, ObjCSelectors.AddSubview, _dragView.Handle);
         ObjC.SendVoid(_window, ObjCSelectors.Center);
+    }
+
+    private void CreateOverlayWindow(double width, double height)
+    {
+        _window = ObjC.SendInitWindow(
+            ObjC.Send(MacOverlayWindowClass.Handle, ObjCSelectors.Alloc),
+            ObjCSelectors.InitWithContentRect,
+            OverlayFrame(width, height),
+            0,
+            BufferedBackingStore,
+            false);
+        if (_window == IntPtr.Zero)
+            throw new InvalidOperationException("NSWindow failed to create the HUD overlay.");
+
+        IntPtr clear = ObjC.SendColor(ObjCClasses.NSColor, ObjCSelectors.ColorWithSrgb, 0, 0, 0, 0);
+        ObjC.SendVoidBool(_window, ObjCSelectors.SetOpaque, false);
+        ObjC.SendVoid(_window, ObjCSelectors.SetBackgroundColor, clear);
+        ObjC.SendVoidBool(_window, ObjCSelectors.SetHasShadow, false);
+        ObjC.SendVoidNInt(_window, ObjCSelectors.SetLevel, FloatingWindowLevel);
+        ObjC.SendVoidBool(_window, ObjCSelectors.SetIgnoresMouseEvents, true);
+        ObjC.SendVoidBool(_window, ObjCSelectors.SetReleasedWhenClosed, false);
+        ObjC.SendVoidNUInt(
+            _window,
+            ObjCSelectors.SetCollectionBehavior,
+            CanJoinAllSpaces | Stationary | IgnoresCycle | FullScreenAuxiliary | CanJoinAllApplications);
+        ObjC.SendVoid(_window, ObjCSelectors.SetContentView, _webView);
+    }
+
+    private static CGRect OverlayFrame(double width, double height, CGRect? target = null)
+    {
+        IntPtr screens = ObjC.Send(ObjCClasses.NSScreen, ObjCSelectors.Screens);
+        nuint count = screens == IntPtr.Zero ? 0 : ObjC.SendNUInt(screens, ObjCSelectors.Count);
+        CGRect screen = count > 0
+            ? ObjC.SendRect(ObjC.SendNUInt(screens, ObjCSelectors.ObjectAtIndex, 0), ObjCSelectors.Frame)
+            : new CGRect(0, 0, width, height);
+        if (target is CGRect targetFrame)
+        {
+            double centerX = targetFrame.Origin.X + targetFrame.Size.Width / 2;
+            double centerY = targetFrame.Origin.Y + targetFrame.Size.Height / 2;
+            for (nuint index = 0; index < count; index++)
+            {
+                CGRect candidate = ObjC.SendRect(
+                    ObjC.SendNUInt(screens, ObjCSelectors.ObjectAtIndex, index),
+                    ObjCSelectors.Frame);
+                if (centerX >= candidate.Origin.X
+                    && centerX <= candidate.Origin.X + candidate.Size.Width
+                    && centerY >= candidate.Origin.Y
+                    && centerY <= candidate.Origin.Y + candidate.Size.Height)
+                {
+                    screen = candidate;
+                    break;
+                }
+            }
+        }
+        return new CGRect(
+            screen.Origin.X + Math.Max(0, (screen.Size.Width - width) / 2),
+            screen.Origin.Y + 34,
+            width,
+            height);
     }
 
     private void LoadRoot(string entryPath)

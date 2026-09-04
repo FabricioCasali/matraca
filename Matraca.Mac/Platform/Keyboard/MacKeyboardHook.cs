@@ -11,6 +11,7 @@ internal sealed unsafe class MacKeyboardHook : IKeyboardHook
     private const int Pin = 3;
     private const int Discovery = 4;
     private const int Rearmed = 5;
+    private const int Capture = 6;
     private const ulong ShiftMask = 1UL << 17;
     private const ulong ControlMask = 1UL << 18;
     private const ulong AlternateMask = 1UL << 19;
@@ -19,7 +20,8 @@ internal sealed unsafe class MacKeyboardHook : IKeyboardHook
     private static MacKeyboardHook? _current;
 
     private readonly object _lifecycleGate = new();
-    private readonly AsyncCallbackQueue<(int Kind, ushort KeyCode, KeyMods Modifiers)> _callbacks;
+    private readonly object _captureGate = new();
+    private readonly AsyncCallbackQueue<(int Kind, ushort KeyCode, KeyMods Modifiers, int Generation)> _callbacks;
     private readonly HotkeyGesture? _dictationGesture;
     private readonly HotkeyGesture? _pinGesture;
     private readonly ushort _dictationKeyCode;
@@ -29,6 +31,12 @@ internal sealed unsafe class MacKeyboardHook : IKeyboardHook
     private IntPtr _source;
     private bool _dictationDown;
     private bool _pinDown;
+    private TaskCompletionSource<HotkeyGesture>? _capture;
+    private int _captureNext;
+    private int _captureGeneration;
+    private int _capturedKeyCode = -1;
+    private int _capturedGeneration;
+    private KeyMods _capturedModifiers;
     private int _suspended;
     private int _disposed;
 
@@ -40,7 +48,7 @@ internal sealed unsafe class MacKeyboardHook : IKeyboardHook
         _pinGesture = config.PinHotkey;
         _dictationKeyCode = _dictationGesture == null ? (ushort)0 : MacHotkeyTranslator.ToKeyCode(_dictationGesture);
         _pinKeyCode = _pinGesture == null ? (ushort)0 : MacHotkeyTranslator.ToKeyCode(_pinGesture);
-        _callbacks = new AsyncCallbackQueue<(int, ushort, KeyMods)>(
+        _callbacks = new AsyncCallbackQueue<(int, ushort, KeyMods, int)>(
             Publish,
             exception => Logger.Error("Falha ao publicar evento do teclado Mac", exception));
     }
@@ -68,6 +76,62 @@ internal sealed unsafe class MacKeyboardHook : IKeyboardHook
             if (Suspended || _tap != IntPtr.Zero) return;
             CreateTap();
         }
+    }
+
+    internal Task<HotkeyGesture> CaptureNextAsync(CancellationToken cancellationToken)
+    {
+        var completion = new TaskCompletionSource<HotkeyGesture>(
+            TaskCreationOptions.RunContinuationsAsynchronously);
+        lock (_captureGate)
+        {
+            ObjectDisposedException.ThrowIf(Volatile.Read(ref _disposed) != 0, this);
+            if (_capture != null)
+                throw new InvalidOperationException("Ja existe uma captura de tecla em andamento.");
+            _capture = completion;
+            Interlocked.Increment(ref _captureGeneration);
+            Volatile.Write(ref _captureNext, 1);
+        }
+
+        cancellationToken.Register(
+            static state =>
+            {
+                var capture = ((MacKeyboardHook Owner, TaskCompletionSource<HotkeyGesture> Completion))state!;
+                capture.Owner.CancelCapture(capture.Completion);
+            },
+            (this, completion));
+        return completion.Task;
+    }
+
+    private void CompleteCapture(HotkeyGesture gesture, int generation)
+    {
+        TaskCompletionSource<HotkeyGesture>? completion;
+        lock (_captureGate)
+        {
+            if (generation != Volatile.Read(ref _captureGeneration)) return;
+            completion = _capture;
+            _capture = null;
+            Volatile.Write(ref _captureNext, 0);
+            Volatile.Write(ref _capturedGeneration, 0);
+        }
+        if (HotkeyParser.TryParse(gesture.ToString(), out HotkeyGesture canonical))
+            completion?.TrySetResult(canonical);
+        else
+            completion?.TrySetException(new InvalidOperationException(
+                "Use uma tecla de funcao ou uma combinacao com Ctrl, Alt, Shift ou Command."));
+    }
+
+    private void CancelCapture(TaskCompletionSource<HotkeyGesture>? expected = null)
+    {
+        TaskCompletionSource<HotkeyGesture>? completion;
+        lock (_captureGate)
+        {
+            if (expected != null && !ReferenceEquals(_capture, expected)) return;
+            completion = _capture;
+            _capture = null;
+            Volatile.Write(ref _captureNext, 0);
+            Volatile.Write(ref _capturedGeneration, 0);
+        }
+        completion?.TrySetCanceled();
     }
 
     private void CreateTap()
@@ -118,6 +182,9 @@ internal sealed unsafe class MacKeyboardHook : IKeyboardHook
             if (Volatile.Read(ref _disposed) != 0
                 || Interlocked.Exchange(ref _suspended, 1) != 0)
                 return;
+            CancelCapture();
+            Volatile.Write(ref _capturedKeyCode, -1);
+            Volatile.Write(ref _capturedGeneration, 0);
             _dictationDown = false;
             _pinDown = false;
             DestroyTap();
@@ -160,7 +227,7 @@ internal sealed unsafe class MacKeyboardHook : IKeyboardHook
         if (type is CoreGraphics.TapDisabledByTimeout or CoreGraphics.TapDisabledByUserInput)
         {
             CoreGraphics.CGEventTapEnable(_tap, true);
-            _callbacks.TryPost((Rearmed, 0, KeyMods.None));
+            _callbacks.TryPost((Rearmed, 0, KeyMods.None, 0));
             return @event;
         }
 
@@ -174,15 +241,32 @@ internal sealed unsafe class MacKeyboardHook : IKeyboardHook
             if (!pressed && keyCode == _pinKeyCode) _pinDown = false;
             return @event;
         }
+        if (!pressed && Interlocked.CompareExchange(ref _capturedKeyCode, -1, keyCode) == keyCode)
+        {
+            int generation = Interlocked.Exchange(ref _capturedGeneration, 0);
+            if (generation != 0
+                && !_callbacks.TryPost((Capture, keyCode, _capturedModifiers, generation)))
+                CancelCapture();
+            return IntPtr.Zero;
+        }
         if (pressed && CoreGraphics.CGEventGetIntegerValueField(
                 @event,
                 CoreGraphics.KeyboardEventAutorepeat) != 0)
             return IsActiveCapturedKey(keyCode) ? IntPtr.Zero : @event;
 
         KeyMods modifiers = ToModifiers(CoreGraphics.CGEventGetFlags(@event));
+        if (pressed && Interlocked.Exchange(ref _captureNext, 0) != 0)
+        {
+            Volatile.Write(ref _capturedKeyCode, keyCode);
+            int generation = Volatile.Read(ref _captureGeneration);
+            _capturedModifiers = modifiers;
+            Volatile.Write(ref _capturedGeneration, generation);
+            return IntPtr.Zero;
+        }
         if (_discover && pressed)
         {
-            _callbacks.TryPost((Discovery, keyCode, modifiers));
+            Volatile.Write(ref _capturedKeyCode, keyCode);
+            _callbacks.TryPost((Discovery, keyCode, modifiers, 0));
             return IntPtr.Zero;
         }
 
@@ -191,14 +275,14 @@ internal sealed unsafe class MacKeyboardHook : IKeyboardHook
             if (!_dictationDown)
             {
                 _dictationDown = true;
-                _callbacks.TryPost((DictationDown, keyCode, modifiers));
+                _callbacks.TryPost((DictationDown, keyCode, modifiers, 0));
             }
             return IntPtr.Zero;
         }
         if (!pressed && _dictationDown && keyCode == _dictationKeyCode)
         {
             _dictationDown = false;
-            _callbacks.TryPost((DictationUp, keyCode, modifiers));
+            _callbacks.TryPost((DictationUp, keyCode, modifiers, 0));
             return IntPtr.Zero;
         }
         if (pressed && Matches(_pinGesture, _pinKeyCode, keyCode, modifiers))
@@ -206,7 +290,7 @@ internal sealed unsafe class MacKeyboardHook : IKeyboardHook
             if (!_pinDown)
             {
                 _pinDown = true;
-                _callbacks.TryPost((Pin, keyCode, modifiers));
+                _callbacks.TryPost((Pin, keyCode, modifiers, 0));
             }
             return IntPtr.Zero;
         }
@@ -220,7 +304,8 @@ internal sealed unsafe class MacKeyboardHook : IKeyboardHook
 
     private bool IsActiveCapturedKey(ushort keyCode)
         => (_dictationDown && keyCode == _dictationKeyCode)
-            || (_pinDown && keyCode == _pinKeyCode);
+            || (_pinDown && keyCode == _pinKeyCode)
+            || Volatile.Read(ref _capturedKeyCode) == keyCode;
 
     private static bool Matches(
         HotkeyGesture? gesture,
@@ -229,9 +314,14 @@ internal sealed unsafe class MacKeyboardHook : IKeyboardHook
         KeyMods modifiers)
         => gesture != null && configuredKeyCode == keyCode && gesture.Modifiers == modifiers;
 
-    private void Publish((int Kind, ushort KeyCode, KeyMods Modifiers) signal)
+    private void Publish((int Kind, ushort KeyCode, KeyMods Modifiers, int Generation) signal)
     {
-        if (Suspended) return;
+        if (Suspended)
+        {
+            if (signal.Kind == Capture && signal.Generation == Volatile.Read(ref _captureGeneration))
+                CancelCapture();
+            return;
+        }
         switch (signal.Kind)
         {
             case DictationDown when _dictationGesture != null:
@@ -244,9 +334,15 @@ internal sealed unsafe class MacKeyboardHook : IKeyboardHook
                 PinToggled?.Invoke(_pinGesture);
                 break;
             case Discovery:
-                KeyDiscovered?.Invoke(new HotkeyGesture(
+                var gesture = new HotkeyGesture(
                     MacHotkeyTranslator.NameForKeyCode(signal.KeyCode),
-                    signal.Modifiers));
+                    signal.Modifiers);
+                KeyDiscovered?.Invoke(gesture);
+                break;
+            case Capture:
+                CompleteCapture(new HotkeyGesture(
+                    MacHotkeyTranslator.NameForKeyCode(signal.KeyCode),
+                    signal.Modifiers), signal.Generation);
                 break;
             case Rearmed:
                 Logger.Warn("Event tap foi desabilitado pelo sistema e foi religado.");
@@ -267,6 +363,7 @@ internal sealed unsafe class MacKeyboardHook : IKeyboardHook
     public void Dispose()
     {
         if (Interlocked.Exchange(ref _disposed, 1) != 0) return;
+        CancelCapture();
         Volatile.Write(ref _suspended, 1);
         lock (_lifecycleGate) DestroyTap();
         if (ReferenceEquals(_current, this)) _current = null;

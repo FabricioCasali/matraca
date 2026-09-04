@@ -51,6 +51,7 @@ internal static class ObjCSelectors
     public static readonly IntPtr SetHasShadow = Register("setHasShadow:");
     public static readonly IntPtr SetLevel = Register("setLevel:");
     public static readonly IntPtr SetIgnoresMouseEvents = Register("setIgnoresMouseEvents:");
+    public static readonly IntPtr IgnoresMouseEvents = Register("ignoresMouseEvents");
     public static readonly IntPtr SetCollectionBehavior = Register("setCollectionBehavior:");
     public static readonly IntPtr SetReleasedWhenClosed = Register("setReleasedWhenClosed:");
     public static readonly IntPtr IsVisible = Register("isVisible");
@@ -93,6 +94,8 @@ internal static class ObjCSelectors
     public static readonly IntPtr WindowWillClose = Register("windowWillClose:");
     public static readonly IntPtr SetTitlebarAppearsTransparent =
         Register("setTitlebarAppearsTransparent:");
+    public static readonly IntPtr SetUnderPageBackgroundColor =
+        Register("setUnderPageBackgroundColor:");
     public static readonly IntPtr Center = Register("center");
     public static readonly IntPtr MakeKeyAndOrderFront = Register("makeKeyAndOrderFront:");
     public static readonly IntPtr ActivateIgnoringOtherApps = Register("activateIgnoringOtherApps:");

@@ -64,6 +64,31 @@ public sealed class ModelDownloaderTests
     }
 
     [Fact]
+    public async Task WrongSizedDownloadDeletesPartFileEvenWhenMoreThanHalfArrived()
+    {
+        var home = NewTemporaryDirectory();
+        try
+        {
+            var paths = AppPaths.ForMac(home);
+            var model = new ModelInfo("truncated.bin", "test", "https://offline.test/model", 4);
+            using var client = ClientReturning(HttpStatusCode.OK, [1, 2, 3]);
+
+            await Assert.ThrowsAsync<IOException>(() => ModelDownloader.DownloadAsync(
+                model,
+                new Progress<(long, long)>(),
+                CancellationToken.None,
+                paths,
+                client));
+
+            Assert.False(File.Exists(ModelDownloader.PathFor(model, paths) + ".part"));
+        }
+        finally
+        {
+            Directory.Delete(home, recursive: true);
+        }
+    }
+
+    [Fact]
     public async Task CancellationDeletesStalePartFileWithoutNetwork()
     {
         var home = NewTemporaryDirectory();

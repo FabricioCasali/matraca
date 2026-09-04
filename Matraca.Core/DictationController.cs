@@ -83,6 +83,8 @@ public sealed class DictationController : IDisposable
     public bool IsSuspended => Volatile.Read(ref _lifecycleState) != LifecycleActive;
     public Config CurrentConfig => _config;
     public TargetToken? PinnedTarget { get { lock (_targetGate) return _pinnedTarget; } }
+    public event Action<bool>? DeliveryStarted;
+    public event Action<string, TextDeliveryResult, bool>? DeliveryCompleted;
 
     public void Start()
     {
@@ -491,8 +493,22 @@ public sealed class DictationController : IDisposable
     {
         if (Volatile.Read(ref _shuttingDown) != 0 || session.Cancellation.IsCancellationRequested)
             return TextDeliveryResult.Cancelled;
+        if (!session.Streaming)
+            SetShellState(ShellState.Busy, "Matraca - escrevendo...");
+        if (text.Length > 0) DeliveryStarted?.Invoke(session.Streaming);
         if (addToHistory) session.History?.Add(text);
 
+        TextDeliveryResult result = await DeliverCoreAsync(session, text, pressEnter)
+            .ConfigureAwait(false);
+        if (text.Length > 0) DeliveryCompleted?.Invoke(text, result, session.Streaming);
+        return result;
+    }
+
+    private async Task<TextDeliveryResult> DeliverCoreAsync(
+        DictationSession session,
+        string text,
+        bool pressEnter)
+    {
         TargetToken? pinnedTarget = AcquirePinnedTarget();
         if (pinnedTarget != null)
         {
