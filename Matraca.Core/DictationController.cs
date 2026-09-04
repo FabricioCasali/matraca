@@ -1098,6 +1098,8 @@ public sealed class DictationController : IDisposable
 
     private static bool PostProcessorChanged(Config first, Config second)
         => first.PostProcess != second.PostProcess
+            || first.PostProcessProvider != second.PostProcessProvider
+            || first.PostProcessEndpoint != second.PostProcessEndpoint
             || first.PostProcessModel != second.PostProcessModel
             || first.PostProcessApiKey != second.PostProcessApiKey
             || first.PostProcessPrompt != second.PostProcessPrompt

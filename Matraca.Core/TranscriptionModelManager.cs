@@ -310,6 +310,8 @@ public sealed class TranscriptionModelManager : IDisposable
         History = source.History,
         HistoryMaxItems = source.HistoryMaxItems,
         PostProcess = source.PostProcess,
+        PostProcessProvider = source.PostProcessProvider,
+        PostProcessEndpoint = source.PostProcessEndpoint,
         PostProcessModel = source.PostProcessModel,
         PostProcessApiKey = source.PostProcessApiKey,
         PostProcessPrompt = source.PostProcessPrompt,

@@ -40,6 +40,8 @@ public sealed class Config
     public bool History { get; init; } = true;
     public int HistoryMaxItems { get; init; } = 100;
     public bool PostProcess { get; init; }
+    public string PostProcessProvider { get; init; } = "anthropic";
+    public string PostProcessEndpoint { get; init; } = "";
     public string PostProcessModel { get; init; } = "claude-opus-5";
     public string PostProcessApiKey { get; init; } = "";
     public string PostProcessPrompt { get; init; } = "";
@@ -87,6 +89,8 @@ public sealed class Config
         History = History,
         HistoryMaxItems = HistoryMaxItems,
         PostProcess = PostProcess,
+        PostProcessProvider = PostProcessProvider,
+        PostProcessEndpoint = PostProcessEndpoint,
         PostProcessModel = PostProcessModel,
         PostProcessApiKey = PostProcessApiKey,
         PostProcessPrompt = PostProcessPrompt,
@@ -218,6 +222,8 @@ public sealed class Config
             History = raw.history ?? true,
             HistoryMaxItems = Math.Clamp(raw.historyMaxItems ?? 100, 1, 5000),
             PostProcess = raw.postProcess ?? false,
+            PostProcessProvider = NormalizePostProcessProvider(raw.postProcessProvider),
+            PostProcessEndpoint = (raw.postProcessEndpoint ?? "").Trim(),
             PostProcessModel = string.IsNullOrWhiteSpace(raw.postProcessModel)
                 ? "claude-opus-5"
                 : raw.postProcessModel.Trim(),
@@ -273,6 +279,12 @@ public sealed class Config
             "cpu" => "cpu",
             _ => "auto",
         };
+    }
+
+    private static string NormalizePostProcessProvider(string? value)
+    {
+        var provider = (value ?? "").Trim().ToLowerInvariant();
+        return provider is "openai" or "openai-compatible" ? "openai-compatible" : "anthropic";
     }
 
     private static string ResolveConfiguredPath(string? value, AppPaths? paths)

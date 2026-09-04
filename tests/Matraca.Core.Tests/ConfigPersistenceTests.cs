@@ -65,6 +65,8 @@ public sealed class ConfigPersistenceTests
                 hotkey = "F15",
                 pinHotkey = null,
                 autoEnter = true,
+                postProcessProvider = "openai-compatible",
+                postProcessEndpoint = "http://localhost:11434/v1/chat/completions",
             });
 
             using var document = JsonDocument.Parse(File.ReadAllText(paths.ConfigFile));
@@ -72,6 +74,10 @@ public sealed class ConfigPersistenceTests
             Assert.Equal("/models/whisper.bin", json.GetProperty("modelPath").GetString());
             Assert.Equal("F15", json.GetProperty("hotkey").GetString());
             Assert.True(json.GetProperty("autoEnter").GetBoolean());
+            Assert.Equal("openai-compatible", json.GetProperty("postProcessProvider").GetString());
+            Assert.Equal(
+                "http://localhost:11434/v1/chat/completions",
+                json.GetProperty("postProcessEndpoint").GetString());
             Assert.False(json.TryGetProperty("pinHotkey", out _));
             Assert.Empty(Directory.EnumerateFiles(
                 paths.DataDirectory,

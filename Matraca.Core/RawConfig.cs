@@ -22,6 +22,8 @@ public sealed class RawConfig
     public bool? history { get; set; }
     public int? historyMaxItems { get; set; }
     public bool? postProcess { get; set; }
+    public string? postProcessProvider { get; set; }
+    public string? postProcessEndpoint { get; set; }
     public string? postProcessModel { get; set; }
     public string? postProcessApiKey { get; set; }
     public string? postProcessPrompt { get; set; }

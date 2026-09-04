@@ -20,6 +20,20 @@ public sealed class ConfigTests
         Assert.True(config.Beep);
         Assert.True(config.History);
         Assert.Equal("auto", config.Gpu);
+        Assert.Equal("anthropic", config.PostProcessProvider);
+        Assert.Equal("", config.PostProcessEndpoint);
+    }
+
+    [Theory]
+    [InlineData("anthropic", "anthropic")]
+    [InlineData("openai", "openai-compatible")]
+    [InlineData("openai-compatible", "openai-compatible")]
+    [InlineData("unknown", "anthropic")]
+    public void PostProcessProviderUsesCanonicalValues(string raw, string expected)
+    {
+        var config = Config.FromRaw(new RawConfig { postProcessProvider = raw });
+
+        Assert.Equal(expected, config.PostProcessProvider);
     }
 
     [Theory]

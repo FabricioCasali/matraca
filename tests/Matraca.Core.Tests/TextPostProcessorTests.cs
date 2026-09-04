@@ -5,6 +5,37 @@ namespace Matraca.Core.Tests;
 public sealed class TextPostProcessorTests
 {
     [Fact]
+    public void OpenAiCompatibleAllowsLocalEndpointWithoutApiKey()
+    {
+        Config config = Config.FromRaw(new RawConfig
+        {
+            postProcess = true,
+            postProcessProvider = "openai-compatible",
+            postProcessEndpoint = "http://localhost:11434/v1/chat/completions",
+            postProcessModel = "local-model",
+        });
+
+        using TextPostProcessor? processor = TextPostProcessor.TryCreate(config);
+
+        Assert.NotNull(processor);
+    }
+
+    [Fact]
+    public void OpenAiCompatibleRejectsInvalidEndpoint()
+    {
+        Config config = Config.FromRaw(new RawConfig
+        {
+            postProcess = true,
+            postProcessProvider = "openai-compatible",
+            postProcessEndpoint = "file:///tmp/reviewer",
+            postProcessModel = "model",
+            postProcessApiKey = "secret",
+        });
+
+        Assert.Null(TextPostProcessor.TryCreate(config));
+    }
+
+    [Fact]
     public async Task SuccessfulRequestReturnsTrimmedText()
     {
         using var processor = new TextPostProcessor(

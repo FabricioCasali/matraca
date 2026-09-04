@@ -666,6 +666,33 @@ public sealed class DictationControllerTests
     }
 
     [Fact]
+    public async Task ChangingPostProcessProviderOrEndpointRecreatesProcessor()
+    {
+        var configurations = new List<(string Provider, string Endpoint)>();
+        var setup = CreateController(
+            NewConfig("toggle", postProcessProvider: "anthropic"),
+            [],
+            postProcessorFactory: config =>
+            {
+                configurations.Add((config.PostProcessProvider, config.PostProcessEndpoint));
+                return new TextPostProcessor((text, _) => Task.FromResult<string?>(text), 1000);
+            });
+
+        await setup.Controller.ApplyConfigAsync(NewConfig(
+            "toggle",
+            postProcessProvider: "openai-compatible",
+            postProcessEndpoint: "http://localhost:11434/v1/chat/completions"));
+
+        Assert.Equal(
+            [
+                ("anthropic", ""),
+                ("openai-compatible", "http://localhost:11434/v1/chat/completions"),
+            ],
+            configurations);
+        await setup.Controller.ShutdownAsync();
+    }
+
+    [Fact]
     public async Task HistoryLimitHotReloadKeepsEntriesFromTheActiveSession()
     {
         string home = NewTemporaryDirectory();
@@ -1210,7 +1237,9 @@ public sealed class DictationControllerTests
         int thickness = 4,
         float opacity = 0.9f,
         int historyMaxItems = 100,
-        bool history = true) => new()
+        bool history = true,
+        string postProcessProvider = "anthropic",
+        string postProcessEndpoint = "") => new()
     {
         ModelPath = modelPath,
         Mode = mode,
@@ -1227,6 +1256,8 @@ public sealed class DictationControllerTests
         FocusBorderOpacity = opacity,
         History = history,
         HistoryMaxItems = historyMaxItems,
+        PostProcessProvider = postProcessProvider,
+        PostProcessEndpoint = postProcessEndpoint,
     };
 
     private static string NewTemporaryDirectory()

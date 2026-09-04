@@ -15,24 +15,35 @@ public sealed class TextPostProcessor : IDisposable
 
     private readonly Func<string, CancellationToken, Task<string?>> _clean;
     private readonly int _timeoutMs;
+    private readonly IDisposable? _resource;
     private readonly CancellationTokenSource _disposalCancellation = new();
     private int _disposed;
 
     public TextPostProcessor(
         Func<string, CancellationToken, Task<string?>> clean,
         int timeoutMs)
+        : this(clean, timeoutMs, null)
+    {
+    }
+
+    private TextPostProcessor(
+        Func<string, CancellationToken, Task<string?>> clean,
+        int timeoutMs,
+        IDisposable? resource)
     {
         _clean = clean ?? throw new ArgumentNullException(nameof(clean));
         _timeoutMs = Math.Max(1, timeoutMs);
+        _resource = resource;
     }
 
     public static TextPostProcessor? TryCreate(Config config)
     {
         if (!config.PostProcess) return null;
 
-        var key = config.PostProcessApiKey.Length > 0
-            ? config.PostProcessApiKey
-            : Environment.GetEnvironmentVariable("ANTHROPIC_API_KEY") ?? "";
+        if (config.PostProcessProvider == "openai-compatible")
+            return TryCreateOpenAiCompatible(config);
+
+        var key = ResolveKey(config.PostProcessApiKey, "ANTHROPIC_API_KEY");
         if (key.Length == 0)
         {
             Logger.Warn("Pos-processamento ligado, mas sem chave de API (postProcessApiKey ou "
@@ -116,8 +127,58 @@ public sealed class TextPostProcessor : IDisposable
     public void Dispose()
     {
         if (Interlocked.Exchange(ref _disposed, 1) == 0)
+        {
             _disposalCancellation.Cancel();
+            _resource?.Dispose();
+        }
     }
+
+    private static TextPostProcessor? TryCreateOpenAiCompatible(Config config)
+    {
+        string endpointText = config.PostProcessEndpoint.Length > 0
+            ? config.PostProcessEndpoint
+            : OpenAiCompatibleTextReviewer.DefaultEndpoint;
+        if (!Uri.TryCreate(endpointText, UriKind.Absolute, out Uri? endpoint)
+            || endpoint.Scheme is not ("http" or "https"))
+        {
+            Logger.Warn("Pos-processamento OpenAI-compatible ligado, mas o endpoint e invalido.");
+            return null;
+        }
+
+        string key = ResolveKey(config.PostProcessApiKey, "OPENAI_API_KEY");
+        if (key.Length == 0 && !endpoint.IsLoopback)
+        {
+            Logger.Warn("Pos-processamento OpenAI-compatible remoto ligado, mas sem chave de API.");
+            return null;
+        }
+
+        try
+        {
+            var reviewer = new OpenAiCompatibleTextReviewer(
+                new HttpClient { Timeout = Timeout.InfiniteTimeSpan },
+                endpoint,
+                key,
+                config.PostProcessModel,
+                config.PostProcessPrompt.Length > 0 ? config.PostProcessPrompt : DefaultPrompt);
+            Logger.Info(
+                $"Pos-processamento de texto ligado (provedor openai-compatible, modelo "
+                + $"{config.PostProcessModel}, timeout {config.PostProcessTimeoutMs}ms).");
+            return new TextPostProcessor(
+                reviewer.ReviewAsync,
+                config.PostProcessTimeoutMs,
+                reviewer);
+        }
+        catch (Exception ex)
+        {
+            Logger.Error("Falha ao iniciar o pos-processamento OpenAI-compatible; seguindo sem ele", ex);
+            return null;
+        }
+    }
+
+    private static string ResolveKey(string configured, string environmentVariable)
+        => configured.Length > 0
+            ? configured
+            : Environment.GetEnvironmentVariable(environmentVariable) ?? "";
 
     private static void Observe(Task task)
         => _ = task.ContinueWith(
