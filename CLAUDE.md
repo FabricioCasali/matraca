@@ -12,9 +12,9 @@ escrito aqui.
 ## As leis
 
 **1. O áudio nunca sai da máquina.** Nunca é gravado em disco, nunca é transmitido. A
-única coisa que sai é *texto*, e só pelo pós-processamento com Claude — que é opcional,
-desligado por padrão, e quando falha devolve a transcrição original em vez de perder o
-ditado.
+única coisa que sai é *texto*, e só pelo pós-processamento de IA configurado pelo
+usuário — que é opcional, desligado por padrão, e quando falha devolve a transcrição
+original em vez de perder o ditado.
 
 **2. Zero telemetria.** Sem analytics, sem verificação de atualização, sem ping de
 inicialização. O app não conta para ninguém que existe.

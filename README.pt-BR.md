@@ -30,11 +30,11 @@ baixa um pra você (large-v3-turbo, small ou base — direto do repositório do 
 Hugging Face) e captura sua tecla de atalho. Já tem um `.bin`? Aponte pro seu. É toda a
 configuração necessária.
 
-## Limpando o texto com o Claude (opcional, desligado por padrão)
+## Revisando o texto com IA (opcional, desligado por padrão)
 
-Com `postProcess` ligado e uma chave da API da Anthropic configurada, o texto transcrito passa
-por um modelo Claude que corrige pontuação e capitalização e tira as muletas de fala ("é...",
-"tipo", "né") — sem reescrever o que você disse.
+Com `postProcess` ligado, o texto transcrito passa por um modelo Claude na Anthropic ou por um
+endpoint OpenAI-compatible configurado por você. O modelo corrige pontuação e capitalização e
+tira as muletas de fala ("é...", "tipo", "né") — sem reescrever o que você disse.
 
 > Esse é o **único** recurso que manda algo pra fora da sua máquina, e só o texto, nunca o áudio.
 > Custa uma ida à rede por ditado (por *frase* nos modos `live`/`push`, o que joga contra a baixa
@@ -117,9 +117,11 @@ O mesmo arquivo pode ser editado na mão (`appsettings.json`):
 | `vocabulary` | `[]` | Termos que o Whisper costuma errar (nomes próprios, siglas, jargão). Vão como prompt inicial do modelo. |
 | `history` | `true` | Guarda as transcrições recentes em **texto puro** em `%LOCALAPPDATA%\Matraca\history.json`. Menu da bandeja → "Histórico de ditados...". |
 | `historyMaxItems` | `100` | Quantas transcrições manter. |
-| `postProcess` | `false` | Limpa o texto transcrito com um modelo Claude (veja abaixo). |
-| `postProcessModel` | `claude-opus-5` | Modelo usado na limpeza. |
-| `postProcessApiKey` | `""` | Chave da API da Anthropic. Vazio = usa a variável de ambiente `ANTHROPIC_API_KEY`. |
+| `postProcess` | `false` | Revisa o texto transcrito com o provedor configurado (veja abaixo). |
+| `postProcessProvider` | `anthropic` | `anthropic` ou `openai-compatible`. |
+| `postProcessEndpoint` | `""` | URL completa de chat completions. No provedor OpenAI-compatible, vazio usa `https://api.openai.com/v1/chat/completions`. |
+| `postProcessModel` | `claude-opus-5` | Nome do modelo usado na revisão. |
+| `postProcessApiKey` | `""` | Chave do provedor. Vazio usa `ANTHROPIC_API_KEY` ou `OPENAI_API_KEY`; endpoints locais OpenAI-compatible podem dispensar chave. |
 | `postProcessPrompt` | `""` | Instrução customizada de limpeza. Vazio = usa a padrão embutida. |
 | `postProcessTimeoutMs` | `8000` | Passando disso, entrega a transcrição original sem limpar. |
 
@@ -194,7 +196,7 @@ dotnet publish Matraca.Windows -c Release -r win-x64 --self-contained false
 O áudio nunca sai da sua máquina e nunca é gravado em disco. Não há telemetria, analytics nem
 verificação de atualização. Dois recursos escrevem em disco (o log e o histórico de ditados,
 ambos em `%LOCALAPPDATA%\Matraca`, ambos com o texto transcrito), e um recurso opcional e
-desligado por padrão transmite texto (o pós-processamento com Claude). Detalhes completos na
+desligado por padrão transmite texto (o pós-processamento com IA configurado pelo usuário). Detalhes completos na
 [política de privacidade](CODE_SIGNING_POLICY.md#privacy-policy).
 
 ## Code signing policy

@@ -190,7 +190,7 @@ Primeiro um mockup navegável das telas publicado como artifact, para você crit
 de existir código de verdade — que aqui não é desperdício, porque o mockup **é** o app.
 Depois o casco (`WKWebView` primeiro, que é onde estamos rodando) e as telas:
 
-- **Configuração** — abas (Tecla · Modelo e vocabulário · Áudio · Entrega · Claude), todo
+- **Configuração** — abas (Tecla · Modelo e vocabulário · Áudio · Entrega · Revisão), todo
   campo aplicando a quente, captura de tecla via hook.
 - **Microfone** — espectro FFT de 48 bandas log a ~30 fps com decaimento e peak-hold
   (suave, não nervoso), **mais** a barra de nível com a marca arrastável do limiar,

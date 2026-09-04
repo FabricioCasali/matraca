@@ -13,7 +13,8 @@
     beep: true, beepVolume: .8, silenceMs: 450, phraseMaxSeconds: 6,
     startSound: "", stopSound: "", vocabulary: [],
     inputDevice: "", history: true, historyMaxItems: 100,
-    postProcess: false, postProcessModel: "claude-opus-5", postProcessPrompt: "",
+    postProcess: false, postProcessProvider: "anthropic", postProcessEndpoint: "",
+    postProcessModel: "claude-opus-5", postProcessPrompt: "",
     postProcessTimeoutMs: 8000, idleUnloadMinutes: 5, gpu: "auto",
     focusBorder: true, focusBorderThickness: 4, focusBorderOpacity: .9,
     focusBorderColor: "#E81123", focusBorderColorBusy: "#FFB900",
@@ -96,6 +97,12 @@
     text("[data-api-key-state]", state.config.postProcessApiKeyConfigured
       ? "Configurada; digite apenas para substituir."
       : "Não configurada; nunca é devolvida à interface.");
+    const openAiCompatible = state.config.postProcessProvider === "openai-compatible";
+    document.querySelectorAll("[data-openai-compatible]")
+      .forEach(element => element.hidden = !openAiCompatible);
+    text("[data-review-provider-effect]", openAiCompatible
+      ? "Usa o endpoint configurado; apenas o texto transcrito é enviado."
+      : "Usa a API da Anthropic; apenas o texto transcrito é enviado.");
     const modelSetup = document.querySelector("[data-model-setup]");
     modelSetup?.classList.toggle("complete", Boolean(state.config.modelPath));
     text("[data-model-icon]", state.config.modelPath ? "✓" : "↓");

@@ -96,6 +96,7 @@ button { cursor: pointer; }
 .smoke-page { min-height: 100vh; display: grid; place-items: center; background: #0d1023; color: #f4f3ff; text-align: center; }.smoke-page main { width: min(500px,calc(100% - 40px)); padding: 50px; border: 1px solid rgba(255,255,255,.1); border-radius: 20px; background: rgba(255,255,255,.06); }.smoke-page .logo { margin-inline: auto; }.smoke-page small { color: #7f8097; letter-spacing: .15em; }.smoke-page h1 { margin: 15px 0; font-size: 34px; letter-spacing: -.045em; }.smoke-page p { color: #9293a8; }
 
 button:disabled { cursor: not-allowed; opacity: .48; }
+[hidden] { display: none !important; }
 .speech i { width: 0; transition: width .1s linear; }
 .permission-list button { min-height: 40px; display: grid; grid-template-columns: 24px 1fr auto; align-items: center; gap: 8px; padding: 0 10px; border: 1px solid var(--line); border-radius: 9px; background: var(--surface); color: var(--text); text-align: left; }
 .permission-list button i { color: var(--green); }

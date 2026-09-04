@@ -33,11 +33,11 @@ you (large-v3-turbo, small or base — straight from the whisper.cpp repository 
 and captures your hotkey. Already have a `.bin`? Point it at yours instead. That's the whole
 setup.
 
-## Cleaning up the text with Claude (optional, off by default)
+## Reviewing text with AI (optional, off by default)
 
-With `postProcess` enabled and an Anthropic API key configured, the transcribed text is sent to a
-Claude model that fixes punctuation and capitalization and drops speech fillers ("uh", "like",
-"you know") — without rewriting what you said.
+With `postProcess` enabled, the transcribed text is sent either to a Claude model at Anthropic or
+to an OpenAI-compatible endpoint you configure. The model fixes punctuation and capitalization
+and drops speech fillers ("uh", "like", "you know") — without rewriting what you said.
 
 > This is the **only** feature that sends anything off your machine, and only the text, never the
 > audio. It costs one network round trip per dictation (per *phrase* in `live`/`push` mode, which
@@ -120,9 +120,11 @@ The same file can be edited by hand (`appsettings.json`):
 | `vocabulary` | `[]` | Terms Whisper tends to get wrong (proper nouns, acronyms, jargon). Fed to the model as its initial prompt. |
 | `history` | `true` | Stores recent transcriptions as **plain text** in `%LOCALAPPDATA%\Matraca\history.json`. Tray menu → "Histórico de ditados...". |
 | `historyMaxItems` | `100` | How many transcriptions to keep. |
-| `postProcess` | `false` | Clean the transcribed text with a Claude model (see below). |
-| `postProcessModel` | `claude-opus-5` | Model used for the cleanup. |
-| `postProcessApiKey` | `""` | Anthropic API key. Empty = uses the `ANTHROPIC_API_KEY` environment variable. |
+| `postProcess` | `false` | Review the transcribed text with the configured provider (see below). |
+| `postProcessProvider` | `anthropic` | `anthropic` or `openai-compatible`. |
+| `postProcessEndpoint` | `""` | Full chat completions URL. For OpenAI-compatible, empty uses `https://api.openai.com/v1/chat/completions`. |
+| `postProcessModel` | `claude-opus-5` | Model name used for review. |
+| `postProcessApiKey` | `""` | Provider API key. Empty uses `ANTHROPIC_API_KEY` or `OPENAI_API_KEY`; local OpenAI-compatible endpoints may omit it. |
 | `postProcessPrompt` | `""` | Custom cleanup instruction. Empty = built-in default. |
 | `postProcessTimeoutMs` | `8000` | If the model takes longer than this, the original transcription is delivered unchanged. |
 
@@ -198,7 +200,7 @@ dotnet publish Matraca.Windows -c Release -r win-x64 --self-contained false
 Audio never leaves your machine and is never written to disk. There is no telemetry, no
 analytics and no update check. Two features write to disk (the log and the dictation history,
 both under `%LOCALAPPDATA%\Matraca`, both containing transcribed text), and one optional,
-off-by-default feature transmits text (Claude post-processing). Full details in the
+off-by-default feature transmits text (the user-configured AI post-processing). Full details in the
 [privacy policy](CODE_SIGNING_POLICY.md#privacy-policy).
 
 ## Code signing policy

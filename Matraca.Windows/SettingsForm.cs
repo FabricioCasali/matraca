@@ -68,6 +68,8 @@ internal sealed class SettingsForm : Form
     private readonly CheckBox _historyBox;
     private readonly NumericUpDown _historyMaxBox;
     private readonly CheckBox _postProcessBox;
+    private readonly ComboBox _postProviderBox;
+    private readonly TextBox _postEndpointBox;
     private readonly TextBox _postModelBox;
     private readonly TextBox _postApiKeyBox;
     private readonly NumericUpDown _postTimeoutBox;
@@ -326,20 +328,30 @@ internal sealed class SettingsForm : Form
 
         _postProcessBox = new CheckBox
         {
-            Text = "Limpar o texto com um modelo Claude",
+            Text = "Revisar o texto com um modelo de IA",
             Checked = cfg.PostProcess,
             AutoSize = true,
         };
         AddRow(gAdv, "Pós-processamento", _postProcessBox,
-            "Corrige pontuação e tira muletas de fala. Custa uma ida à rede por ditado (por "
-          + "frase, nos modos live/push) e usa a API da Anthropic, que é paga.");
+            "Corrige pontuação e tira muletas de fala. Envia somente o texto e, se falhar, "
+          + "entrega a transcrição original.");
+
+        _postProviderBox = new ComboBox { Width = 220, DropDownStyle = ComboBoxStyle.DropDownList };
+        _postProviderBox.Items.AddRange(["anthropic", "openai-compatible"]);
+        _postProviderBox.SelectedItem = cfg.PostProcessProvider;
+        AddRow(gAdv, "Provedor", _postProviderBox);
+
+        _postEndpointBox = new TextBox { Width = 320, Text = cfg.PostProcessEndpoint };
+        AddRow(gAdv, "Endpoint OpenAI-compatible", _postEndpointBox,
+            "URL completa de chat completions. Vazio usa a API da OpenAI.");
 
         _postModelBox = new TextBox { Width = 220, Text = cfg.PostProcessModel };
         AddRow(gAdv, "Modelo", _postModelBox);
 
         _postApiKeyBox = new TextBox { Width = 220, Text = cfg.PostProcessApiKey, UseSystemPasswordChar = true };
         AddRow(gAdv, "Chave de API", _postApiKeyBox,
-            "Vazio = usa a variável de ambiente ANTHROPIC_API_KEY.");
+            "Vazio = usa ANTHROPIC_API_KEY ou OPENAI_API_KEY conforme o provedor. "
+          + "Endpoints locais OpenAI-compatible podem dispensar chave.");
 
         _postTimeoutBox = NewNumeric(1000m, 60000m, cfg.PostProcessTimeoutMs, 500m, 0);
         AddRow(gAdv, "Timeout (ms)", _postTimeoutBox,
@@ -634,6 +646,8 @@ internal sealed class SettingsForm : Form
                 history = _historyBox.Checked,
                 historyMaxItems = (int)_historyMaxBox.Value,
                 postProcess = _postProcessBox.Checked,
+                postProcessProvider = (string)_postProviderBox.SelectedItem!,
+                postProcessEndpoint = NullIfBlank(_postEndpointBox.Text),
                 postProcessModel = _postModelBox.Text.Trim(),
                 postProcessApiKey = _postApiKeyBox.Text.Trim(),
                 postProcessPrompt = NullIfBlank(_postPromptBox.Text),

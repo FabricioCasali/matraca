@@ -56,7 +56,7 @@ Three features write or transmit data, all of them under the user's explicit con
 |---|---|---|
 | Log file | on | Writes diagnostics to `%LOCALAPPDATA%\Matraca\matraca.log`, including the transcribed text. Local only. |
 | Dictation history (`history`) | on | Stores recent transcriptions as plain text in `%LOCALAPPDATA%\Matraca\history.json`. Local only. Can be disabled and cleared from the app. |
-| Text post-processing (`postProcess`) | **off** | When explicitly enabled **and** supplied with an API key, sends the transcribed **text** (never the audio) to the Anthropic API to fix punctuation and remove speech fillers. This is the only feature that transmits anything off the machine. |
+| Text post-processing (`postProcess`) | **off** | When explicitly enabled, sends the transcribed **text** (never the audio) to the user-selected Anthropic or OpenAI-compatible endpoint to fix punctuation and remove speech fillers. Remote endpoints require an API key; local compatible endpoints may not. This is the only feature that transmits user content off the machine. |
 
 Downloading a Whisper model from the first-run screen contacts Hugging Face
 (`huggingface.co`) to fetch the model file. This is an ordinary file download that only happens
