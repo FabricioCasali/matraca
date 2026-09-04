@@ -198,8 +198,8 @@ internal sealed unsafe class MacTextSink : ITextSink
             cancellationToken.ThrowIfCancellationRequested();
             int consumed = GetScalarLength(remaining);
 
-            PostUnicode(remaining[..consumed]);
-            PostKey(0, keyDown: false);
+            PostUnicode(remaining[..consumed], keyDown: true);
+            PostUnicode(remaining[..consumed], keyDown: false);
             remaining = remaining[consumed..];
             scalarCount++;
             if (!remaining.IsEmpty) Thread.Sleep(ChunkPauseMs);
@@ -317,11 +317,11 @@ internal sealed unsafe class MacTextSink : ITextSink
         return status == OperationStatus.Done ? consumed : 1;
     }
 
-    private void PostUnicode(ReadOnlySpan<char> text)
+    private void PostUnicode(ReadOnlySpan<char> text, bool keyDown)
     {
         fixed (char* units = text)
         {
-            IntPtr @event = CoreGraphics.CGEventCreateKeyboardEvent(_source, 0, keyDown: true);
+            IntPtr @event = CoreGraphics.CGEventCreateKeyboardEvent(_source, 0, keyDown);
             if (@event == IntPtr.Zero)
                 throw new InvalidOperationException("CGEventCreateKeyboardEvent failed.");
             try

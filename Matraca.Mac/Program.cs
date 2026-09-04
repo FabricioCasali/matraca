@@ -113,6 +113,9 @@ internal static class Program
         Frameworks.EnsureLoaded();
         ObjCClasses.Warm();
         using var pool = AutoreleasePool.New();
+        var application = MacApplication.Shared();
+        application.ConfigureAsAccessory();
+        MainThread.Initialize();
         if (!Accessibility.IsTrusted(prompt: false))
         {
             File.WriteAllText(args[5], TextDeliveryResult.Failed.ToString());
@@ -120,15 +123,45 @@ internal static class Program
             return 1;
         }
 
-        Thread.Sleep(delayMs);
-        using var sink = new MacTextSink();
-        TextDeliveryResult result = sink.DeliverAsync(new TextDeliveryRequest(
+        using var hook = new MacKeyboardHook(
+            Matraca.Core.Config.FromRaw(new RawConfig { hotkey = "F15" }));
+        hook.Start();
+        PumpRunLoopFor(delayMs);
+        using var queue = new DeliveryQueue(new MacTextSink());
+        Task<TextDeliveryResult> delivery = queue.EnqueueAsync(new TextDeliveryRequest(
                 args[2],
                 pressEnter,
-                method))
-            .GetAwaiter().GetResult();
+                method));
+        PumpRunLoopUntil(delivery, 10000);
+        TextDeliveryResult result = delivery.IsCompleted
+            ? delivery.GetAwaiter().GetResult()
+            : TextDeliveryResult.Failed;
         File.WriteAllText(args[5], result.ToString());
         return result == TextDeliveryResult.Delivered ? 0 : 1;
+    }
+
+    private static void PumpRunLoopFor(int durationMs)
+    {
+        var elapsed = System.Diagnostics.Stopwatch.StartNew();
+        while (elapsed.ElapsedMilliseconds < durationMs)
+            PumpRunLoopOnce();
+    }
+
+    private static void PumpRunLoopUntil(Task task, int timeoutMs)
+    {
+        var elapsed = System.Diagnostics.Stopwatch.StartNew();
+        while (!task.IsCompleted && elapsed.ElapsedMilliseconds < timeoutMs)
+            PumpRunLoopOnce();
+    }
+
+    private static void PumpRunLoopOnce()
+    {
+        IntPtr runLoop = ObjC.Send(ObjCClasses.NSRunLoop, ObjCSelectors.CurrentRunLoop);
+        IntPtr until = ObjC.SendDouble(
+            ObjCClasses.NSDate,
+            ObjCSelectors.DateWithTimeIntervalSinceNow,
+            0.01);
+        ObjC.SendVoid(runLoop, ObjCSelectors.RunUntilDate, until);
     }
 
     private static async Task<int> RunAudioSmoke(string[] args)
