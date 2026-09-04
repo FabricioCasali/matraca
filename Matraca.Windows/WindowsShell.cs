@@ -10,6 +10,10 @@ internal sealed class WindowsShell : IShell
     private readonly Icon _busyIcon;
     private int _disposed;
 
+    public event Action<ShellState, string>? StateChanged;
+    public ShellState CurrentState { get; private set; } = ShellState.Idle;
+    public string CurrentText { get; private set; } = "Matraca pronto.";
+
     public WindowsShell(NotifyIcon tray, Icon idleIcon, Icon recordingIcon, Icon busyIcon)
     {
         _tray = tray;
@@ -20,6 +24,8 @@ internal sealed class WindowsShell : IShell
 
     public void SetState(ShellState state, string text)
     {
+        CurrentState = state;
+        CurrentText = text;
         _tray.Icon = state switch
         {
             ShellState.Recording => _recordingIcon,
@@ -28,6 +34,7 @@ internal sealed class WindowsShell : IShell
             _ => _idleIcon,
         };
         _tray.Text = text.Length <= 63 ? text : text[..60] + "...";
+        StateChanged?.Invoke(state, text);
     }
 
     public void ShowNotification(
@@ -65,5 +72,6 @@ internal sealed class WindowsShell : IShell
         if (Interlocked.Exchange(ref _disposed, 1) != 0) return;
         _tray.Visible = false;
         _tray.Dispose();
+        StateChanged = null;
     }
 }

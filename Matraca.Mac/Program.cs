@@ -69,9 +69,9 @@ internal static class Program
                 application,
                 async cancellation =>
                 {
-                    await bridge.ShutdownAsync(cancellation).ConfigureAwait(false);
                     if (trayApp != null)
                         await trayApp.ShutdownAsync(cancellation).ConfigureAwait(false);
+                    await bridge.ShutdownAsync(cancellation).ConfigureAwait(false);
                 });
             if (trayApp != null)
             {

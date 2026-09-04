@@ -82,8 +82,10 @@ internal sealed class MacTrayApp : IDisposable
     }
 
     internal CoreConfig CurrentConfig => _config;
+    internal string RuntimeGpu => _runtimeGpu;
     internal ShellState CurrentState => _shell.CurrentState;
     internal string CurrentStateText => _shell.CurrentText;
+    internal bool CanOpenWebWindow => !_controller.IsSessionActive && !_controller.IsBusy;
     internal RawConfig LoadRawConfig() => MacConfig.LoadRaw();
     internal IReadOnlyList<string> ListAudioDevices() => _audio.ListDevices();
     internal bool TryGetActiveTargetBounds(out CGRect bounds)
@@ -136,7 +138,7 @@ internal sealed class MacTrayApp : IDisposable
             }
             ConfigChanged?.Invoke(next);
             bool restartRequired = next.Gpu != _runtimeGpu;
-            if (restartRequired) NotifyRestartRequired();
+            if (restartRequired && next.Gpu != previous.Gpu) NotifyRestartRequired();
             return (raw, restartRequired);
         }
         catch (Exception exception)

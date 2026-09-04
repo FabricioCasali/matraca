@@ -1,22 +1,19 @@
+using System.Diagnostics;
 using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
-using Matraca.Core;
-using Matraca.Mac.Config;
-using Matraca.Mac.Platform.Audio;
-using Matraca.Mac.Platform.Interop;
 
-namespace Matraca.Mac.Platform.Web;
+namespace Matraca;
 
-internal sealed class MacWebBridge : IDisposable
+internal sealed class WindowsWebBridge : IDisposable
 {
-    private static readonly JsonSerializerOptions ReadOptions = new()
+    private static readonly JsonSerializerOptions JsonOptions = new()
     {
         PropertyNameCaseInsensitive = true,
     };
 
-    private readonly MacTrayApp? _app;
-    private readonly MacMicrophoneMonitor _microphone = new();
+    private readonly TrayApp _app;
+    private readonly WindowsMicrophoneMonitor _microphone;
     private readonly SemaphoreSlim _microphoneGate = new(1, 1);
     private readonly object _hotkeyCaptureGate = new();
     private readonly object _modelDownloadGate = new();
@@ -24,38 +21,35 @@ internal sealed class MacWebBridge : IDisposable
     private string _monitoredDevice = "";
     private float _peak;
     private int _microphoneGeneration;
+    private int _microphoneSuspendedController;
     private CancellationTokenSource? _hotkeyCaptureCancellation;
     private CancellationTokenSource? _modelDownloadCancellation;
     private Task<object>? _modelDownloadTask;
     private int _stopping;
     private int _disposed;
 
-    public MacWebBridge(MacTrayApp? app)
+    public WindowsWebBridge(TrayApp app, IShell shell)
     {
-        _app = app;
+        _app = app ?? throw new ArgumentNullException(nameof(app));
+        _microphone = new WindowsMicrophoneMonitor(shell);
         _microphone.Frame += OnMicrophoneFrame;
-        if (_app == null) return;
         _app.StateChanged += OnStateChanged;
         _app.ConfigChanged += OnConfigChanged;
     }
 
     public event Action<string>? MessageProduced;
     public event Action? CloseWindowRequested;
-    public bool CanOpenWindow => _app?.CanOpenWebWindow ?? true;
 
-    public void RejectOpenWhileBusy()
-        => _app?.ShowWebError("Encerre o ditado antes de abrir o painel.");
-
-    public void PrepareToOpen()
+    public void PrepareToOpen(IntPtr excludedWindow)
     {
-        _app?.CaptureWebTarget();
+        _app.CaptureWebTarget(excludedWindow);
         Emit("window.opened", new { });
     }
 
     public void WindowClosed()
     {
         CancelHotkeyCapture();
-        _app?.ReleaseWebTarget();
+        _app.ReleaseWebTarget();
         Observe(StopMicrophoneAsync());
     }
 
@@ -85,17 +79,17 @@ internal sealed class MacWebBridge : IDisposable
             {
                 "app.get" => BuildSnapshot(),
                 "config.get" => BuildConfig(),
-                "config.set" => await SetConfigAsync(parameters).ConfigureAwait(false),
+                "config.set" => await SetConfigAsync(parameters),
                 "history.list" => BuildHistory(),
                 "history.delete" => DeleteHistory(parameters),
                 "history.copy" => CopyHistory(parameters),
-                "history.repaste" => await RepasteHistoryAsync(parameters).ConfigureAwait(false),
-                "hotkey.capture.start" => await CaptureHotkeyAsync().ConfigureAwait(false),
+                "history.repaste" => await RepasteHistoryAsync(parameters),
+                "hotkey.capture.start" => await CaptureHotkeyAsync(),
                 "hotkey.capture.cancel" => CancelHotkeyCapture(),
-                "model.download.start" => await DownloadModelAsync(parameters).ConfigureAwait(false),
+                "mic.monitor.start" => await StartMicrophoneAsync(parameters),
+                "mic.monitor.stop" => await StopMicrophoneAsync(),
+                "model.download.start" => await DownloadModelAsync(parameters),
                 "model.download.cancel" => CancelModelDownload(),
-                "mic.monitor.start" => await StartMicrophoneAsync(parameters).ConfigureAwait(false),
-                "mic.monitor.stop" => await StopMicrophoneAsync().ConfigureAwait(false),
                 "permissions.get" => BuildPermissions(),
                 "permissions.open-settings" => OpenPermissionSettings(parameters),
                 _ => throw new NotSupportedException(method),
@@ -120,7 +114,7 @@ internal sealed class MacWebBridge : IDisposable
         }
         catch (Exception exception)
         {
-            Logger.Error("Falha ao executar comando da interface web", exception);
+            Logger.Error("Falha ao executar comando da interface WebView2", exception);
             return ErrorResponse(GetRequestId(json), "native_error", exception.Message);
         }
     }
@@ -128,6 +122,7 @@ internal sealed class MacWebBridge : IDisposable
     public async Task ShutdownAsync(CancellationToken cancellationToken = default)
     {
         if (Interlocked.Exchange(ref _stopping, 1) != 0) return;
+        CancelHotkeyCapture();
         Task<object>? modelDownload;
         lock (_modelDownloadGate)
         {
@@ -140,27 +135,11 @@ internal sealed class MacWebBridge : IDisposable
             catch (OperationCanceledException) { }
             catch (Exception exception) { Logger.Error("Download de modelo falhou no encerramento", exception); }
         }
+
         Interlocked.Increment(ref _microphoneGeneration);
         await _microphoneGate.WaitAsync(cancellationToken).ConfigureAwait(false);
         try { await _microphone.StopAsync(cancellationToken).ConfigureAwait(false); }
         finally { _microphoneGate.Release(); }
-    }
-
-    public void Dispose()
-    {
-        if (Interlocked.Exchange(ref _disposed, 1) != 0) return;
-        ShutdownAsync().GetAwaiter().GetResult();
-        if (_app != null)
-        {
-            _app.StateChanged -= OnStateChanged;
-            _app.ConfigChanged -= OnConfigChanged;
-            _app.ReleaseWebTarget();
-        }
-        CancelHotkeyCapture();
-        _microphone.Frame -= OnMicrophoneFrame;
-        _microphone.Dispose();
-        MessageProduced = null;
-        CloseWindowRequested = null;
     }
 
     private object BuildSnapshot() => new
@@ -169,17 +148,17 @@ internal sealed class MacWebBridge : IDisposable
         history = BuildHistory(),
         state = BuildState(),
         permissions = BuildPermissions(),
-        devices = _app?.ListAudioDevices() ?? _microphone.ListDevices(),
+        devices = _app.ListAudioDevices(),
         models = BuildModels(),
     };
 
     private object BuildConfig()
     {
-        RawConfig raw = _app?.LoadRawConfig() ?? MacConfig.LoadRaw();
+        RawConfig raw = _app.LoadRawConfig();
         return new
         {
             config = BuildPublicConfig(raw),
-            runtime = _app == null ? null : new
+            runtime = new
             {
                 gpu = _app.RuntimeGpu,
                 desiredGpu = _app.CurrentConfig.Gpu,
@@ -190,60 +169,53 @@ internal sealed class MacWebBridge : IDisposable
 
     private async Task<object> SetConfigAsync(JsonElement parameters)
     {
-        if (_app == null)
-            throw new InvalidOperationException("O runtime de ditado nao esta disponivel.");
         if (parameters.ValueKind != JsonValueKind.Object
-            || !parameters.TryGetProperty("patch", out JsonElement patchElement)
-            || patchElement.ValueKind != JsonValueKind.Object)
+            || !parameters.TryGetProperty("patch", out JsonElement patch)
+            || patch.ValueKind != JsonValueKind.Object)
             throw new JsonException("config.set exige params.patch.");
 
-        (RawConfig raw, bool restartRequired) = await _app
-            .ApplyAndSaveConfigPatchAsync(patchElement.GetRawText())
-            .ConfigureAwait(false);
+        (RawConfig raw, bool restartRequired) = await _app.ApplyAndSaveConfigPatchAsync(
+            patch.GetRawText());
         return new { config = BuildPublicConfig(raw), restartRequired };
     }
 
     private object BuildHistory() => new
     {
-        entries = (_app?.HistorySnapshot() ?? [])
-            .Select(entry => new
-            {
-                id = HistoryId(entry),
-                at = entry.At,
-                text = entry.Text,
-                characterCount = entry.Text.Length,
-            })
-            .ToArray(),
+        entries = _app.HistorySnapshot().Select(entry => new
+        {
+            id = HistoryId(entry),
+            at = entry.At,
+            text = entry.Text,
+            characterCount = entry.Text.Length,
+        }).ToArray(),
     };
 
     private object DeleteHistory(JsonElement parameters)
     {
         DictationHistoryEntry entry = FindHistoryEntry(parameters);
-        if (_app?.RemoveHistory(entry.At, entry.Text) != true)
-            throw new IOException("Nao foi possivel persistir a exclusao do historico.");
+        if (!_app.RemoveHistory(entry.At, entry.Text))
+            throw new IOException("Não foi possível persistir a exclusão do histórico.");
         return new { deleted = true };
     }
 
     private object CopyHistory(JsonElement parameters)
     {
         DictationHistoryEntry entry = FindHistoryEntry(parameters);
-        if (_app?.CopyText(entry.Text) != true)
-            throw new IOException("O clipboard mudou ou recusou a copia.");
+        if (!_app.CopyText(entry.Text))
+            throw new IOException("O clipboard recusou a cópia.");
         return new { copied = true };
     }
 
     private async Task<object> RepasteHistoryAsync(JsonElement parameters)
     {
-        if (_app == null)
-            throw new InvalidOperationException("O runtime de ditado nao esta disponivel.");
         DictationHistoryEntry entry = FindHistoryEntry(parameters);
         TargetToken target = _app.TakeWebTarget()
-            ?? throw new InvalidOperationException("A janela de destino nao esta mais disponivel.");
+            ?? throw new InvalidOperationException("A janela de destino não está mais disponível.");
         CloseWindowRequested?.Invoke();
         TextDeliveryResult result = await _app.RepasteAsync(entry.Text, target).ConfigureAwait(false);
         if (result != TextDeliveryResult.Delivered)
         {
-            string message = $"Nao foi possivel recolar o texto: {result}.";
+            string message = $"Não foi possível recolar o texto: {result}.";
             _app.ShowWebError(message);
             throw new InvalidOperationException(message);
         }
@@ -252,9 +224,6 @@ internal sealed class MacWebBridge : IDisposable
 
     private async Task<object> CaptureHotkeyAsync()
     {
-        if (_app == null)
-            throw new InvalidOperationException("O teclado do Matraca nao esta disponivel.");
-
         CancellationTokenSource cancellation;
         lock (_hotkeyCaptureGate)
         {
@@ -263,11 +232,14 @@ internal sealed class MacWebBridge : IDisposable
             cancellation = new CancellationTokenSource();
             _hotkeyCaptureCancellation = cancellation;
         }
+
         try
         {
-            HotkeyGesture gesture = await _app.CaptureHotkeyAsync(cancellation.Token)
-                .ConfigureAwait(false);
-            return new { hotkey = gesture.ToString() };
+            using var capture = new WindowsHotkeyCapture(cancellation.Token);
+            HotkeyGesture gesture = await capture.Completion.ConfigureAwait(false);
+            if (!HotkeyParser.TryParse(gesture.ToString(), out HotkeyGesture validated))
+                throw new InvalidOperationException("O atalho capturado não é válido.");
+            return new { hotkey = validated.ToString() };
         }
         finally
         {
@@ -286,16 +258,16 @@ internal sealed class MacWebBridge : IDisposable
         return new { canceled = true };
     }
 
-    private static object BuildModels()
+    private object BuildModels()
     {
-        HashSet<string> existing = ModelDownloader.Existing(MacConfig.Paths)
+        HashSet<string> existing = ModelDownloader.Existing(WindowsConfig.Paths)
             .Select(Path.GetFullPath)
-            .ToHashSet(StringComparer.Ordinal);
+            .ToHashSet(StringComparer.OrdinalIgnoreCase);
         return new
         {
             entries = ModelDownloader.Catalog.Select(model =>
             {
-                string path = ModelDownloader.PathFor(model, MacConfig.Paths);
+                string path = ModelDownloader.PathFor(model, WindowsConfig.Paths);
                 return new
                 {
                     id = model.FileName,
@@ -311,57 +283,51 @@ internal sealed class MacWebBridge : IDisposable
 
     private Task<object> DownloadModelAsync(JsonElement parameters)
     {
-        MacTrayApp app = _app
-            ?? throw new InvalidOperationException("O runtime do Matraca nao esta disponivel.");
         if (parameters.ValueKind != JsonValueKind.Object
             || !parameters.TryGetProperty("id", out JsonElement idElement)
             || idElement.ValueKind != JsonValueKind.String)
             throw new JsonException("model.download.start exige params.id.");
         string id = idElement.GetString()!;
         ModelInfo model = ModelDownloader.Catalog.FirstOrDefault(item => item.FileName == id)
-            ?? throw new JsonException("O modelo solicitado nao pertence ao catalogo.");
+            ?? throw new JsonException("O modelo solicitado não pertence ao catálogo.");
 
         CancellationTokenSource cancellation;
         Task<object> task;
         lock (_modelDownloadGate)
         {
             if (Volatile.Read(ref _stopping) != 0 || Volatile.Read(ref _disposed) != 0)
-                throw new InvalidOperationException("O Matraca esta encerrando.");
+                throw new InvalidOperationException("O Matraca está encerrando.");
             if (_modelDownloadCancellation != null)
-                throw new InvalidOperationException("Ja existe um download de modelo em andamento.");
+                throw new InvalidOperationException("Já existe um download de modelo em andamento.");
             cancellation = new CancellationTokenSource();
             _modelDownloadCancellation = cancellation;
-            task = Task.Run(() => DownloadModelCoreAsync(app, model, cancellation));
+            task = Task.Run(() => DownloadModelCoreAsync(model, cancellation));
             _modelDownloadTask = task;
         }
         return task;
     }
 
     private async Task<object> DownloadModelCoreAsync(
-        MacTrayApp app,
         ModelInfo model,
         CancellationTokenSource cancellation)
     {
         try
         {
-            string path = ModelDownloader.PathFor(model, MacConfig.Paths);
-            if (File.Exists(path) && new FileInfo(path).Length != model.Bytes)
-                File.Delete(path);
+            string path = ModelDownloader.PathFor(model, WindowsConfig.Paths);
+            if (File.Exists(path) && new FileInfo(path).Length != model.Bytes) File.Delete(path);
             if (!File.Exists(path))
             {
                 var progress = new Progress<(long done, long total)>(value => Emit(
                     "model.download.progress",
                     new { id = model.FileName, value.done, value.total }));
                 path = await ModelDownloader.DownloadAsync(
-                        model,
-                        progress,
-                        cancellation.Token,
-                        MacConfig.Paths)
-                    .ConfigureAwait(false);
+                    model,
+                    progress,
+                    cancellation.Token,
+                    WindowsConfig.Paths).ConfigureAwait(false);
             }
-            (RawConfig raw, bool restartRequired) = await app.ApplyAndSaveConfigPatchAsync(
-                    JsonSerializer.Serialize(new { modelPath = path }))
-                .ConfigureAwait(false);
+            (RawConfig raw, bool restartRequired) = await _app.ApplyAndSaveConfigPatchAsync(
+                JsonSerializer.Serialize(new { modelPath = path })).ConfigureAwait(false);
             return new
             {
                 path,
@@ -390,19 +356,6 @@ internal sealed class MacWebBridge : IDisposable
         return new { canceled = true };
     }
 
-    private DictationHistoryEntry FindHistoryEntry(JsonElement parameters)
-    {
-        if (_app == null)
-            throw new InvalidOperationException("O historico nao esta disponivel.");
-        if (parameters.ValueKind != JsonValueKind.Object
-            || !parameters.TryGetProperty("id", out JsonElement idElement)
-            || idElement.ValueKind != JsonValueKind.String)
-            throw new JsonException("O comando de historico exige params.id.");
-        string id = idElement.GetString()!;
-        return _app.HistorySnapshot().FirstOrDefault(entry => HistoryId(entry) == id)
-            ?? throw new InvalidOperationException("O item do historico nao existe mais.");
-    }
-
     private async Task<object> StartMicrophoneAsync(JsonElement parameters)
     {
         int generation = Interlocked.Increment(ref _microphoneGeneration);
@@ -410,22 +363,39 @@ internal sealed class MacWebBridge : IDisposable
             && parameters.TryGetProperty("device", out JsonElement deviceElement)
             && deviceElement.ValueKind == JsonValueKind.String
                 ? deviceElement.GetString()!.Trim()
-                : _app?.CurrentConfig.InputDevice ?? "";
+                : _app.CurrentConfig.InputDevice;
         await _microphoneGate.WaitAsync().ConfigureAwait(false);
         try
         {
             if (generation != Volatile.Read(ref _microphoneGeneration)
                 || Volatile.Read(ref _stopping) != 0)
-                return new { started = false, devices = Array.Empty<string>(), currentDevice = device, threshold = CurrentThreshold };
+                return new { started = false, currentDevice = device, threshold = CurrentThreshold };
             await _microphone.StopAsync().ConfigureAwait(false);
+            if (Volatile.Read(ref _microphoneSuspendedController) == 0)
+            {
+                await _app.BeginMicrophoneMonitorAsync().ConfigureAwait(false);
+                Volatile.Write(ref _microphoneSuspendedController, 1);
+            }
+            if (generation != Volatile.Read(ref _microphoneGeneration))
+            {
+                if (Interlocked.Exchange(ref _microphoneSuspendedController, 0) != 0)
+                    await _app.EndMicrophoneMonitorAsync().ConfigureAwait(false);
+                return new { started = false, currentDevice = device, threshold = CurrentThreshold };
+            }
             _monitoredDevice = device;
             Array.Clear(_smoothedBands);
             _peak = 0;
-            await _microphone.StartAsync(device).ConfigureAwait(false);
+            try { await _microphone.StartAsync(device).ConfigureAwait(false); }
+            catch
+            {
+                if (Interlocked.Exchange(ref _microphoneSuspendedController, 0) != 0)
+                    await _app.EndMicrophoneMonitorAsync().ConfigureAwait(false);
+                throw;
+            }
             if (generation != Volatile.Read(ref _microphoneGeneration))
             {
                 await _microphone.StopAsync().ConfigureAwait(false);
-                return new { started = false, devices = Array.Empty<string>(), currentDevice = device, threshold = CurrentThreshold };
+                return new { started = false, currentDevice = device, threshold = CurrentThreshold };
             }
             return new
             {
@@ -444,7 +414,12 @@ internal sealed class MacWebBridge : IDisposable
         await _microphoneGate.WaitAsync().ConfigureAwait(false);
         try
         {
-            await _microphone.StopAsync().ConfigureAwait(false);
+            try { await _microphone.StopAsync().ConfigureAwait(false); }
+            finally
+            {
+                if (Interlocked.Exchange(ref _microphoneSuspendedController, 0) != 0)
+                    await _app.EndMicrophoneMonitorAsync().ConfigureAwait(false);
+            }
             return new { stopped = true };
         }
         finally { _microphoneGate.Release(); }
@@ -452,7 +427,7 @@ internal sealed class MacWebBridge : IDisposable
 
     private object BuildPermissions() => new
     {
-        accessibility = Accessibility.IsTrusted(prompt: false) ? "granted" : "denied",
+        accessibility = "granted",
         microphone = _microphone.IsRunning ? "granted" : "unknown",
     };
 
@@ -462,27 +437,30 @@ internal sealed class MacWebBridge : IDisposable
             && parameters.TryGetProperty("name", out JsonElement nameElement)
             && nameElement.ValueKind == JsonValueKind.String
                 ? nameElement.GetString()!
-                : "accessibility";
-        string pane = name == "microphone" ? "Privacy_Microphone" : "Privacy_Accessibility";
-        IntPtr workspace = ObjC.Send(ObjCClasses.NSWorkspace, ObjCSelectors.SharedWorkspace);
-        IntPtr url = ObjC.Send(
-            ObjCClasses.NSURL,
-            ObjCSelectors.URLWithString,
-            NSStringRef.From($"x-apple.systempreferences:com.apple.preference.security?{pane}"));
-        bool opened = workspace != IntPtr.Zero
-            && url != IntPtr.Zero
-            && ObjC.SendBool(workspace, ObjCSelectors.OpenURL, url);
-        return new { opened };
+                : "microphone";
+        string uri = name == "microphone" ? "ms-settings:privacy-microphone" : "ms-settings:easeofaccess";
+        Process.Start(new ProcessStartInfo(uri) { UseShellExecute = true });
+        return new { opened = true };
     }
 
     private object BuildState() => new
     {
-        state = StateName(_app?.CurrentState ?? ShellState.Idle),
-        text = _app?.CurrentStateText ?? "Acessibilidade necessaria.",
+        state = StateName(_app.CurrentState),
+        text = _app.CurrentStateText,
     };
 
-    private float CurrentThreshold
-        => _app?.CurrentConfig.VadThresholdFor(_monitoredDevice) ?? 0.012f;
+    private DictationHistoryEntry FindHistoryEntry(JsonElement parameters)
+    {
+        if (parameters.ValueKind != JsonValueKind.Object
+            || !parameters.TryGetProperty("id", out JsonElement idElement)
+            || idElement.ValueKind != JsonValueKind.String)
+            throw new JsonException("O comando de histórico exige params.id.");
+        string id = idElement.GetString()!;
+        return _app.HistorySnapshot().FirstOrDefault(entry => HistoryId(entry) == id)
+            ?? throw new InvalidOperationException("O item do histórico não existe mais.");
+    }
+
+    private float CurrentThreshold => _app.CurrentConfig.VadThresholdFor(_monitoredDevice);
 
     private void OnMicrophoneFrame(float rms, float peak, float[] bands)
     {
@@ -507,22 +485,18 @@ internal sealed class MacWebBridge : IDisposable
             state = StateName(state),
             title = text,
             text,
-            detail = state == ShellState.Recording ? _app?.CurrentConfig.Mode : "",
+            detail = state == ShellState.Recording ? _app.CurrentConfig.Mode : "",
         });
 
-    private void OnConfigChanged(Matraca.Core.Config config)
+    private void OnConfigChanged(Config config)
     {
-        try
-        {
-            RawConfig raw = _app?.LoadRawConfig() ?? MacConfig.LoadRaw();
-            Emit("config.changed", new { config = BuildPublicConfig(raw) });
-        }
-        catch (Exception exception) { Logger.Error("Falha ao publicar configuracao para a UI", exception); }
+        try { Emit("config.changed", new { config = BuildPublicConfig(_app.LoadRawConfig()) }); }
+        catch (Exception exception) { Logger.Error("Falha ao publicar configuração para a UI", exception); }
     }
 
     private static object BuildPublicConfig(RawConfig raw)
     {
-        JsonElement serialized = JsonSerializer.SerializeToElement(raw, ReadOptions);
+        JsonElement serialized = JsonSerializer.SerializeToElement(raw, JsonOptions);
         var result = new Dictionary<string, object?>();
         foreach (JsonProperty property in serialized.EnumerateObject())
         {
@@ -537,17 +511,25 @@ internal sealed class MacWebBridge : IDisposable
     {
         try
         {
-            MessageProduced?.Invoke(JsonSerializer.Serialize(new
-            {
-                version = 1,
-                type,
-                payload,
-            }));
+            MessageProduced?.Invoke(JsonSerializer.Serialize(new { version = 1, type, payload }));
         }
         catch (Exception exception)
         {
-            Logger.Error("Falha ao publicar evento para a interface web", exception);
+            Logger.Error("Falha ao publicar evento para a interface WebView2", exception);
         }
+    }
+
+    public void Dispose()
+    {
+        if (Interlocked.Exchange(ref _disposed, 1) != 0) return;
+        ShutdownAsync().GetAwaiter().GetResult();
+        _app.StateChanged -= OnStateChanged;
+        _app.ConfigChanged -= OnConfigChanged;
+        _app.ReleaseWebTarget();
+        _microphone.Frame -= OnMicrophoneFrame;
+        _microphone.Dispose();
+        MessageProduced = null;
+        CloseWindowRequested = null;
     }
 
     private static string StateName(ShellState state) => state switch
@@ -593,7 +575,7 @@ internal sealed class MacWebBridge : IDisposable
     private static void Observe(Task task)
         => _ = task.ContinueWith(
             failed => Logger.Error(
-                "Falha ao encerrar monitor de microfone",
+                "Falha ao encerrar recurso da interface WebView2",
                 failed.Exception!.GetBaseException()),
             CancellationToken.None,
             TaskContinuationOptions.OnlyOnFaulted,

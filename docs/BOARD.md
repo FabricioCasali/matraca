@@ -28,8 +28,9 @@ O desenho da frente 2.0 está em [`PLANO-2.0.md`](PLANO-2.0.md).
   nativa; smoke verde, falta validação manual dos dois gestos. Ponte real já liga estado,
   histórico, todos os parâmetros, captura guiada das teclas, download do modelo e monitor
   de microfone com FFT/VAD ao Core. HUD WebKit acompanha escrita/resultado sem ativar ou
-  aceitar clique e segue o monitor do alvo. Restam validação manual do conjunto e portar
-  o contrato para o WebView2 no Windows. · `[2.0]` · G · importante
+  aceitar clique e segue o monitor do alvo. A fatia Windows já hospeda o mesmo painel em
+  WebView2, com bridge v1, captura guiada, monitor de microfone, download e alvo preservado
+  para repaste. Resta validação manual do conjunto nos dois sistemas. · `[2.0]` · G · importante
 
 ## 📋 A fazer
 

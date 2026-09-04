@@ -57,6 +57,11 @@ internal sealed class MacWebWindowController : IDisposable
     {
         MainThread.VerifyAccess();
         if (_disposed) return;
+        if (_bridge?.CanOpenWindow == false)
+        {
+            _bridge.RejectOpenWhileBusy();
+            return;
+        }
 
         _host ??= CreateHost();
         try

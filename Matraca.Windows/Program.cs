@@ -61,7 +61,6 @@ internal static class Program
         Application.SetCompatibleTextRenderingDefault(false);
         try
         {
-            RunOnboardingIfNeeded();
             Application.Run(new TrayApp());
         }
         catch (Exception exception)
@@ -69,23 +68,6 @@ internal static class Program
             Logger.Error("Falha fatal", exception);
             MessageBox.Show("Erro fatal no Matraca:\n" + exception.Message, "Matraca",
                 MessageBoxButtons.OK, MessageBoxIcon.Error);
-        }
-    }
-
-    private static void RunOnboardingIfNeeded()
-    {
-        try
-        {
-            var modelPath = WindowsConfig.Load().ModelPath;
-            if (modelPath.Length > 0 && File.Exists(modelPath)) return;
-
-            Logger.Info($"Modelo nao encontrado ('{modelPath}'); abrindo a tela de primeiro uso.");
-            using var form = new OnboardingForm();
-            form.ShowDialog();
-        }
-        catch (Exception exception)
-        {
-            Logger.Error("Falha na tela de primeiro uso", exception);
         }
     }
 

@@ -305,6 +305,8 @@
       applyDevices(snapshot.devices);
       applyModels(snapshot.models);
       applyConfig(snapshot.config.config);
+      if (snapshot.config.runtime?.restartRequired)
+        text("[data-save-state]", `Reinicie: usando ${snapshot.config.runtime.gpu}, salvo ${snapshot.config.runtime.desiredGpu}`);
       setHistory(snapshot.history?.entries);
       applyRuntime(snapshot.state);
       text(
@@ -410,7 +412,11 @@
   });
   document.querySelectorAll("[data-hotkey-capture]").forEach(button => {
     button.addEventListener("click", async event => {
-      if (capturingHotkey || !globalThis.matraca) return;
+      if (!globalThis.matraca) return;
+      if (capturingHotkey) {
+        await globalThis.matraca.request("hotkey.capture.cancel");
+        return;
+      }
       const field = event.currentTarget.dataset.hotkeyCapture;
       const help = event.currentTarget.dataset.hotkeyHelpTarget;
       const originalLabel = event.currentTarget.textContent;
