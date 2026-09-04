@@ -159,6 +159,14 @@
     text("[data-home-heading]", runtime.text || "Sua voz está pronta.");
   }
 
+  function applyPostProcessRuntime(active) {
+    text("[data-post-process-state]", !state.config?.postProcess
+      ? "Desligado; nenhuma chamada de rede será feita."
+      : active
+        ? "Ativo para os próximos ditados."
+        : "Inativo; revise provedor, endpoint, modelo e chave.");
+  }
+
   function setHistory(entries) {
     state.history = entries || [];
     if (!state.history.some(entry => entry.id === state.selectedHistoryId))
@@ -232,6 +240,7 @@
       try {
         const result = await globalThis.matraca.request("config.set", { patch });
         applyConfig(result.config);
+        applyPostProcessRuntime(result.postProcessActive === true);
         text(
           "[data-save-state]",
           result.restartRequired ? "Salvo · reinicie para GPU/CPU" : "Tudo salvo");
@@ -312,6 +321,7 @@
       applyDevices(snapshot.devices);
       applyModels(snapshot.models);
       applyConfig(snapshot.config.config);
+      applyPostProcessRuntime(snapshot.config.runtime?.postProcessActive === true);
       if (snapshot.config.runtime?.restartRequired)
         text("[data-save-state]", `Reinicie: usando ${snapshot.config.runtime.gpu}, salvo ${snapshot.config.runtime.desiredGpu}`);
       setHistory(snapshot.history?.entries);
@@ -410,7 +420,9 @@
       const value = control.hasAttribute("data-config-list")
         ? control.value.split(/[\n,]/).map(item => item.trim()).filter(Boolean)
         : numeric ? Number(control.value) : control.value;
-      saveConfig({ [field]: value });
+      saveConfig(field === "postProcessProvider" && value !== state.config?.postProcessProvider
+        ? { postProcessProvider: value, postProcess: false, postProcessApiKey: null }
+        : { [field]: value });
     });
   });
   document.querySelectorAll("[data-config-toggle]").forEach(control => {
@@ -529,8 +541,10 @@
         : 0;
       text("[data-onboarding-model]", `Baixando modelo local · ${percent}%`);
     }
-    if (message.type === "config.changed" && message.payload?.config)
+    if (message.type === "config.changed" && message.payload?.config) {
       applyConfig(message.payload.config);
+      applyPostProcessRuntime(message.payload.postProcessActive === true);
+    }
   });
 
   showRoute(location.hash.slice(1));

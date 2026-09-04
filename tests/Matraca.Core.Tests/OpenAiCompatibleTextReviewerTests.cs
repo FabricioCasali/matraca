@@ -62,6 +62,20 @@ public sealed class OpenAiCompatibleTextReviewerTests
         Assert.Null(await reviewer.ReviewAsync("raw", CancellationToken.None));
     }
 
+    [Fact]
+    public void RemoteHttpEndpointIsRejected()
+    {
+        using var http = new HttpClient(new StubHttpMessageHandler(
+            (_, _) => throw new InvalidOperationException("request should not run")));
+
+        Assert.Throws<ArgumentException>(() => new OpenAiCompatibleTextReviewer(
+            http,
+            new Uri("http://review.example/v1/chat/completions"),
+            "secret",
+            "model",
+            "Review."));
+    }
+
     private static HttpResponseMessage JsonResponse(string json)
         => new(HttpStatusCode.OK)
         {

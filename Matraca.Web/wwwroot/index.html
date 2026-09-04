@@ -123,7 +123,7 @@
           </div>
 
           <div class="settings-panel" data-settings-panel="review">
-            <section class="setting compact"><div><span class="setting-icon">✦</span><div><strong>Pós-processamento</strong><p>Revisa somente o texto; se falhar, entrega a transcrição original.</p></div></div><button class="toggle" data-config-toggle="postProcess" type="button"><i></i></button></section>
+            <section class="setting compact"><div><span class="setting-icon">✦</span><div><strong>Pós-processamento</strong><p data-post-process-state>Desligado; nenhuma chamada de rede será feita.</p></div></div><button class="toggle" data-config-toggle="postProcess" type="button"><i></i></button></section>
             <section class="setting compact"><div><span class="setting-icon">◎</span><div><strong>Provedor</strong><p data-review-provider-effect>Apenas o texto transcrito é enviado.</p></div></div><select class="select" data-config-field="postProcessProvider"><option value="anthropic">Claude · Anthropic</option><option value="openai-compatible">OpenAI-compatible</option></select></section>
             <section class="setting compact" data-openai-compatible hidden><div><span class="setting-icon">↗</span><div><strong>Endpoint</strong><p>URL completa de chat completions; vazio usa a API da OpenAI.</p></div></div><input class="field wide" data-config-field="postProcessEndpoint" type="url" placeholder="https://api.openai.com/v1/chat/completions"></section>
             <section class="setting compact"><div><span class="setting-icon">◇</span><div><strong>Modelo</strong><p>Nome aceito pelo provedor para revisar o texto transcrito.</p></div></div><input class="field" data-config-field="postProcessModel" type="text" placeholder="claude-opus-5"></section>

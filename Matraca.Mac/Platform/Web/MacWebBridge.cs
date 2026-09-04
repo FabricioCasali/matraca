@@ -184,6 +184,7 @@ internal sealed class MacWebBridge : IDisposable
                 gpu = _app.RuntimeGpu,
                 desiredGpu = _app.CurrentConfig.Gpu,
                 restartRequired = _app.CurrentConfig.Gpu != _app.RuntimeGpu,
+                postProcessActive = _app.PostProcessingActive,
             },
         };
     }
@@ -200,7 +201,12 @@ internal sealed class MacWebBridge : IDisposable
         (RawConfig raw, bool restartRequired) = await _app
             .ApplyAndSaveConfigPatchAsync(patchElement.GetRawText())
             .ConfigureAwait(false);
-        return new { config = BuildPublicConfig(raw), restartRequired };
+        return new
+        {
+            config = BuildPublicConfig(raw),
+            restartRequired,
+            postProcessActive = _app.PostProcessingActive,
+        };
     }
 
     private object BuildHistory() => new
@@ -515,7 +521,11 @@ internal sealed class MacWebBridge : IDisposable
         try
         {
             RawConfig raw = _app?.LoadRawConfig() ?? MacConfig.LoadRaw();
-            Emit("config.changed", new { config = BuildPublicConfig(raw) });
+            Emit("config.changed", new
+            {
+                config = BuildPublicConfig(raw),
+                postProcessActive = _app?.PostProcessingActive == true,
+            });
         }
         catch (Exception exception) { Logger.Error("Falha ao publicar configuracao para a UI", exception); }
     }

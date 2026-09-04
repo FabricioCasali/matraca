@@ -42,6 +42,13 @@ public sealed class TextPostProcessor : IDisposable
 
         if (config.PostProcessProvider == "openai-compatible")
             return TryCreateOpenAiCompatible(config);
+        if (config.PostProcessProvider != "anthropic")
+        {
+            Logger.Warn(
+                $"Provedor de pos-processamento '{config.PostProcessProvider}' nao suportado; "
+                + "seguindo sem revisar o texto.");
+            return null;
+        }
 
         var key = ResolveKey(config.PostProcessApiKey, "ANTHROPIC_API_KEY");
         if (key.Length == 0)
@@ -139,9 +146,12 @@ public sealed class TextPostProcessor : IDisposable
             ? config.PostProcessEndpoint
             : OpenAiCompatibleTextReviewer.DefaultEndpoint;
         if (!Uri.TryCreate(endpointText, UriKind.Absolute, out Uri? endpoint)
-            || endpoint.Scheme is not ("http" or "https"))
+            || endpoint.Scheme is not ("http" or "https")
+            || (endpoint.Scheme == "http" && !endpoint.IsLoopback))
         {
-            Logger.Warn("Pos-processamento OpenAI-compatible ligado, mas o endpoint e invalido.");
+            Logger.Warn(
+                "Pos-processamento OpenAI-compatible ligado, mas o endpoint e invalido; "
+                + "use HTTPS ou HTTP local.");
             return null;
         }
 
@@ -159,7 +169,8 @@ public sealed class TextPostProcessor : IDisposable
                 endpoint,
                 key,
                 config.PostProcessModel,
-                config.PostProcessPrompt.Length > 0 ? config.PostProcessPrompt : DefaultPrompt);
+                config.PostProcessPrompt.Length > 0 ? config.PostProcessPrompt : DefaultPrompt,
+                disposeHttpClient: true);
             Logger.Info(
                 $"Pos-processamento de texto ligado (provedor openai-compatible, modelo "
                 + $"{config.PostProcessModel}, timeout {config.PostProcessTimeoutMs}ms).");

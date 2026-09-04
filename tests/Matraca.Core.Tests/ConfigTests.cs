@@ -28,7 +28,7 @@ public sealed class ConfigTests
     [InlineData("anthropic", "anthropic")]
     [InlineData("openai", "openai-compatible")]
     [InlineData("openai-compatible", "openai-compatible")]
-    [InlineData("unknown", "anthropic")]
+    [InlineData("unknown", "unknown")]
     public void PostProcessProviderUsesCanonicalValues(string raw, string expected)
     {
         var config = Config.FromRaw(new RawConfig { postProcessProvider = raw });

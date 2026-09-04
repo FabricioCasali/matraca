@@ -98,6 +98,7 @@ internal sealed class MacTrayApp : IDisposable
     }
     internal List<DictationHistoryEntry> HistorySnapshot()
         => _controller.CurrentHistory?.Snapshot() ?? [];
+    internal bool PostProcessingActive => _controller.PostProcessingActive;
     internal Task<HotkeyGesture> CaptureHotkeyAsync(CancellationToken cancellationToken)
         => _keyboard.CaptureNextAsync(cancellationToken);
 

@@ -13,18 +13,22 @@ public sealed class OpenAiCompatibleTextReviewer : IDisposable
     private readonly string _apiKey;
     private readonly string _model;
     private readonly string _prompt;
+    private readonly bool _disposeHttpClient;
 
     public OpenAiCompatibleTextReviewer(
         HttpClient httpClient,
         Uri endpoint,
         string apiKey,
         string model,
-        string prompt)
+        string prompt,
+        bool disposeHttpClient = false)
     {
         _httpClient = httpClient ?? throw new ArgumentNullException(nameof(httpClient));
         _endpoint = endpoint ?? throw new ArgumentNullException(nameof(endpoint));
         if (_endpoint.Scheme is not ("http" or "https"))
             throw new ArgumentException("Endpoint must use HTTP or HTTPS.", nameof(endpoint));
+        if (_endpoint.Scheme == "http" && !_endpoint.IsLoopback)
+            throw new ArgumentException("Remote endpoints must use HTTPS.", nameof(endpoint));
         _apiKey = apiKey ?? "";
         _model = string.IsNullOrWhiteSpace(model)
             ? throw new ArgumentException("Model is required.", nameof(model))
@@ -32,6 +36,7 @@ public sealed class OpenAiCompatibleTextReviewer : IDisposable
         _prompt = string.IsNullOrWhiteSpace(prompt)
             ? throw new ArgumentException("Prompt is required.", nameof(prompt))
             : prompt;
+        _disposeHttpClient = disposeHttpClient;
     }
 
     public async Task<string?> ReviewAsync(string text, CancellationToken cancellationToken)
@@ -79,5 +84,8 @@ public sealed class OpenAiCompatibleTextReviewer : IDisposable
                 : null;
     }
 
-    public void Dispose() => _httpClient.Dispose();
+    public void Dispose()
+    {
+        if (_disposeHttpClient) _httpClient.Dispose();
+    }
 }

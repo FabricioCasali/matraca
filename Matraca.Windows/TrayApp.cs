@@ -203,6 +203,7 @@ internal sealed class TrayApp : ApplicationContext
     internal IReadOnlyList<string> ListAudioDevices() => _audio.ListDevices();
     internal List<DictationHistoryEntry> HistorySnapshot()
         => _controller.CurrentHistory?.Snapshot() ?? [];
+    internal bool PostProcessingActive => _controller.PostProcessingActive;
     internal bool RemoveHistory(DateTime at, string text)
         => _controller.CurrentHistory?.Remove(at, text) == true;
 

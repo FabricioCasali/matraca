@@ -82,6 +82,7 @@ public sealed class DictationController : IDisposable
     public bool IsBusy => Volatile.Read(ref _busy) != 0;
     public bool IsSuspended => Volatile.Read(ref _lifecycleState) != LifecycleActive;
     public Config CurrentConfig => _config;
+    public bool PostProcessingActive => Volatile.Read(ref _postProcessor) != null;
     public TargetToken? PinnedTarget { get { lock (_targetGate) return _pinnedTarget; } }
     public event Action<bool>? DeliveryStarted;
     public event Action<string, TextDeliveryResult, bool>? DeliveryCompleted;

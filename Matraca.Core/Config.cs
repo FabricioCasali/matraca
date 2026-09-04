@@ -284,7 +284,8 @@ public sealed class Config
     private static string NormalizePostProcessProvider(string? value)
     {
         var provider = (value ?? "").Trim().ToLowerInvariant();
-        return provider is "openai" or "openai-compatible" ? "openai-compatible" : "anthropic";
+        if (provider.Length == 0 || provider == "anthropic") return "anthropic";
+        return provider == "openai" ? "openai-compatible" : provider;
     }
 
     private static string ResolveConfiguredPath(string? value, AppPaths? paths)

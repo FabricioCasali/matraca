@@ -352,6 +352,12 @@ internal sealed class SettingsForm : Form
         AddRow(gAdv, "Chave de API", _postApiKeyBox,
             "Vazio = usa ANTHROPIC_API_KEY ou OPENAI_API_KEY conforme o provedor. "
           + "Endpoints locais OpenAI-compatible podem dispensar chave.");
+        _postProviderBox.SelectedIndexChanged += (_, _) =>
+        {
+            if ((string?)_postProviderBox.SelectedItem == cfg.PostProcessProvider) return;
+            _postProcessBox.Checked = false;
+            _postApiKeyBox.Clear();
+        };
 
         _postTimeoutBox = NewNumeric(1000m, 60000m, cfg.PostProcessTimeoutMs, 500m, 0);
         AddRow(gAdv, "Timeout (ms)", _postTimeoutBox,

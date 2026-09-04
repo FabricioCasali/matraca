@@ -163,6 +163,7 @@ internal sealed class WindowsWebBridge : IDisposable
                 gpu = _app.RuntimeGpu,
                 desiredGpu = _app.CurrentConfig.Gpu,
                 restartRequired = _app.CurrentConfig.Gpu != _app.RuntimeGpu,
+                postProcessActive = _app.PostProcessingActive,
             },
         };
     }
@@ -176,7 +177,12 @@ internal sealed class WindowsWebBridge : IDisposable
 
         (RawConfig raw, bool restartRequired) = await _app.ApplyAndSaveConfigPatchAsync(
             patch.GetRawText());
-        return new { config = BuildPublicConfig(raw), restartRequired };
+        return new
+        {
+            config = BuildPublicConfig(raw),
+            restartRequired,
+            postProcessActive = _app.PostProcessingActive,
+        };
     }
 
     private object BuildHistory() => new
@@ -490,7 +496,14 @@ internal sealed class WindowsWebBridge : IDisposable
 
     private void OnConfigChanged(Config config)
     {
-        try { Emit("config.changed", new { config = BuildPublicConfig(_app.LoadRawConfig()) }); }
+        try
+        {
+            Emit("config.changed", new
+            {
+                config = BuildPublicConfig(_app.LoadRawConfig()),
+                postProcessActive = _app.PostProcessingActive,
+            });
+        }
         catch (Exception exception) { Logger.Error("Falha ao publicar configuração para a UI", exception); }
     }
 

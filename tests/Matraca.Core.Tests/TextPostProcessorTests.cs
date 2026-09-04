@@ -36,6 +36,20 @@ public sealed class TextPostProcessorTests
     }
 
     [Fact]
+    public void UnknownProviderDoesNotFallBackToAnthropic()
+    {
+        Config config = Config.FromRaw(new RawConfig
+        {
+            postProcess = true,
+            postProcessProvider = "other-provider",
+            postProcessModel = "model",
+            postProcessApiKey = "secret",
+        });
+
+        Assert.Null(TextPostProcessor.TryCreate(config));
+    }
+
+    [Fact]
     public async Task SuccessfulRequestReturnsTrimmedText()
     {
         using var processor = new TextPostProcessor(
