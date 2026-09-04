@@ -299,8 +299,8 @@ internal sealed class MacWebBridge : IDisposable
                 return new
                 {
                     id = model.FileName,
-                    model.Label,
-                    model.Bytes,
+                    label = model.Label,
+                    bytes = model.Bytes,
                     downloaded = existing.Contains(Path.GetFullPath(path))
                         && new FileInfo(path).Length == model.Bytes,
                     path,

@@ -318,7 +318,16 @@
       globalThis.matraca.notify("ui.dataReady", {
         historyCount: state.history.length,
         hotkey: state.config.hotkey || "F15",
-        deviceCount: snapshot.devices?.length || 0
+        deviceCount: snapshot.devices?.length || 0,
+        modelCount: state.models.length,
+        modelsValid: state.models.length > 0 && state.models.every(model =>
+          typeof model.id === "string" && model.id.length > 0
+          && typeof model.label === "string" && model.label.length > 0
+          && Number.isFinite(model.bytes) && model.bytes > 0
+          && typeof model.downloaded === "boolean"
+          && typeof model.path === "string" && model.path.length > 0)
+          && [...document.querySelectorAll("[data-model-choice] option")]
+            .every(option => option.textContent && !option.textContent.includes("undefined"))
       });
     } catch (error) {
       text("[data-home-heading]", error?.message || "A interface nativa não respondeu.");

@@ -110,6 +110,8 @@ internal static class MacWebViewSmoke
             int settingsTabCount = 0;
             int settingsControlCount = 0;
             int deviceCount = 0;
+            int modelCount = 0;
+            bool modelsValid = false;
             using var appHost = new MacWebViewHost(
                 assetRoot,
                 "Matraca UI Smoke",
@@ -140,6 +142,8 @@ internal static class MacWebViewSmoke
                 {
                     uiDataReady = true;
                     deviceCount = dataPayload.GetProperty("deviceCount").GetInt32();
+                    modelCount = dataPayload.GetProperty("modelCount").GetInt32();
+                    modelsValid = dataPayload.GetProperty("modelsValid").GetBoolean();
                 }
                 else if (type.GetString() == "ui.micReady"
                     && root.TryGetProperty("payload", out JsonElement microphonePayload))
@@ -206,6 +210,8 @@ internal static class MacWebViewSmoke
                 && settingsTabCount == 5
                 && settingsControlCount >= 26
                 && deviceCount > 0
+                && modelCount == ModelDownloader.Catalog.Count()
+                && modelsValid
                 && hudReady
                 && hudNonActivating
                 && hudHost.ServedAssetCount >= 4
@@ -231,6 +237,8 @@ internal static class MacWebViewSmoke
                 settingsTabCount,
                 settingsControlCount,
                 deviceCount,
+                modelCount,
+                modelsValid,
                 hudReady,
                 hudNonActivating,
                 hudServedAssetCount = hudHost.ServedAssetCount,
