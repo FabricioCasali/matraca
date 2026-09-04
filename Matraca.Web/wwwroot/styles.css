@@ -17,15 +17,33 @@
 
 :root[data-theme="light"] {
   color-scheme: light;
-  --bg: #f1f0f8;
-  --surface: rgba(255,255,255,.58);
-  --surface-strong: rgba(255,255,255,.83);
-  --line: rgba(50,40,85,.1);
-  --text: #27243c;
-  --muted: #878396;
-  --faint: #a09bac;
-  --shadow: 0 24px 70px rgba(56,42,105,.09);
+  --bg: #e8e6f0;
+  --surface: rgba(255,255,255,.72);
+  --surface-strong: rgba(255,255,255,.92);
+  --line: rgba(45,35,75,.52);
+  --text: #211d32;
+  --muted: #4f495c;
+  --faint: #60596c;
+  --violet: #593bbd;
+  --cyan: #006273;
+  --green: #0b6037;
+  --red: #ad2438;
+  --shadow: 0 24px 70px rgba(43,31,78,.16);
 }
+
+:root[data-theme="light"] .voice-card,
+:root[data-theme="light"] .calibration-card {
+  background: linear-gradient(125deg, var(--surface-strong), var(--surface));
+}
+:root[data-theme="light"] .spectrum { background: rgba(45,35,75,.08); }
+:root[data-theme="light"] .threshold em,
+:root[data-theme="light"] .threshold em b { background: var(--violet); }
+:root[data-theme="light"] .speech i { box-shadow: 2px 0 0 var(--green); }
+:root[data-theme="light"] .setting.featured {
+  border-color: color-mix(in srgb,var(--violet) 65%,transparent);
+}
+:root[data-theme="light"] input::placeholder,
+:root[data-theme="light"] textarea::placeholder { color: var(--faint); opacity: 1; }
 
 * { box-sizing: border-box; }
 html, body { min-width: 320px; min-height: 100%; }
@@ -109,13 +127,31 @@ button:disabled { cursor: not-allowed; opacity: .48; }
 @media (prefers-color-scheme: light) {
   :root:not([data-theme]) {
     color-scheme: light;
-    --bg: #f1f0f8;
-    --surface: rgba(255,255,255,.58);
-    --surface-strong: rgba(255,255,255,.83);
-    --line: rgba(50,40,85,.1);
-    --text: #27243c;
-    --muted: #878396;
-    --faint: #a09bac;
-    --shadow: 0 24px 70px rgba(56,42,105,.09);
+    --bg: #e8e6f0;
+    --surface: rgba(255,255,255,.72);
+    --surface-strong: rgba(255,255,255,.92);
+    --line: rgba(45,35,75,.52);
+    --text: #211d32;
+    --muted: #4f495c;
+    --faint: #60596c;
+    --violet: #593bbd;
+    --cyan: #006273;
+    --green: #0b6037;
+    --red: #ad2438;
+    --shadow: 0 24px 70px rgba(43,31,78,.16);
   }
+  :root:not([data-theme]) .voice-card,
+  :root:not([data-theme]) .calibration-card {
+    background: linear-gradient(125deg, var(--surface-strong), var(--surface));
+  }
+  :root:not([data-theme]) .spectrum { background: rgba(45,35,75,.08); }
+  :root:not([data-theme]) .threshold em,
+  :root:not([data-theme]) .threshold em b { background: var(--violet); }
+  :root:not([data-theme]) .speech i { box-shadow: 2px 0 0 var(--green); }
+  :root:not([data-theme]) .setting.featured {
+    border-color: color-mix(in srgb,var(--violet) 65%,transparent);
+  }
+  :root:not([data-theme]) input::placeholder,
+  :root:not([data-theme]) textarea::placeholder { color: var(--faint); opacity: 1; }
+  :root:not([data-theme]) .ambient { opacity: .18; }
 }

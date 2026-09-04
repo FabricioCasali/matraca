@@ -41,6 +41,9 @@
     <None Include="../../Matraca.Windows/appsettings.json"
           Link="packaged-appsettings.json"
           CopyToOutputDirectory="PreserveNewest" />
+    <None Include="../../Matraca.Web/wwwroot/styles.css"
+          Link="styles.css"
+          CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
 
 </Project>
