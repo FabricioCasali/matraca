@@ -88,6 +88,7 @@ internal sealed class MacWebBridge : IDisposable
                 "config.set" => await SetConfigAsync(parameters).ConfigureAwait(false),
                 "history.list" => BuildHistory(),
                 "history.delete" => DeleteHistory(parameters),
+                "history.clear" => ClearHistory(parameters),
                 "history.copy" => CopyHistory(parameters),
                 "history.repaste" => await RepasteHistoryAsync(parameters).ConfigureAwait(false),
                 "hotkey.capture.start" => await CaptureHotkeyAsync().ConfigureAwait(false),
@@ -165,6 +166,13 @@ internal sealed class MacWebBridge : IDisposable
 
     private object BuildSnapshot() => new
     {
+        platform = "macos",
+        capabilities = new
+        {
+            filePick = false,
+            soundPreview = false,
+            historyClear = true,
+        },
         config = BuildConfig(),
         history = BuildHistory(),
         state = BuildState(),
@@ -228,6 +236,13 @@ internal sealed class MacWebBridge : IDisposable
         if (_app?.RemoveHistory(entry.At, entry.Text) != true)
             throw new IOException("Nao foi possivel persistir a exclusao do historico.");
         return new { deleted = true };
+    }
+
+    private object ClearHistory(JsonElement parameters)
+    {
+        RequireExactProperties(parameters);
+        _app?.ClearHistory();
+        return new { cleared = true };
     }
 
     private object CopyHistory(JsonElement parameters)
@@ -546,6 +561,16 @@ internal sealed class MacWebBridge : IDisposable
         result["postProcessApiKeyConfigured"] = !string.IsNullOrWhiteSpace(
             openAiCompatible ? raw.postProcessOpenAiApiKey : raw.postProcessApiKey);
         return result;
+    }
+
+    private static void RequireExactProperties(JsonElement parameters, params string[] names)
+    {
+        if (parameters.ValueKind != JsonValueKind.Object)
+            throw new JsonException("O comando exige params como objeto.");
+        JsonProperty[] properties = parameters.EnumerateObject().ToArray();
+        if (properties.Length != names.Length
+            || properties.Any(property => !names.Contains(property.Name, StringComparer.Ordinal)))
+            throw new JsonException("Os parametros do comando nao correspondem ao contrato.");
     }
 
     private void Emit(string type, object payload)

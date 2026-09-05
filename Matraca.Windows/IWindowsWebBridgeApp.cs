@@ -15,7 +15,10 @@ internal interface IWindowsWebBridgeApp
     IReadOnlyList<string> ListAudioDevices();
     List<DictationHistoryEntry> HistorySnapshot();
     bool RemoveHistory(DateTime at, string text);
+    void ClearHistory();
     Task<(RawConfig Config, bool RestartRequired)> ApplyAndSaveConfigPatchAsync(string patchJson);
+    Task<string?> PickFileAsync(string kind);
+    Task<int> PreviewSoundAsync(bool start, string? filePath);
     bool CopyText(string text);
     void CaptureWebTarget(nint excludedWindow);
     void ReleaseWebTarget();

@@ -82,8 +82,11 @@ internal sealed class WindowsWebBridge : IDisposable
                 "config.set" => await SetConfigAsync(parameters),
                 "history.list" => BuildHistory(),
                 "history.delete" => DeleteHistory(parameters),
+                "history.clear" => ClearHistory(parameters),
                 "history.copy" => CopyHistory(parameters),
                 "history.repaste" => await RepasteHistoryAsync(parameters),
+                "file.pick" => await PickFileAsync(parameters),
+                "sound.preview" => await PreviewSoundAsync(parameters),
                 "hotkey.capture.start" => await CaptureHotkeyAsync(),
                 "hotkey.capture.cancel" => CancelHotkeyCapture(),
                 "mic.monitor.start" => await StartMicrophoneAsync(parameters),
@@ -144,6 +147,13 @@ internal sealed class WindowsWebBridge : IDisposable
 
     private object BuildSnapshot() => new
     {
+        platform = "windows",
+        capabilities = new
+        {
+            filePick = true,
+            soundPreview = true,
+            historyClear = true,
+        },
         config = BuildConfig(),
         history = BuildHistory(),
         state = BuildState(),
@@ -202,6 +212,40 @@ internal sealed class WindowsWebBridge : IDisposable
         if (!_app.RemoveHistory(entry.At, entry.Text))
             throw new IOException("Não foi possível persistir a exclusão do histórico.");
         return new { deleted = true };
+    }
+
+    private object ClearHistory(JsonElement parameters)
+    {
+        RequireExactProperties(parameters);
+        _app.ClearHistory();
+        return new { cleared = true };
+    }
+
+    private async Task<object> PickFileAsync(JsonElement parameters)
+    {
+        RequireExactProperties(parameters, "kind");
+        JsonElement kindElement = parameters.GetProperty("kind");
+        if (kindElement.ValueKind != JsonValueKind.String)
+            throw new JsonException("file.pick exige params.kind como string.");
+        string kind = kindElement.GetString()!;
+        if (kind is not ("model" or "sound"))
+            throw new JsonException("file.pick aceita kind model ou sound.");
+        string? path = await _app.PickFileAsync(kind);
+        return new { path };
+    }
+
+    private async Task<object> PreviewSoundAsync(JsonElement parameters)
+    {
+        RequireExactProperties(parameters, "start", "path");
+        JsonElement startElement = parameters.GetProperty("start");
+        JsonElement pathElement = parameters.GetProperty("path");
+        if (startElement.ValueKind is not (JsonValueKind.True or JsonValueKind.False)
+            || pathElement.ValueKind != JsonValueKind.String)
+            throw new JsonException("sound.preview exige params.start booleano e params.path string.");
+        int durationMs = await _app.PreviewSoundAsync(
+            startElement.GetBoolean(),
+            pathElement.GetString());
+        return new { played = durationMs > 0, durationMs };
     }
 
     private object CopyHistory(JsonElement parameters)
@@ -523,6 +567,16 @@ internal sealed class WindowsWebBridge : IDisposable
         result["postProcessApiKeyConfigured"] = !string.IsNullOrWhiteSpace(
             openAiCompatible ? raw.postProcessOpenAiApiKey : raw.postProcessApiKey);
         return result;
+    }
+
+    private static void RequireExactProperties(JsonElement parameters, params string[] names)
+    {
+        if (parameters.ValueKind != JsonValueKind.Object)
+            throw new JsonException("O comando exige params como objeto.");
+        JsonProperty[] properties = parameters.EnumerateObject().ToArray();
+        if (properties.Length != names.Length
+            || properties.Any(property => !names.Contains(property.Name, StringComparer.Ordinal)))
+            throw new JsonException("Os parâmetros do comando não correspondem ao contrato.");
     }
 
     private void Emit(string type, object payload)

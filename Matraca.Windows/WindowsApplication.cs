@@ -146,6 +146,19 @@ internal sealed class WindowsApplication : IWindowsWebBridgeApp, IDisposable
     public bool RemoveHistory(DateTime at, string text)
         => _controller.CurrentHistory?.Remove(at, text) == true;
 
+    public void ClearHistory() => _controller.CurrentHistory?.Clear();
+
+    public Task<string?> PickFileAsync(string kind)
+        => OnDispatcherAsync(() => kind switch
+        {
+            "model" => WindowsFilePicker.PickModel(_webWindow.Handle),
+            "sound" => WindowsFilePicker.PickSound(_webWindow.Handle),
+            _ => throw new ArgumentOutOfRangeException(nameof(kind)),
+        });
+
+    public Task<int> PreviewSoundAsync(bool start, string? filePath)
+        => OnDispatcherAsync(() => _shell.PlaySound(start, filePath, _config.BeepVolume));
+
     public async Task<(RawConfig Config, bool RestartRequired)> ApplyAndSaveConfigPatchAsync(
         string patchJson)
     {
@@ -626,6 +639,19 @@ internal sealed class WindowsApplication : IWindowsWebBridgeApp, IDisposable
         catch (ObjectDisposedException)
         {
         }
+    }
+
+    private Task<T> OnDispatcherAsync<T>(Func<T> action)
+    {
+        if (_dispatcher.IsDispatchThread) return Task.FromResult(action());
+
+        var completion = new TaskCompletionSource<T>(TaskCreationOptions.RunContinuationsAsynchronously);
+        _dispatcher.Post(() =>
+        {
+            try { completion.SetResult(action()); }
+            catch (Exception exception) { completion.SetException(exception); }
+        });
+        return completion.Task;
     }
 
     private static void Observe(Task task)

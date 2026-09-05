@@ -6,7 +6,7 @@
   const routes = [...document.querySelectorAll("[data-route]")];
   const validRoutes = new Set(pages.map(page => page.dataset.page));
   const spectrum = document.querySelector("[data-spectrum]");
-  const state = { config: null, history: [], devices: [], models: [], selectedHistoryId: null, monitoredDevice: "" };
+  const state = { config: null, history: [], devices: [], models: [], platform: null, capabilities: {}, selectedHistoryId: null, monitoredDevice: "" };
   const configDefaults = {
     language: "pt", hotkey: "F15", pinHotkey: "", pinDelivery: "focus",
     mode: "live", autoEnter: false,
@@ -43,6 +43,21 @@
 
   function db(value) {
     return value > 0 ? `${(20 * Math.log10(value)).toFixed(1)} dB` : "−∞ dB";
+  }
+
+  function levelPosition(value) {
+    const minimum = .001;
+    const maximum = .5;
+    return Math.min(100, Math.max(0, (Number(value) - minimum) / (maximum - minimum) * 100));
+  }
+
+  function applyCapabilities(platform, capabilities) {
+    state.platform = platform || null;
+    state.capabilities = capabilities || {};
+    if (state.platform) root.dataset.platform = state.platform;
+    document.querySelectorAll("[data-capability]").forEach(control => {
+      control.hidden = state.capabilities[control.dataset.capability] !== true;
+    });
   }
 
   function setMicrophoneState(label, active) {
@@ -271,7 +286,7 @@
       text("[data-device-label]", result.currentDevice || "Microfone padrão");
       text("[data-threshold-value]", Number(result.threshold).toFixed(3));
       const input = document.querySelector("[data-threshold-input]");
-      if (input) input.value = String(Math.min(.05, result.threshold));
+      if (input) input.value = String(Math.min(.5, result.threshold));
     } catch (error) {
       if (generation !== microphoneGeneration) return;
       microphoneRequested = false;
@@ -290,20 +305,23 @@
   }
 
   function applyMicrophone(frame) {
+    const speech = Number(frame.rms) > Number(frame.threshold);
     text("[data-current-level]", db(frame.rms));
     text("[data-peak-level]", db(frame.peak));
     text("[data-threshold-value]", Number(frame.threshold).toFixed(3));
-    text("[data-vad-state]", frame.speech ? "● voz detectada" : "○ ruído ignorado");
-    text("[data-vad-explanation]", frame.speech
+    text("[data-vad-state]", speech ? "● voz detectada" : "○ ruído ignorado");
+    text("[data-vad-explanation]", speech
       ? "Sua voz está acima do limiar e será capturada."
       : "O ambiente está abaixo do limiar e será ignorado.");
+    document.querySelector(".threshold")?.classList.toggle("voice-detected", speech);
+    document.querySelector("[data-vad-state]")?.classList.toggle("active", speech);
     const level = document.querySelector("[data-live-level]");
-    if (level) level.style.width = `${Math.min(100, Math.sqrt(frame.rms || 0) * 300)}%`;
-    const thresholdPosition = Math.min(
-      100,
-      Math.max(0, ((frame.threshold || .012) - .001) / .049 * 100));
+    if (level) {
+      level.style.width = `${levelPosition(frame.rms)}%`;
+      level.classList.toggle("active", speech);
+    }
     const thresholdMark = document.querySelector("[data-threshold-mark]");
-    if (thresholdMark) thresholdMark.style.left = `${thresholdPosition}%`;
+    if (thresholdMark) thresholdMark.style.left = `${levelPosition(frame.threshold)}%`;
     [...(spectrum?.children || [])].forEach((bar, index) => {
       const value = frame.bands?.[index] || 0;
       bar.style.height = `${Math.min(100, Math.sqrt(value) * 260)}%`;
@@ -322,6 +340,7 @@
     try {
       const snapshot = await globalThis.matraca.request("app.get");
       if (!snapshot?.config?.config) return;
+      applyCapabilities(snapshot.platform, snapshot.capabilities);
       applyDevices(snapshot.devices);
       applyModels(snapshot.models);
       applyConfig(snapshot.config.config);
@@ -483,6 +502,36 @@
   document.querySelectorAll("[data-clear-config]").forEach(button => {
     button.addEventListener("click", () => saveConfig({ [button.dataset.clearConfig]: "none" }));
   });
+  document.querySelectorAll("[data-file-pick]").forEach(button => {
+    button.addEventListener("click", async () => {
+      try {
+        const result = await globalThis.matraca?.request("file.pick", {
+          kind: button.dataset.fileKind
+        });
+        if (result?.path) await saveConfig({ [button.dataset.filePick]: result.path });
+      } catch (error) {
+        text("[data-save-state]", `Não selecionado · ${error?.message || error?.code || "erro"}`);
+      }
+    });
+  });
+  document.querySelectorAll("[data-sound-preview]").forEach(button => {
+    button.addEventListener("click", async () => {
+      const field = button.dataset.soundPreview;
+      try {
+        await globalThis.matraca?.request("sound.preview", {
+          start: button.dataset.soundStart === "true",
+          path: document.querySelector(`[data-config-field="${field}"]`)?.value || ""
+        });
+      } catch (error) {
+        text("[data-save-state]", `Não foi possível ouvir · ${error?.message || error?.code || "erro"}`);
+      }
+    });
+  });
+  document.querySelector("[data-threshold-input]")?.addEventListener("input", event => {
+    text("[data-threshold-value]", Number(event.currentTarget.value).toFixed(3));
+    const mark = document.querySelector("[data-threshold-mark]");
+    if (mark) mark.style.left = `${levelPosition(event.currentTarget.value)}%`;
+  });
   document.querySelector("[data-threshold-input]")?.addEventListener("change", event => {
     const threshold = Number(event.currentTarget.value);
     if (state.monitoredDevice) {
@@ -504,6 +553,15 @@
       setHistory(result?.entries);
     } catch (error) {
       text("[data-history-time]", error?.message || "Não foi possível apagar.");
+    }
+  });
+  document.querySelector("[data-history-clear]")?.addEventListener("click", async () => {
+    if (!state.history.length || !confirm("Limpar todo o histórico local? Esta ação não pode ser desfeita.")) return;
+    try {
+      await globalThis.matraca?.request("history.clear");
+      setHistory([]);
+    } catch (error) {
+      text("[data-history-time]", error?.message || "Não foi possível limpar o histórico.");
     }
   });
   document.querySelector("[data-history-copy]")?.addEventListener("click", async () => {

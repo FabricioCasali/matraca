@@ -365,4 +365,11 @@ internal static class WindowsNativeMethods
     [DllImport("shell32.dll", EntryPoint = "Shell_NotifyIconW", CharSet = CharSet.Unicode, SetLastError = true)]
     [return: MarshalAs(UnmanagedType.Bool)]
     internal static extern bool ShellNotifyIcon(uint message, ref WindowsNotifyIconData data);
+
+    [DllImport("comdlg32.dll", EntryPoint = "GetOpenFileNameW", CharSet = CharSet.Unicode, SetLastError = true)]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    internal static extern bool GetOpenFileName(ref WindowsOpenFileName openFileName);
+
+    [DllImport("comdlg32.dll")]
+    internal static extern uint CommDlgExtendedError();
 }

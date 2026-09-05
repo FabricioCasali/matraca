@@ -153,6 +153,8 @@ internal sealed class MacTrayApp : IDisposable
     internal bool RemoveHistory(DateTime at, string text)
         => _controller.CurrentHistory?.Remove(at, text) == true;
 
+    internal void ClearHistory() => _controller.CurrentHistory?.Clear();
+
     internal bool CopyText(string text) => new MacPasteboard().WriteText(text);
 
     internal void ShowWebError(string message)
