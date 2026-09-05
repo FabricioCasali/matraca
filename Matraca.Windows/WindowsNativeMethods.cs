@@ -25,6 +25,9 @@ internal static class WindowsNativeMethods
     internal const uint NinSelect = WmApp;
     internal const uint NinKeySelect = WmApp + 1;
 
+    internal const uint CfUnicodeText = 13;
+    internal const uint GmemMoveable = 0x0002;
+
     internal const uint NimAdd = 0x00000000;
     internal const uint NimModify = 0x00000001;
     internal const uint NimDelete = 0x00000002;
@@ -219,6 +222,24 @@ internal static class WindowsNativeMethods
     [return: MarshalAs(UnmanagedType.Bool)]
     internal static extern bool PostMessageW(nint window, uint message, nint wParam, nint lParam);
 
+    [DllImport("user32.dll", SetLastError = true)]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    internal static extern bool OpenClipboard(nint newOwner);
+
+    [DllImport("user32.dll", SetLastError = true)]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    internal static extern bool CloseClipboard();
+
+    [DllImport("user32.dll", SetLastError = true)]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    internal static extern bool EmptyClipboard();
+
+    [DllImport("user32.dll", SetLastError = true)]
+    internal static extern nint SetClipboardData(uint format, nint memory);
+
+    [DllImport("user32.dll")]
+    internal static extern uint GetClipboardSequenceNumber();
+
     [DllImport("user32.dll", EntryPoint = "RegisterWindowMessageW", CharSet = CharSet.Unicode, SetLastError = true)]
     internal static extern uint RegisterWindowMessage(string message);
 
@@ -256,6 +277,36 @@ internal static class WindowsNativeMethods
 
     [DllImport("kernel32.dll")]
     internal static extern uint GetCurrentThreadId();
+
+    [DllImport("kernel32.dll", SetLastError = true)]
+    internal static extern nint GlobalAlloc(uint flags, nuint bytes);
+
+    [DllImport("kernel32.dll", SetLastError = true)]
+    internal static extern nint GlobalLock(nint memory);
+
+    [DllImport("kernel32.dll", SetLastError = true)]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    internal static extern bool GlobalUnlock(nint memory);
+
+    [DllImport("kernel32.dll", SetLastError = true)]
+    internal static extern nint GlobalFree(nint memory);
+
+    [DllImport("ole32.dll")]
+    internal static extern int OleInitialize(nint reserved);
+
+    [DllImport("ole32.dll")]
+    internal static extern void OleUninitialize();
+
+    [DllImport("ole32.dll")]
+    internal static extern int OleGetClipboard(
+        [MarshalAs(UnmanagedType.Interface)] out System.Runtime.InteropServices.ComTypes.IDataObject? dataObject);
+
+    [DllImport("ole32.dll")]
+    internal static extern int OleSetClipboard(
+        [MarshalAs(UnmanagedType.Interface)] System.Runtime.InteropServices.ComTypes.IDataObject dataObject);
+
+    [DllImport("ole32.dll")]
+    internal static extern int OleFlushClipboard();
 
     [DllImport("gdi32.dll")]
     internal static extern nint CreateSolidBrush(uint color);

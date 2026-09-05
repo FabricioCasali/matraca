@@ -1,5 +1,4 @@
 using System.Runtime.InteropServices;
-using System.Windows.Forms;
 
 namespace Matraca;
 
@@ -33,25 +32,20 @@ internal static class TextInjector
 
     private static bool PasteViaClipboard(string text, bool autoEnter)
     {
-        string? previous = null;
-        try { if (Clipboard.ContainsText()) previous = Clipboard.GetText(); }
-        catch (Exception ex) { Logger.Warn("Nao consegui ler clipboard anterior: " + ex.Message); }
-
-        if (!TrySetClipboard(text))
+        if (!WindowsClipboard.TryWriteText(text, out WindowsClipboardSnapshot? previous))
         {
             Logger.Error("Nao consegui escrever no clipboard; abortando cola.");
             return false;
         }
 
-        bool delivered = SendCtrlV() && (!autoEnter || SendEnter());
-        Thread.Sleep(500);
-        try
+        using (previous)
         {
-            if (previous != null) Clipboard.SetText(previous);
-            else Clipboard.Clear();
+            bool delivered = SendCtrlV() && (!autoEnter || SendEnter());
+            Thread.Sleep(500);
+            if (previous.RestoreIfOwned() == WindowsClipboardRestoreResult.Failed)
+                Logger.Warn("Nao consegui restaurar o clipboard anterior.");
+            return delivered;
         }
-        catch { }
-        return delivered;
     }
 
     // Rajada grande de KEYEVENTF_UNICODE estoura a fila de mensagens de alguns alvos
@@ -102,33 +96,48 @@ internal static class TextInjector
     /// LIMITE CONHECIDO: so funciona em alvos que processam mensagens postadas (campos Win32,
     /// Notepad, muita coisa nativa). Terminal, console e apps Chromium/Electron fazem o proprio
     /// tratamento de entrada e simplesmente ignoram — nesses o texto nao aparece.
-    /// Devolve false apenas quando a janela nao existe mais; o resto e' melhor esforco.
+    /// So aceita controles de edicao Win32 conhecidos e confirma cada PostMessage.
     /// </summary>
-    public static bool SendToWindow(IntPtr hwnd, string text, bool autoEnter)
+    public static TextDeliveryResult SendToWindow(IntPtr hwnd, string text, bool autoEnter)
     {
-        if (hwnd == IntPtr.Zero || !IsWindow(hwnd)) return false;
+        if (hwnd == IntPtr.Zero || !IsWindow(hwnd)) return TextDeliveryResult.TargetUnavailable;
+
+        IntPtr? resolvedTarget = ResolveTextTarget(hwnd);
+        if (resolvedTarget == null)
+            return IsWindow(hwnd)
+                ? TextDeliveryResult.Unsupported
+                : TextDeliveryResult.TargetUnavailable;
+        IntPtr target = resolvedTarget.Value;
+        if (!IsWindow(hwnd)) return TextDeliveryResult.TargetUnavailable;
+        if (!IsWindow(target)) return TextDeliveryResult.Failed;
+
         if (string.IsNullOrEmpty(text))
         {
-            if (autoEnter) PostEnter(ResolveTextTarget(hwnd));
-            return true;
+            if (autoEnter && !PostEnter(target)) return PostingFailureFor(hwnd);
+            return TextDeliveryResult.Delivered;
         }
 
-        IntPtr target = ResolveTextTarget(hwnd);
         foreach (char ch in text)
         {
             if (ch == '\r') continue;                       // trata CRLF como um Enter so
-            if (ch == '\n') { PostEnter(target); continue; }
-            PostMessage(target, WM_CHAR, (IntPtr)ch, IntPtr.Zero);
+            bool posted = ch == '\n'
+                ? PostEnter(target)
+                : PostMessage(target, WM_CHAR, (IntPtr)ch, IntPtr.Zero);
+            if (!posted) return PostingFailureFor(hwnd);
         }
-        if (autoEnter) PostEnter(target);
-        return true;
+        if (autoEnter && !PostEnter(target)) return PostingFailureFor(hwnd);
+        return TextDeliveryResult.Delivered;
     }
 
-    private static void PostEnter(IntPtr hwnd)
+    private static TextDeliveryResult PostingFailureFor(IntPtr topLevel)
+        => IsWindow(topLevel) ? TextDeliveryResult.Failed : TextDeliveryResult.TargetUnavailable;
+
+    private static bool PostEnter(IntPtr hwnd)
     {
-        PostMessage(hwnd, WM_KEYDOWN, (IntPtr)VK_RETURN, IntPtr.Zero);
-        PostMessage(hwnd, WM_CHAR, (IntPtr)'\r', IntPtr.Zero);
-        PostMessage(hwnd, WM_KEYUP, (IntPtr)VK_RETURN, IntPtr.Zero);
+        bool keyDown = PostMessage(hwnd, WM_KEYDOWN, (IntPtr)VK_RETURN, IntPtr.Zero);
+        bool character = PostMessage(hwnd, WM_CHAR, (IntPtr)'\r', IntPtr.Zero);
+        bool keyUp = PostMessage(hwnd, WM_KEYUP, (IntPtr)VK_RETURN, IntPtr.Zero);
+        return keyDown && character && keyUp;
     }
 
     /// <summary>
@@ -140,7 +149,7 @@ internal static class TextInjector
     /// frame da janela, que simplesmente o descarta (foi o que aconteceu no Notepad++ e no
     /// Bloco de Notas).
     /// </summary>
-    private static IntPtr ResolveTextTarget(IntPtr topLevel)
+    private static IntPtr? ResolveTextTarget(IntPtr topLevel)
     {
         uint targetThread = GetWindowThreadProcessId(topLevel, out _);
         uint ourThread = GetCurrentThreadId();
@@ -151,12 +160,16 @@ internal static class TextInjector
             try
             {
                 IntPtr focus = GetFocus();
-                if (focus != IntPtr.Zero) return focus;
+                if (focus != IntPtr.Zero
+                    && (focus == topLevel || IsChild(topLevel, focus))
+                    && IsKnownEditableControl(focus))
+                    return focus;
             }
             finally { AttachThreadInput(ourThread, targetThread, false); }
         }
 
-        return FindEditChild(topLevel) ?? topLevel;
+        if (IsKnownEditableControl(topLevel)) return topLevel;
+        return FindEditChild(topLevel);
     }
 
     private static readonly string[] EditClassHints =
@@ -170,21 +183,23 @@ internal static class TextInjector
         {
             EnumChildWindows(parent, (child, _) =>
             {
-                if (!IsWindowVisible(child)) return true;   // segue procurando
-                var cls = new System.Text.StringBuilder(128);
-                if (GetClassName(child, cls, cls.Capacity) == 0) return true;
-                var name = cls.ToString();
-                foreach (var hint in EditClassHints)
-                {
-                    if (name.IndexOf(hint, StringComparison.OrdinalIgnoreCase) < 0) continue;
-                    found = child;
-                    return false;   // achou: para a varredura
-                }
-                return true;
+                if (!IsKnownEditableControl(child)) return true;
+                found = child;
+                return false;   // achou: para a varredura
             }, IntPtr.Zero);
         }
         catch (Exception ex) { Logger.Warn("Falha ao varrer janelas filhas: " + ex.Message); }
         return found;
+    }
+
+    private static bool IsKnownEditableControl(IntPtr hwnd)
+    {
+        if (!IsWindow(hwnd) || !IsWindowVisible(hwnd) || !IsWindowEnabled(hwnd)) return false;
+        var cls = new System.Text.StringBuilder(128);
+        if (GetClassName(hwnd, cls, cls.Capacity) == 0) return false;
+        string name = cls.ToString();
+        return EditClassHints.Any(hint =>
+            name.IndexOf(hint, StringComparison.OrdinalIgnoreCase) >= 0);
     }
 
     /// <summary>Handle da janela que esta em primeiro plano agora.</summary>
@@ -224,8 +239,7 @@ internal static class TextInjector
     ///
     /// Roda inteiro numa thread de fundo (ver o aviso em PasteText: digitar na UI thread faz o
     /// proprio hook de teclado engasgar e o Windows descartar caracteres). Por isso digita
-    /// sempre via SendInput, mesmo com pasteMethod=clipboard — o Clipboard do WinForms exigiria
-    /// a UI thread, que e' justamente a que precisa ficar livre aqui.
+    /// sempre via SendInput para manter a thread do hook livre.
     /// </summary>
     public static bool DeliverWithFocus(IntPtr hwnd, string text, bool autoEnter)
     {
@@ -285,16 +299,6 @@ internal static class TextInjector
         if (len <= 0) return "";
         var sb = new System.Text.StringBuilder(len + 1);
         return GetWindowText(hwnd, sb, sb.Capacity) > 0 ? sb.ToString() : "";
-    }
-
-    private static bool TrySetClipboard(string text)
-    {
-        for (int i = 0; i < 5; i++)
-        {
-            try { Clipboard.SetText(text); return true; }
-            catch { Thread.Sleep(30); }
-        }
-        return false;
     }
 
     // ---- SendInput ----
@@ -373,6 +377,9 @@ internal static class TextInjector
     [DllImport("user32.dll")]
     private static extern IntPtr GetFocus();
 
+    [DllImport("user32.dll")]
+    private static extern bool IsChild(IntPtr hWndParent, IntPtr hWnd);
+
     [DllImport("user32.dll", SetLastError = true)]
     private static extern uint GetWindowThreadProcessId(IntPtr hWnd, out uint processId);
 
@@ -389,6 +396,9 @@ internal static class TextInjector
 
     [DllImport("user32.dll")]
     private static extern bool IsWindowVisible(IntPtr hWnd);
+
+    [DllImport("user32.dll")]
+    private static extern bool IsWindowEnabled(IntPtr hWnd);
 
     [DllImport("user32.dll", CharSet = CharSet.Unicode)]
     private static extern int GetClassName(IntPtr hWnd, System.Text.StringBuilder lpClassName, int nMaxCount);

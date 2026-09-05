@@ -34,10 +34,12 @@ internal sealed class WindowsTextSink : ITextSink
             if (!_targets.TryResolve(request.Target, out var handle) || !TextInjector.IsWindowAlive(handle))
                 return TextDeliveryResult.TargetUnavailable;
 
-            bool delivered = request.Method == TextDeliveryMethod.TargetWithFocus
-                ? TextInjector.DeliverWithFocus(handle, request.Text, request.PressEnter)
-                : TextInjector.SendToWindow(handle, request.Text, request.PressEnter);
-            return delivered ? TextDeliveryResult.Delivered : TextDeliveryResult.Failed;
+            if (request.Method == TextDeliveryMethod.TargetWithoutFocus)
+                return TextInjector.SendToWindow(handle, request.Text, request.PressEnter);
+
+            return TextInjector.DeliverWithFocus(handle, request.Text, request.PressEnter)
+                ? TextDeliveryResult.Delivered
+                : TextDeliveryResult.Failed;
         }
 
         if (request.Target != null) return TextDeliveryResult.InvalidRequest;

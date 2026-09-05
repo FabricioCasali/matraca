@@ -275,8 +275,7 @@ internal sealed class TrayApp : ApplicationContext
         {
             try
             {
-                Clipboard.SetText(text);
-                copied = true;
+                copied = WindowsClipboard.TryWriteText(text);
             }
             catch (Exception exception) { failure = exception; }
         }, null);
