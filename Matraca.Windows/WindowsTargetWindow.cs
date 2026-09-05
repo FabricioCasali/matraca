@@ -1,9 +1,11 @@
+using System.Drawing;
+
 namespace Matraca;
 
 internal sealed class WindowsTargetWindow : ITargetWindow
 {
     private readonly System.Collections.Concurrent.ConcurrentDictionary<Guid, IntPtr> _handles = new();
-    private FocusBorder? _indicator;
+    private WindowsFocusIndicator? _indicator;
     private bool _indicatorEnabled;
 
     public TargetToken? CaptureActive()
@@ -38,7 +40,7 @@ internal sealed class WindowsTargetWindow : ITargetWindow
 
         try
         {
-            _indicator = new FocusBorder(
+            _indicator = new WindowsFocusIndicator(
                 ColorTranslator.FromHtml(color),
                 thickness,
                 (float)opacity);

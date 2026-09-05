@@ -7,8 +7,11 @@ internal static class WindowsNativeMethods
     internal const uint WmNull = 0x0000;
     internal const uint WmMove = 0x0003;
     internal const uint WmSize = 0x0005;
+    internal const uint WmPaint = 0x000F;
     internal const uint WmClose = 0x0010;
     internal const uint WmGetMinMaxInfo = 0x0024;
+    internal const uint WmNcHitTest = 0x0084;
+    internal const uint WmTimer = 0x0113;
     internal const uint WmDpiChanged = 0x02E0;
     internal const uint WmContextMenu = 0x007B;
     internal const uint WmLButtonUp = 0x0202;
@@ -41,16 +44,26 @@ internal static class WindowsNativeMethods
     internal const uint TpmReturnCommand = 0x0100;
 
     internal const uint WsOverlappedWindow = 0x00CF0000;
+    internal const uint WsPopup = 0x80000000;
+    internal const uint WsExTransparent = 0x00000020;
+    internal const uint WsExToolWindow = 0x00000080;
+    internal const uint WsExLayered = 0x00080000;
+    internal const uint WsExNoActivate = 0x08000000;
     internal const int SwHide = 0;
     internal const int SwShow = 5;
     internal const int SwRestore = 9;
     internal const uint SwpNoZOrder = 0x0004;
     internal const uint SwpNoActivate = 0x0010;
+    internal const uint SwpShowWindow = 0x0040;
+    internal const uint LayeredWindowAlpha = 0x00000002;
+    internal const int RegionDifference = 4;
+    internal const int DwmExtendedFrameBounds = 9;
     internal const uint SpiGetWorkArea = 0x0030;
     internal const int SmCxScreen = 0;
     internal const int SmCyScreen = 1;
 
     internal static readonly nint MessageOnlyWindow = new(-3);
+    internal static readonly nint TopMostWindow = new(-1);
 
     [DllImport("user32.dll", EntryPoint = "RegisterClassExW", CharSet = CharSet.Unicode, SetLastError = true)]
     internal static extern ushort RegisterClassEx(ref WindowsWindowClass windowClass);
@@ -85,6 +98,17 @@ internal static class WindowsNativeMethods
     [DllImport("user32.dll")]
     [return: MarshalAs(UnmanagedType.Bool)]
     internal static extern bool IsIconic(nint window);
+
+    [DllImport("user32.dll")]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    internal static extern bool IsWindow(nint window);
+
+    [DllImport("user32.dll")]
+    internal static extern nint GetForegroundWindow();
+
+    [DllImport("user32.dll", SetLastError = true)]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    internal static extern bool GetWindowRect(nint window, out WindowsRectangle rectangle);
 
     [DllImport("user32.dll", SetLastError = true)]
     [return: MarshalAs(UnmanagedType.Bool)]
@@ -126,6 +150,38 @@ internal static class WindowsNativeMethods
         int width,
         int height,
         uint flags);
+
+    [DllImport("user32.dll", SetLastError = true)]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    internal static extern bool SetLayeredWindowAttributes(
+        nint window,
+        uint colorKey,
+        byte alpha,
+        uint flags);
+
+    [DllImport("user32.dll", SetLastError = true)]
+    internal static extern nuint SetTimer(nint window, nuint timerId, uint intervalMilliseconds, nint timerProcedure);
+
+    [DllImport("user32.dll", SetLastError = true)]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    internal static extern bool KillTimer(nint window, nuint timerId);
+
+    [DllImport("user32.dll", SetLastError = true)]
+    internal static extern int SetWindowRgn(nint window, nint region, [MarshalAs(UnmanagedType.Bool)] bool redraw);
+
+    [DllImport("user32.dll", SetLastError = true)]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    internal static extern bool InvalidateRect(nint window, nint rectangle, [MarshalAs(UnmanagedType.Bool)] bool erase);
+
+    [DllImport("user32.dll")]
+    internal static extern nint BeginPaint(nint window, out WindowsPaintStruct paint);
+
+    [DllImport("user32.dll")]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    internal static extern bool EndPaint(nint window, ref WindowsPaintStruct paint);
+
+    [DllImport("user32.dll")]
+    internal static extern int FillRect(nint deviceContext, ref WindowsRectangle rectangle, nint brush);
 
     [DllImport("user32.dll")]
     internal static extern nint DefWindowProcW(nint window, uint message, nint wParam, nint lParam);
@@ -184,6 +240,26 @@ internal static class WindowsNativeMethods
 
     [DllImport("kernel32.dll")]
     internal static extern uint GetCurrentThreadId();
+
+    [DllImport("gdi32.dll")]
+    internal static extern nint CreateSolidBrush(uint color);
+
+    [DllImport("gdi32.dll")]
+    internal static extern nint CreateRectRgn(int left, int top, int right, int bottom);
+
+    [DllImport("gdi32.dll")]
+    internal static extern int CombineRgn(nint destination, nint source1, nint source2, int mode);
+
+    [DllImport("gdi32.dll")]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    internal static extern bool DeleteObject(nint value);
+
+    [DllImport("dwmapi.dll")]
+    internal static extern int DwmGetWindowAttribute(
+        nint window,
+        int attribute,
+        out WindowsRectangle value,
+        int valueSize);
 
     [DllImport("shell32.dll", EntryPoint = "Shell_NotifyIconW", CharSet = CharSet.Unicode, SetLastError = true)]
     [return: MarshalAs(UnmanagedType.Bool)]
