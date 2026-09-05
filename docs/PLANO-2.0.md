@@ -207,6 +207,40 @@ Depois o casco (`WKWebView` primeiro, que é onde estamos rodando) e as telas:
 `FocusBorder` saem. O WinForms só é apagado quando a paridade estiver de pé — até lá os
 dois compilam.
 
+### Plano aprovado de execução — MT-006
+
+Registrado e aprovado em 05/09/2026. A UI compartilhada já opera no Windows, mas ainda
+vive dentro de um `Form`, com `Application.Run`, `NotifyIcon`, clipboard WinForms e a
+moldura implementada por outro `Form`. A frente troca esse casco sem reescrever o Core,
+o áudio, as hotkeys ou o protocolo da bridge.
+
+O trabalho avança em fatias verdes:
+
+1. **Contrato e prova:** congelar a matriz de paridade e criar smokes Windows para as
+   primitivas nativas antes de mudar o caminho principal.
+2. **Fundação Win32:** janela de mensagens, dispatcher STA, message loop e bandeja por
+   `Shell_NotifyIcon`, incluindo menus, estados, notificações e `TaskbarCreated`.
+3. **Painel nativo:** hospedar `CoreWebView2Controller` em HWND cru, com assets locais,
+   bridge v1, bloqueio de rede/navegação externa, DPI, resize, drag e lifecycle de
+   abrir, ocultar e reabrir.
+4. **Overlays:** hospedar o HUD WebView2 e a moldura em HWNDs topmost, click-through,
+   não ativáveis e ausentes do Alt-Tab.
+5. **Aplicação e lifecycle:** substituir `TrayApp` pela composição nativa, observar o
+   `appsettings.json`, integrar sleep/wake, logoff/reboot, restart GPU↔CPU e shutdown
+   limitado.
+6. **Paridade funcional:** preservar seleção de modelo e sons, preview dos sons e
+   limpeza do histórico; restaurar integralmente o clipboard e tornar falhas de entrega
+   sem foco honestas.
+7. **Corte:** trocar o bootstrap para o loop nativo, remover Forms e código morto, retirar
+   `UseWindowsForms` e `Microsoft.Web.WebView2.WinForms`, publicar e executar a prova
+   assistida no Windows.
+
+O bridge Windows permanece específico nesta fase; deduplicá-lo com o bridge Mac não é
+pré-requisito para mudar o casco. A detecção do WebView2 Runtime no instalador e a matriz
+`macos-14` continuam na Fase 5. Cada fatia termina com `dotnet test Matraca.sln` e
+`dotnet build Matraca.sln -p:EnableWindowsTargeting=true`; a remoção do legado só ocorre
+depois dos smokes e dos checkpoints manuais de painel, bandeja/overlays e ditado completo.
+
 **Fase 5 — empacotamento.**
 Mac: bundle `.app` + `.dmg`, `LSUIElement`, `NSMicrophoneUsageDescription`, assinatura e
 notarização (que reabre a conversa do SignPath: o cert deles é Windows; no Mac o caminho

@@ -31,6 +31,10 @@ O desenho da frente 2.0 está em [`PLANO-2.0.md`](PLANO-2.0.md).
   aceitar clique e segue o monitor do alvo. A fatia Windows já hospeda o mesmo painel em
   WebView2, com bridge v1, captura guiada, monitor de microfone, download e alvo preservado
   para repaste. Resta validação manual do conjunto nos dois sistemas. · `[2.0]` · G · importante
+- **MT-006** **Fase 4 — o Windows muda de casa** — plano aprovado. A UI compartilhada já
+  funciona sobre WebView2/WinForms; falta trocar o casco por HWND cru, bandeja por
+  `Shell_NotifyIcon`, completar HUD/lifecycle/paridade e só então aposentar o WinForms.
+  Contrato em [`PLANO-2.0.md`](PLANO-2.0.md). · `[2.0]` · G · importante
 - **MT-019** **Ditado grava, mas não entrega texto no Mac** — correção aplicada ao par
   Unicode `keyDown`/`keyUp`, com smoke passando pela fila real e pelo event tap. Resta a
   prova assistida de entrega em aplicativos reais. · `[2.0]` · P · importante
@@ -49,9 +53,6 @@ O desenho da frente 2.0 está em [`PLANO-2.0.md`](PLANO-2.0.md).
 
 ## 📋 A fazer
 
-- **MT-006** **Fase 4 — o Windows muda de casa** — WebView2 em HWND cru, Shell_NotifyIcon,
-  e as quatro telas WinForms aposentadas. Só apaga quando a paridade estiver de
-  pé. · `[2.0]` · G · importante
 - **MT-007** **Fase 5 — empacotamento** — `.app` + `.dmg` no Mac, Inno seguindo no
   Windows com teste do WebView2 Runtime, e `macos-14` na matriz do CI. · `[2.0]` · M ·
   importante
