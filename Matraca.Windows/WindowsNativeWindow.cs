@@ -13,9 +13,49 @@ internal sealed class WindowsNativeWindow : IDisposable
     private int _disposed;
 
     public WindowsNativeWindow(string name, WindowsWindowProcedure procedure, bool messageOnly)
+        : this(
+            name,
+            procedure,
+            string.Empty,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            messageOnly ? WindowsNativeMethods.MessageOnlyWindow : nint.Zero)
+    {
+    }
+
+    public WindowsNativeWindow(
+        string name,
+        WindowsWindowProcedure procedure,
+        string title,
+        uint style,
+        uint extendedStyle,
+        int x,
+        int y,
+        int width,
+        int height)
+        : this(name, procedure, title, style, extendedStyle, x, y, width, height, nint.Zero)
+    {
+    }
+
+    private WindowsNativeWindow(
+        string name,
+        WindowsWindowProcedure procedure,
+        string title,
+        uint style,
+        uint extendedStyle,
+        int x,
+        int y,
+        int width,
+        int height,
+        nint parent)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(name);
         ArgumentNullException.ThrowIfNull(procedure);
+        ArgumentNullException.ThrowIfNull(title);
 
         _ownerThreadId = WindowsNativeMethods.GetCurrentThreadId();
         _instance = WindowsNativeMethods.GetModuleHandleW(null);
@@ -35,15 +75,15 @@ internal sealed class WindowsNativeWindow : IDisposable
             throw new Win32Exception(Marshal.GetLastWin32Error(), $"Falha ao registrar a janela nativa {name}.");
 
         Handle = WindowsNativeMethods.CreateWindowEx(
-            0,
+            extendedStyle,
             _className,
-            string.Empty,
-            0,
-            0,
-            0,
-            0,
-            0,
-            messageOnly ? WindowsNativeMethods.MessageOnlyWindow : nint.Zero,
+            title,
+            style,
+            x,
+            y,
+            width,
+            height,
+            parent,
             nint.Zero,
             _instance,
             nint.Zero);

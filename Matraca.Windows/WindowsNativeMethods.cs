@@ -5,6 +5,11 @@ namespace Matraca;
 internal static class WindowsNativeMethods
 {
     internal const uint WmNull = 0x0000;
+    internal const uint WmMove = 0x0003;
+    internal const uint WmSize = 0x0005;
+    internal const uint WmClose = 0x0010;
+    internal const uint WmGetMinMaxInfo = 0x0024;
+    internal const uint WmDpiChanged = 0x02E0;
     internal const uint WmContextMenu = 0x007B;
     internal const uint WmLButtonUp = 0x0202;
     internal const uint WmLButtonDoubleClick = 0x0203;
@@ -35,6 +40,16 @@ internal static class WindowsNativeMethods
     internal const uint TpmNonotify = 0x0080;
     internal const uint TpmReturnCommand = 0x0100;
 
+    internal const uint WsOverlappedWindow = 0x00CF0000;
+    internal const int SwHide = 0;
+    internal const int SwShow = 5;
+    internal const int SwRestore = 9;
+    internal const uint SwpNoZOrder = 0x0004;
+    internal const uint SwpNoActivate = 0x0010;
+    internal const uint SpiGetWorkArea = 0x0030;
+    internal const int SmCxScreen = 0;
+    internal const int SmCyScreen = 1;
+
     internal static readonly nint MessageOnlyWindow = new(-3);
 
     [DllImport("user32.dll", EntryPoint = "RegisterClassExW", CharSet = CharSet.Unicode, SetLastError = true)]
@@ -62,6 +77,55 @@ internal static class WindowsNativeMethods
     [DllImport("user32.dll", SetLastError = true)]
     [return: MarshalAs(UnmanagedType.Bool)]
     internal static extern bool DestroyWindow(nint window);
+
+    [DllImport("user32.dll")]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    internal static extern bool ShowWindow(nint window, int command);
+
+    [DllImport("user32.dll")]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    internal static extern bool IsIconic(nint window);
+
+    [DllImport("user32.dll", SetLastError = true)]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    internal static extern bool GetClientRect(nint window, out WindowsRectangle rectangle);
+
+    [DllImport("user32.dll")]
+    internal static extern uint GetDpiForWindow(nint window);
+
+    [DllImport("user32.dll")]
+    internal static extern uint GetDpiForSystem();
+
+    [DllImport("user32.dll", SetLastError = true)]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    internal static extern bool AdjustWindowRectExForDpi(
+        ref WindowsRectangle rectangle,
+        uint style,
+        [MarshalAs(UnmanagedType.Bool)] bool hasMenu,
+        uint extendedStyle,
+        uint dpi);
+
+    [DllImport("user32.dll", EntryPoint = "SystemParametersInfoW", SetLastError = true)]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    internal static extern bool SystemParametersInfo(
+        uint action,
+        uint parameter,
+        out WindowsRectangle value,
+        uint flags);
+
+    [DllImport("user32.dll")]
+    internal static extern int GetSystemMetrics(int index);
+
+    [DllImport("user32.dll", SetLastError = true)]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    internal static extern bool SetWindowPos(
+        nint window,
+        nint insertAfter,
+        int x,
+        int y,
+        int width,
+        int height,
+        uint flags);
 
     [DllImport("user32.dll")]
     internal static extern nint DefWindowProcW(nint window, uint message, nint wParam, nint lParam);
