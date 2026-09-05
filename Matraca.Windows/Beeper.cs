@@ -1,6 +1,6 @@
-using System.Media;
 using System.Text;
 using NAudio.Wave;
+using NAudio.Wave.SampleProviders;
 
 namespace Matraca;
 
@@ -8,8 +8,7 @@ namespace Matraca;
 /// Toca os sons de inicio/fim de gravacao. Dois caminhos:
 ///  - tons sinteticos (gerados em memoria, volume pela amplitude);
 ///  - arquivo de audio do usuario (.wav/.mp3/...), decodificado via NAudio com volume aplicado.
-/// Em ambos, a reproducao final e' via System.Media.SoundPlayer (robusto e sem depender de
-/// inicializar um device de saida NAudio).
+/// Em ambos, a reproducao final e' via WaveOut.
 /// </summary>
 internal static class Beeper
 {
@@ -68,10 +67,11 @@ internal static class Beeper
         int durationMs;
         try
         {
-            using var reader = new AudioFileReader(path) { Volume = volume }; // decodifica + ganho
+            using WaveStream reader = OpenAudioFile(path);
+            var samples = new VolumeSampleProvider(reader.ToSampleProvider()) { Volume = volume };
             int rate = reader.WaveFormat.SampleRate, channels = reader.WaveFormat.Channels;
 
-            var pcm = ReadAll(reader.ToWaveProvider16());
+            var pcm = ReadAll(samples.ToWaveProvider16());
             int frames = TrimTrailingSilence(pcm, channels, rate);
             durationMs = (int)(1000L * frames / rate);
             wav = BuildWav(pcm, frames * channels * 2, rate, channels);
@@ -93,6 +93,26 @@ internal static class Beeper
         int read;
         while ((read = provider.Read(buf, 0, buf.Length)) > 0) mem.Write(buf, 0, read);
         return mem.ToArray();
+    }
+
+    private static WaveStream OpenAudioFile(string path)
+    {
+        string extension = Path.GetExtension(path);
+        WaveStream reader = extension.Equals(".wav", StringComparison.OrdinalIgnoreCase)
+            ? new WaveFileReader(path)
+            : extension.Equals(".aiff", StringComparison.OrdinalIgnoreCase) ||
+              extension.Equals(".aif", StringComparison.OrdinalIgnoreCase)
+                ? new AiffFileReader(path)
+                : new MediaFoundationReader(path);
+        if (reader.WaveFormat.Encoding is WaveFormatEncoding.Pcm or WaveFormatEncoding.IeeeFloat)
+            return reader;
+
+        try { return WaveFormatConversionStream.CreatePcmStream(reader); }
+        catch
+        {
+            reader.Dispose();
+            throw;
+        }
     }
 
     /// <summary>
@@ -141,8 +161,12 @@ internal static class Beeper
             try
             {
                 using var ms = new MemoryStream(wav);
-                using var sp = new SoundPlayer(ms);
-                sp.PlaySync();
+                using var reader = new WaveFileReader(ms);
+                using var output = new WaveOutEvent();
+                output.Init(reader);
+                output.Play();
+                while (output.PlaybackState == PlaybackState.Playing)
+                    Thread.Sleep(10);
             }
             catch (Exception ex) { Logger.Warn($"beep: falha ao tocar: {ex.Message}"); }
             finally

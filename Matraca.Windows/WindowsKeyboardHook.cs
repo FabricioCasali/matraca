@@ -1,3 +1,4 @@
+using System.ComponentModel;
 using System.Runtime.InteropServices;
 
 namespace Matraca;
@@ -31,16 +32,29 @@ internal sealed class WindowsKeyboardHook : IKeyboardHook
     private readonly HotkeyGesture? _pinGesture;
     private readonly int _pinVk;
     private readonly KeyMods _pinMods;
+    private readonly ManualResetEventSlim _threadReady = new(false);
 
     private IntPtr _hook;
+    private Thread? _hookThread;
+    private Exception? _startException;
+    private uint _hookThreadId;
     private bool _isDown;
     private bool _pinDown;
+    private int _inputSuppressed;
+    private int _started;
+    private int _disposed;
 
     public event Action<HotkeyGesture, bool>? DictationKeyChanged;
     public event Action<HotkeyGesture>? PinToggled;
     public event Action<HotkeyGesture>? KeyDiscovered;
 
     public bool Suspended { get; set; }
+
+    public bool InputSuppressed
+    {
+        get => Volatile.Read(ref _inputSuppressed) != 0;
+        set => Volatile.Write(ref _inputSuppressed, value ? 1 : 0);
+    }
 
     public WindowsKeyboardHook(Config config)
         : this(
@@ -73,11 +87,58 @@ internal sealed class WindowsKeyboardHook : IKeyboardHook
 
     public void Start()
     {
-        _hook = SetWindowsHookEx(WH_KEYBOARD_LL, _proc, GetModuleHandle(null), 0);
-        if (_hook == IntPtr.Zero)
-            Logger.Error($"Falha ao instalar hook de teclado (Win32 err {Marshal.GetLastWin32Error()})");
-        else
+        ObjectDisposedException.ThrowIf(Volatile.Read(ref _disposed) != 0, this);
+        if (Interlocked.Exchange(ref _started, 1) != 0)
+            throw new InvalidOperationException("O hook de teclado ja foi iniciado.");
+
+        _hookThread = new Thread(RunHookLoop)
+        {
+            IsBackground = true,
+            Name = "Matraca keyboard hook",
+        };
+        _hookThread.SetApartmentState(ApartmentState.STA);
+        _hookThread.Start();
+        _threadReady.Wait();
+        if (_startException != null) throw _startException;
+    }
+
+    private void RunHookLoop()
+    {
+        try
+        {
+            _hookThreadId = WindowsNativeMethods.GetCurrentThreadId();
+            WindowsNativeMethods.PeekMessageW(
+                out _, nint.Zero, 0, 0, WindowsNativeMethods.PmNoRemove);
+            _hook = SetWindowsHookEx(WH_KEYBOARD_LL, _proc, GetModuleHandle(null), 0);
+            if (_hook == IntPtr.Zero)
+                throw new Win32Exception(Marshal.GetLastWin32Error(), "Falha ao instalar hook de teclado.");
+
             Logger.Info("Hook global de teclado instalado.");
+            _threadReady.Set();
+            while (true)
+            {
+                int result = WindowsNativeMethods.GetMessageW(out WindowsMessage message, nint.Zero, 0, 0);
+                if (result == 0) break;
+                if (result == -1)
+                    throw new Win32Exception(Marshal.GetLastWin32Error(), "Falha no loop do hook de teclado.");
+                WindowsNativeMethods.TranslateMessage(ref message);
+                WindowsNativeMethods.DispatchMessageW(ref message);
+            }
+        }
+        catch (Exception exception)
+        {
+            _startException ??= exception;
+            if (_threadReady.IsSet) Logger.Error("Falha no loop do hook de teclado", exception);
+        }
+        finally
+        {
+            _threadReady.Set();
+            if (_hook != IntPtr.Zero)
+            {
+                UnhookWindowsHookEx(_hook);
+                _hook = IntPtr.Zero;
+            }
+        }
     }
 
     private IntPtr HookCallback(int nCode, IntPtr wParam, IntPtr lParam)
@@ -85,7 +146,19 @@ internal sealed class WindowsKeyboardHook : IKeyboardHook
         if (nCode >= 0 && Marshal.ReadIntPtr(lParam, KbdExtraInfoOffset) == (IntPtr)TextInjector.InjectionTag)
             return CallNextHookEx(_hook, nCode, wParam, lParam);
 
-        if (nCode >= 0 && !Suspended)
+        if (nCode >= 0 && (Suspended || InputSuppressed))
+        {
+            int message = (int)wParam;
+            if (message is WM_KEYUP or WM_SYSKEYUP)
+            {
+                int virtualKey = Marshal.ReadInt32(lParam);
+                if (virtualKey == _targetVk) _isDown = false;
+                if (virtualKey == _pinVk) _pinDown = false;
+            }
+            return CallNextHookEx(_hook, nCode, wParam, lParam);
+        }
+
+        if (nCode >= 0)
         {
             int message = (int)wParam;
             int virtualKey = Marshal.ReadInt32(lParam);
@@ -177,12 +250,21 @@ internal sealed class WindowsKeyboardHook : IKeyboardHook
 
     public void Dispose()
     {
-        if (_hook != IntPtr.Zero)
+        if (Interlocked.Exchange(ref _disposed, 1) != 0) return;
+        Thread? thread = _hookThread;
+        if (thread != null && thread.IsAlive)
         {
-            UnhookWindowsHookEx(_hook);
-            _hook = IntPtr.Zero;
+            if (_hookThreadId == WindowsNativeMethods.GetCurrentThreadId())
+                WindowsNativeMethods.PostQuitMessage(0);
+            else if (!WindowsNativeMethods.PostThreadMessageW(
+                         _hookThreadId, WindowsNativeMethods.WmQuit, nint.Zero, nint.Zero))
+                Logger.Warn($"Falha ao encerrar loop do hook (Win32 {Marshal.GetLastWin32Error()}).");
+
+            if (_hookThreadId != WindowsNativeMethods.GetCurrentThreadId() && !thread.Join(TimeSpan.FromSeconds(2)))
+                Logger.Warn("Loop do hook de teclado nao encerrou em 2s.");
         }
         _callbacks.Dispose();
+        _threadReady.Dispose();
     }
 
     private delegate IntPtr LowLevelKeyboardProc(int nCode, IntPtr wParam, IntPtr lParam);

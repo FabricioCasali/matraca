@@ -1,4 +1,3 @@
-using System.Windows.Forms;
 using Whisper.net.LibraryLoader;
 
 namespace Matraca;
@@ -57,17 +56,22 @@ internal static class Program
             catch (AbandonedMutexException) { }
         }
 
-        Application.EnableVisualStyles();
-        Application.SetCompatibleTextRenderingDefault(false);
         try
         {
-            Application.Run(new TrayApp());
+            if (!WindowsOleScope.TryEnter(out WindowsOleScope? oleScope))
+                throw new InvalidOperationException("Nao foi possivel inicializar OLE na thread principal.");
+            using (oleScope)
+            using (var application = new WindowsApplication())
+                application.Run();
         }
         catch (Exception exception)
         {
             Logger.Error("Falha fatal", exception);
-            MessageBox.Show("Erro fatal no Matraca:\n" + exception.Message, "Matraca",
-                MessageBoxButtons.OK, MessageBoxIcon.Error);
+            WindowsNativeMethods.MessageBox(
+                nint.Zero,
+                "Erro fatal no Matraca:\n" + exception.Message,
+                "Matraca",
+                WindowsNativeMethods.MbOk | WindowsNativeMethods.MbIconError);
         }
     }
 

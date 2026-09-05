@@ -1,0 +1,66 @@
+using Xunit;
+
+namespace Matraca.Core.Tests;
+
+public sealed class WindowsNativeShellContractTests
+{
+    [Fact]
+    public void WindowsStartsTheNativeApplicationWithoutWindowsForms()
+    {
+        string program = ReadProjectFile("Matraca.Windows", "Program.cs");
+        string project = ReadProjectFile("Matraca.Windows", "Matraca.Windows.csproj");
+
+        Assert.Contains("new WindowsApplication()", program);
+        Assert.DoesNotContain("Application.Run", program);
+        Assert.DoesNotContain("UseWindowsForms", project);
+        Assert.Contains("'%(Reference.Filename)' == 'Microsoft.Web.WebView2.WinForms'", project);
+        Assert.DoesNotContain("PackageReference Include=\"NAudio\" ", project);
+    }
+
+    [Fact]
+    public void KeyboardHookOwnsAPumpedThreadAndTrayConstantsUseWmUser()
+    {
+        string hook = ReadProjectFile("Matraca.Windows", "WindowsKeyboardHook.cs");
+        string native = ReadProjectFile("Matraca.Windows", "WindowsNativeMethods.cs");
+
+        Assert.Contains("new Thread(RunHookLoop)", hook);
+        Assert.Contains("GetMessageW(out WindowsMessage message", hook);
+        Assert.Contains("PostThreadMessageW(", hook);
+        Assert.Contains("internal const uint NinSelect = WmUser;", native);
+        Assert.Contains("internal const uint NinKeySelect = WmUser + 1;", native);
+    }
+
+    [Fact]
+    public void NativeSoundSelectionPreservesMp3AndCompressedWaveSupport()
+    {
+        string picker = ReadProjectFile("Matraca.Windows", "WindowsFilePicker.cs");
+        string beeper = ReadProjectFile("Matraca.Windows", "Beeper.cs");
+
+        Assert.Contains("*.wav;*.mp3", picker);
+        Assert.Contains("WaveFormatConversionStream.CreatePcmStream(reader)", beeper);
+    }
+
+    [Theory]
+    [InlineData("TrayApp.cs")]
+    [InlineData("SettingsForm.cs")]
+    [InlineData("OnboardingForm.cs")]
+    [InlineData("HistoryForm.cs")]
+    [InlineData("FocusBorder.cs")]
+    [InlineData("WindowsWebWindow.cs")]
+    [InlineData("WindowsShell.cs")]
+    public void WindowsFormsShellFilesAreRemoved(string fileName)
+    {
+        Assert.False(File.Exists(ProjectPath("Matraca.Windows", fileName)));
+    }
+
+    private static string ReadProjectFile(params string[] parts) => File.ReadAllText(ProjectPath(parts));
+
+    private static string ProjectPath(params string[] parts)
+    {
+        DirectoryInfo? directory = new(AppContext.BaseDirectory);
+        while (directory != null && !File.Exists(Path.Combine(directory.FullName, "Matraca.sln")))
+            directory = directory.Parent;
+        Assert.NotNull(directory);
+        return Path.Combine([directory!.FullName, .. parts]);
+    }
+}

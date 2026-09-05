@@ -10,6 +10,7 @@ internal static class WindowsNativeMethods
     internal const uint WmPaint = 0x000F;
     internal const uint WmClose = 0x0010;
     internal const uint WmQueryEndSession = 0x0011;
+    internal const uint WmQuit = 0x0012;
     internal const uint WmEndSession = 0x0016;
     internal const uint WmMouseActivate = 0x0021;
     internal const uint WmGetMinMaxInfo = 0x0024;
@@ -21,9 +22,12 @@ internal static class WindowsNativeMethods
     internal const uint WmLButtonDoubleClick = 0x0203;
     internal const uint WmRButtonUp = 0x0205;
     internal const uint WmPowerBroadcast = 0x0218;
+    internal const uint WmUser = 0x0400;
     internal const uint WmApp = 0x8000;
-    internal const uint NinSelect = WmApp;
-    internal const uint NinKeySelect = WmApp + 1;
+    internal const uint NinSelect = WmUser;
+    internal const uint NinKeySelect = WmUser + 1;
+
+    internal const uint PmNoRemove = 0x0000;
 
     internal const uint CfUnicodeText = 13;
     internal const uint GmemMoveable = 0x0002;
@@ -53,6 +57,8 @@ internal static class WindowsNativeMethods
     internal const uint LrShared = 0x00008000;
 
     internal const uint MbYesNo = 0x00000004;
+    internal const uint MbOk = 0x00000000;
+    internal const uint MbIconError = 0x00000010;
     internal const uint MbIconQuestion = 0x00000020;
     internal const int IdYes = 6;
 
@@ -241,6 +247,19 @@ internal static class WindowsNativeMethods
 
     [DllImport("user32.dll", SetLastError = true)]
     internal static extern int GetMessageW(out WindowsMessage message, nint window, uint minimum, uint maximum);
+
+    [DllImport("user32.dll", SetLastError = true)]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    internal static extern bool PeekMessageW(
+        out WindowsMessage message,
+        nint window,
+        uint minimum,
+        uint maximum,
+        uint removeMessage);
+
+    [DllImport("user32.dll", SetLastError = true)]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    internal static extern bool PostThreadMessageW(uint threadId, uint message, nint wParam, nint lParam);
 
     [DllImport("user32.dll")]
     [return: MarshalAs(UnmanagedType.Bool)]

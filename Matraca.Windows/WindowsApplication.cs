@@ -31,7 +31,7 @@ internal sealed class WindowsApplication : IWindowsWebBridgeApp, IDisposable
     private readonly object _webTargetGate = new();
     private readonly string _runtimeGpu;
     private Config _config;
-    private IKeyboardHook _keyboard;
+    private WindowsKeyboardHook _keyboard;
     private WindowsConfigWatcher? _configWatcher;
     private TargetToken? _webTarget;
     private int _powerGeneration;
@@ -41,6 +41,9 @@ internal sealed class WindowsApplication : IWindowsWebBridgeApp, IDisposable
     private int _shutdownStarted;
     private int _finished;
     private int _restartRequested;
+    private int _restartPromptPending;
+    private int _trayMenuOpen;
+    private int _microphoneMonitoring;
 
     public WindowsApplication()
     {
@@ -202,6 +205,7 @@ internal sealed class WindowsApplication : IWindowsWebBridgeApp, IDisposable
             ConfigChanged?.Invoke(next);
             bool restartRequired = next.Gpu != _runtimeGpu;
             if (restartRequired && next.Gpu != previous.Gpu) PromptForRestart();
+            else if (!restartRequired) CancelRestartPrompt();
             return (raw, restartRequired);
         }
         catch (Exception exception)
@@ -297,12 +301,22 @@ internal sealed class WindowsApplication : IWindowsWebBridgeApp, IDisposable
     {
         if (_controller.IsSessionActive || _controller.IsBusy)
             throw new InvalidOperationException("Encerre o ditado antes de calibrar o microfone.");
-        await _controller.SuspendAsync().ConfigureAwait(false);
+        if (Interlocked.Exchange(ref _microphoneMonitoring, 1) != 0) return;
+        try { await _controller.SuspendAsync().ConfigureAwait(false); }
+        catch
+        {
+            Volatile.Write(ref _microphoneMonitoring, 0);
+            throw;
+        }
     }
 
-    public Task EndMicrophoneMonitorAsync() => _controller.ResumeAsync();
+    public Task EndMicrophoneMonitorAsync()
+    {
+        Volatile.Write(ref _microphoneMonitoring, 0);
+        return ResumeControllerIfAvailableAsync();
+    }
 
-    private static IKeyboardHook BuildKeyboard(Config config)
+    private static WindowsKeyboardHook BuildKeyboard(Config config)
         => new WindowsKeyboardHook(config);
 
     private void ConfigureTray()
@@ -315,6 +329,8 @@ internal sealed class WindowsApplication : IWindowsWebBridgeApp, IDisposable
         _tray.AddMenuSeparator();
         _tray.AddMenuItem(ExitCommand, "Sair", () => RequestShutdown(restart: false));
         _tray.Activated += () => OpenWebWindow("home");
+        _tray.MenuOpening = OnTrayMenuOpening;
+        _tray.MenuClosed += OnTrayMenuClosed;
     }
 
     private void OpenWebWindow(string route)
@@ -362,6 +378,43 @@ internal sealed class WindowsApplication : IWindowsWebBridgeApp, IDisposable
     {
         if (state != ShellState.Idle) _hud.SetTargetWindow(ResolveHudTarget());
         _hud.PublishShellState(state, text, _config.Mode);
+        if (state == ShellState.Idle && Volatile.Read(ref _restartPromptPending) != 0)
+            PostToDispatcher(TryShowRestartPrompt);
+    }
+
+    private bool OnTrayMenuOpening()
+    {
+        if (_controller.IsSessionActive || _controller.IsBusy)
+        {
+            _shell.ShowNotification("Aguarde", "Encerre o ditado antes de abrir o menu.");
+            return false;
+        }
+
+        Volatile.Write(ref _trayMenuOpen, 1);
+        _keyboard.InputSuppressed = true;
+        try
+        {
+            _controller.SuspendAsync().GetAwaiter().GetResult();
+            return true;
+        }
+        catch (Exception exception)
+        {
+            Volatile.Write(ref _trayMenuOpen, 0);
+            _keyboard.InputSuppressed = false;
+            try { ResumeControllerIfAvailableAsync().GetAwaiter().GetResult(); }
+            catch { }
+            Logger.Error("Falha ao suspender ditado antes de abrir o menu", exception);
+            _shell.ShowNotification("Menu indisponivel", "Nao foi possivel pausar o ditado com seguranca.");
+            return false;
+        }
+    }
+
+    private void OnTrayMenuClosed()
+    {
+        Volatile.Write(ref _trayMenuOpen, 0);
+        _keyboard.InputSuppressed = false;
+        try { ResumeControllerIfAvailableAsync().GetAwaiter().GetResult(); }
+        catch (Exception exception) { Logger.Error("Falha ao retomar ditado depois do menu", exception); }
     }
 
     private nint ResolveHudTarget()
@@ -392,7 +445,8 @@ internal sealed class WindowsApplication : IWindowsWebBridgeApp, IDisposable
             Config previous = _config;
             await ApplyConfigLockedAsync(config).ConfigureAwait(false);
             ConfigChanged?.Invoke(config);
-            if (config.Gpu != previous.Gpu) PromptForRestart();
+            if (config.Gpu != _runtimeGpu && config.Gpu != previous.Gpu) PromptForRestart();
+            else if (config.Gpu == _runtimeGpu) CancelRestartPrompt();
         }
         catch (Exception exception)
         {
@@ -414,20 +468,24 @@ internal sealed class WindowsApplication : IWindowsWebBridgeApp, IDisposable
             || next.DiscoverMode != previous.DiscoverMode;
         if (keyboardChanged)
         {
-            IKeyboardHook keyboard = BuildKeyboard(applicable);
+            WindowsKeyboardHook keyboard = BuildKeyboard(applicable);
+            keyboard.InputSuppressed = Volatile.Read(ref _trayMenuOpen) != 0;
             try
             {
                 await _controller.ApplyConfigAsync(applicable, keyboard).ConfigureAwait(false);
                 _keyboard = keyboard;
+                _keyboard.InputSuppressed = Volatile.Read(ref _trayMenuOpen) != 0;
             }
             catch
             {
                 Config restoreConfig = previous.Gpu == _runtimeGpu
                     ? previous
                     : previous.WithGpu(_runtimeGpu);
-                IKeyboardHook fallback = BuildKeyboard(restoreConfig);
+                WindowsKeyboardHook fallback = BuildKeyboard(restoreConfig);
+                fallback.InputSuppressed = Volatile.Read(ref _trayMenuOpen) != 0;
                 await _controller.ApplyConfigAsync(restoreConfig, fallback).ConfigureAwait(false);
                 _keyboard = fallback;
+                _keyboard.InputSuppressed = Volatile.Read(ref _trayMenuOpen) != 0;
                 throw;
             }
         }
@@ -439,17 +497,30 @@ internal sealed class WindowsApplication : IWindowsWebBridgeApp, IDisposable
     }
 
     private void PromptForRestart()
-        => PostToDispatcher(() =>
-        {
-            if (Volatile.Read(ref _stopping) != 0) return;
-            int result = WindowsNativeMethods.MessageBox(
-                _dispatcher.WindowHandle,
-                "A troca entre GPU e CPU so vale reiniciando o Matraca.\n\n"
-                    + "Todo o resto ja foi aplicado. Reiniciar agora?",
-                "Matraca",
-                WindowsNativeMethods.MbYesNo | WindowsNativeMethods.MbIconQuestion);
-            if (result == WindowsNativeMethods.IdYes) RequestShutdown(restart: true);
-        });
+    {
+        Volatile.Write(ref _restartPromptPending, 1);
+        PostToDispatcher(TryShowRestartPrompt);
+    }
+
+    private void CancelRestartPrompt() => Volatile.Write(ref _restartPromptPending, 0);
+
+    private void TryShowRestartPrompt()
+    {
+        if (Volatile.Read(ref _stopping) != 0
+            || Volatile.Read(ref _restartPromptPending) == 0
+            || _controller.IsSessionActive
+            || _controller.IsBusy)
+            return;
+
+        Volatile.Write(ref _restartPromptPending, 0);
+        int result = WindowsNativeMethods.MessageBox(
+            _dispatcher.WindowHandle,
+            "A troca entre GPU e CPU so vale reiniciando o Matraca.\n\n"
+                + "Todo o resto ja foi aplicado. Reiniciar agora?",
+            "Matraca",
+            WindowsNativeMethods.MbYesNo | WindowsNativeMethods.MbIconQuestion);
+        if (result == WindowsNativeMethods.IdYes) RequestShutdown(restart: true);
+    }
 
     private void NotifyConfigRejected(Exception exception)
         => PostToDispatcher(() => _shell.ShowNotification(
@@ -465,7 +536,8 @@ internal sealed class WindowsApplication : IWindowsWebBridgeApp, IDisposable
 
         Interlocked.Increment(ref _powerGeneration);
         Logger.Info("Windows vai entrar em suspensao.");
-        Observe(_controller.SuspendAsync());
+        try { _controller.SuspendAsync().GetAwaiter().GetResult(); }
+        catch (Exception exception) { Logger.Error("Falha ao suspender pipeline antes do repouso", exception); }
     }
 
     private void OnResumed()
@@ -500,11 +572,37 @@ internal sealed class WindowsApplication : IWindowsWebBridgeApp, IDisposable
             if (Volatile.Read(ref _stopping) == 0
                 && Volatile.Read(ref _sleeping) == 0
                 && Volatile.Read(ref _powerGeneration) == generation)
-                Observe(_controller.ResumeAsync());
+                Observe(ResumeControllerIfAvailableAsync());
         });
     }
 
-    private void OnSessionEnding() => RequestShutdown(restart: false);
+    private async Task ResumeControllerIfAvailableAsync()
+    {
+        if (!CanResumeController()) return;
+        await _controller.ResumeAsync().ConfigureAwait(false);
+        if (!CanResumeController()) await _controller.SuspendAsync().ConfigureAwait(false);
+    }
+
+    private bool CanResumeController()
+        => Volatile.Read(ref _stopping) == 0
+            && Volatile.Read(ref _sleeping) == 0
+            && Volatile.Read(ref _trayMenuOpen) == 0
+            && Volatile.Read(ref _microphoneMonitoring) == 0;
+
+    private void OnSessionEnding()
+    {
+        RequestShutdown(restart: false);
+        try
+        {
+            bool completed = _shutdown.RequestShutdownAsync().GetAwaiter().GetResult();
+            if (!completed)
+                Logger.Warn("Encerramento do pipeline excedeu o prazo antes do fim da sessao.");
+        }
+        catch (Exception exception)
+        {
+            Logger.Error("Falha ao encerrar pipeline antes do fim da sessao", exception);
+        }
+    }
 
     private void RequestShutdown(bool restart)
     {
@@ -595,6 +693,8 @@ internal sealed class WindowsApplication : IWindowsWebBridgeApp, IDisposable
         _controller.DeliveryStarted -= OnDeliveryStarted;
         _controller.DeliveryCompleted -= OnDeliveryCompleted;
         _shell.StateChanged -= OnShellStateChanged;
+        _tray.MenuOpening = null;
+        _tray.MenuClosed -= OnTrayMenuClosed;
         TryDispose(_webWindow.Shutdown, "janela WebView2");
         TryDispose(_hud.Shutdown, "HUD");
         TryDispose(_targets.Dispose, "moldura de foco");

@@ -24,7 +24,7 @@ internal static class WindowsFilePicker
         => Pick(
             owner,
             "Selecionar som",
-            "Sons WAV (*.wav)\0*.wav\0\0",
+            "Audio (*.wav;*.mp3)\0*.wav;*.mp3\0Todos (*.*)\0*.*\0\0",
             "wav");
 
     private static string? Pick(nint owner, string title, string filter, string extension)

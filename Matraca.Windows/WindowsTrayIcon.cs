@@ -45,6 +45,10 @@ internal sealed class WindowsTrayIcon : IDisposable
 
     public event Action? Activated;
 
+    public Func<bool>? MenuOpening { get; set; }
+
+    public event Action? MenuClosed;
+
     public ShellState CurrentState { get; private set; } = ShellState.Idle;
 
     public string ToolTip { get; private set; }
@@ -169,21 +173,36 @@ internal sealed class WindowsTrayIcon : IDisposable
 
     private void ShowMenu()
     {
+        if (MenuOpening?.Invoke() == false) return;
         if (!WindowsNativeMethods.GetCursorPos(out WindowsPoint point))
+        {
+            MenuClosed?.Invoke();
             return;
+        }
 
-        WindowsNativeMethods.SetForegroundWindow(_window.Handle);
-        uint command = WindowsNativeMethods.TrackPopupMenu(
-            _menu,
-            WindowsNativeMethods.TpmRightButton |
-            WindowsNativeMethods.TpmNonotify |
-            WindowsNativeMethods.TpmReturnCommand,
-            point.X,
-            point.Y,
-            0,
-            _window.Handle,
-            nint.Zero);
-        WindowsNativeMethods.PostMessageW(_window.Handle, WindowsNativeMethods.WmNull, nint.Zero, nint.Zero);
+        nint previousForeground = WindowsNativeMethods.GetForegroundWindow();
+        uint command;
+        try
+        {
+            WindowsNativeMethods.SetForegroundWindow(_window.Handle);
+            command = WindowsNativeMethods.TrackPopupMenu(
+                _menu,
+                WindowsNativeMethods.TpmRightButton |
+                WindowsNativeMethods.TpmNonotify |
+                WindowsNativeMethods.TpmReturnCommand,
+                point.X,
+                point.Y,
+                0,
+                _window.Handle,
+                nint.Zero);
+            WindowsNativeMethods.PostMessageW(_window.Handle, WindowsNativeMethods.WmNull, nint.Zero, nint.Zero);
+        }
+        finally
+        {
+            if (previousForeground != nint.Zero && WindowsNativeMethods.IsWindow(previousForeground))
+                WindowsNativeMethods.SetForegroundWindow(previousForeground);
+            MenuClosed?.Invoke();
+        }
 
         if (command != 0 && _menuActions.TryGetValue(command, out Action? action))
             action();
@@ -253,6 +272,8 @@ internal sealed class WindowsTrayIcon : IDisposable
         WindowsNativeMethods.DestroyMenu(_menu);
         _menuActions.Clear();
         Activated = null;
+        MenuOpening = null;
+        MenuClosed = null;
         _window.Dispose();
     }
 }

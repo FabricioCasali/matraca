@@ -27,43 +27,29 @@ internal sealed class WindowsPowerMonitor : IDisposable
             if (powerEvent == WindowsNativeMethods.PbtApmSuspend &&
                 Interlocked.Exchange(ref _suspended, 1) == 0)
             {
-                Queue(PublishSuspending);
+                PublishSuspending();
             }
             else if (powerEvent == WindowsNativeMethods.PbtApmResumeAutomatic &&
                      Interlocked.Exchange(ref _suspended, 0) != 0)
             {
-                Queue(PublishResumed);
+                PublishResumed();
             }
-        }
-        else if (message == WindowsNativeMethods.WmQueryEndSession)
-        {
-            QueueSessionEnding();
         }
         else if (message == WindowsNativeMethods.WmEndSession)
         {
+            // WM_QUERYENDSESSION ainda pode ser cancelada por outro aplicativo. O encerramento
+            // irreversivel comeca somente aqui, depois da confirmacao do Windows.
             if (wParam == nint.Zero)
                 Interlocked.Exchange(ref _sessionEndingQueued, 0);
             else
-                QueueSessionEnding();
+                PublishSessionEndingOnce();
         }
     }
 
-    private void QueueSessionEnding()
+    private void PublishSessionEndingOnce()
     {
         if (Interlocked.Exchange(ref _sessionEndingQueued, 1) == 0)
-            Queue(PublishSessionEnding);
-    }
-
-    private void Queue(Action callback)
-    {
-        try
-        {
-            _dispatcher.Post(callback);
-        }
-        catch (ObjectDisposedException)
-        {
-            // The dispatcher is already shutting down.
-        }
+            PublishSessionEnding();
     }
 
     private void PublishSuspending()
