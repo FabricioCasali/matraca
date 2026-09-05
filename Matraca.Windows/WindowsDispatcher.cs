@@ -15,12 +15,15 @@ internal sealed class WindowsDispatcher : IDisposable
 
     public WindowsDispatcher()
     {
-        _window = new WindowsNativeWindow("Dispatcher", WindowProcedure, messageOnly: true);
+        // Broadcasts such as WM_POWERBROADCAST do not reach HWND_MESSAGE windows.
+        _window = new WindowsNativeWindow("Dispatcher", WindowProcedure, messageOnly: false);
     }
 
     public nint WindowHandle => _window.Handle;
 
     public bool IsDispatchThread => _window.IsOwnerThread;
+
+    public event Action<uint, nint, nint>? UnhandledMessage;
 
     public void Post(Action action)
     {
@@ -40,7 +43,10 @@ internal sealed class WindowsDispatcher : IDisposable
     private nint WindowProcedure(nint window, uint message, nint wParam, nint lParam)
     {
         if (message != DispatchMessage)
+        {
+            NotifyUnhandledMessage(message, wParam, lParam);
             return WindowsNativeMethods.DefWindowProcW(window, message, wParam, lParam);
+        }
 
         Action? action;
         lock (_gate)
@@ -63,6 +69,23 @@ internal sealed class WindowsDispatcher : IDisposable
         return nint.Zero;
     }
 
+    private void NotifyUnhandledMessage(uint message, nint wParam, nint lParam)
+    {
+        Delegate[] handlers = UnhandledMessage?.GetInvocationList() ?? [];
+        foreach (Action<uint, nint, nint> handler in handlers)
+        {
+            try
+            {
+                handler(message, wParam, lParam);
+            }
+            catch (Exception exception)
+            {
+                try { Logger.Error("Falha em observador de mensagem Win32", exception); }
+                catch { }
+            }
+        }
+    }
+
     public void Dispose()
     {
         if (Volatile.Read(ref _disposed) != 0) return;
@@ -73,6 +96,7 @@ internal sealed class WindowsDispatcher : IDisposable
             if (_disposed != 0) return;
             _disposed = 1;
             _actions.Clear();
+            UnhandledMessage = null;
         }
 
         _window.Dispose();

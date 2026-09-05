@@ -9,6 +9,8 @@ internal static class WindowsNativeMethods
     internal const uint WmSize = 0x0005;
     internal const uint WmPaint = 0x000F;
     internal const uint WmClose = 0x0010;
+    internal const uint WmQueryEndSession = 0x0011;
+    internal const uint WmEndSession = 0x0016;
     internal const uint WmMouseActivate = 0x0021;
     internal const uint WmGetMinMaxInfo = 0x0024;
     internal const uint WmNcHitTest = 0x0084;
@@ -18,6 +20,7 @@ internal static class WindowsNativeMethods
     internal const uint WmLButtonUp = 0x0202;
     internal const uint WmLButtonDoubleClick = 0x0203;
     internal const uint WmRButtonUp = 0x0205;
+    internal const uint WmPowerBroadcast = 0x0218;
     internal const uint WmApp = 0x8000;
     internal const uint NinSelect = WmApp;
     internal const uint NinKeySelect = WmApp + 1;
@@ -37,6 +40,9 @@ internal static class WindowsNativeMethods
     internal const uint NiifWarning = 0x00000002;
     internal const uint NiifError = 0x00000003;
     internal const uint NotifyIconVersion4 = 4;
+
+    internal const uint PbtApmSuspend = 0x0004;
+    internal const uint PbtApmResumeAutomatic = 0x0012;
 
     internal const uint MfString = 0x00000000;
     internal const uint MfSeparator = 0x00000800;
