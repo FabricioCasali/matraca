@@ -47,6 +47,15 @@ internal static class WindowsNativeMethods
     internal const uint PbtApmSuspend = 0x0004;
     internal const uint PbtApmResumeAutomatic = 0x0012;
 
+    internal const uint ImageIcon = 1;
+    internal const uint LrLoadFromFile = 0x00000010;
+    internal const uint LrDefaultSize = 0x00000040;
+    internal const uint LrShared = 0x00008000;
+
+    internal const uint MbYesNo = 0x00000004;
+    internal const uint MbIconQuestion = 0x00000020;
+    internal const int IdYes = 6;
+
     internal const uint MfString = 0x00000000;
     internal const uint MfSeparator = 0x00000800;
     internal const uint TpmRightButton = 0x0002;
@@ -117,6 +126,31 @@ internal static class WindowsNativeMethods
 
     [DllImport("user32.dll")]
     internal static extern nint GetForegroundWindow();
+
+    [DllImport("user32.dll", EntryPoint = "LoadImageW", CharSet = CharSet.Unicode, SetLastError = true)]
+    internal static extern nint LoadImageFromFile(
+        nint instance,
+        string name,
+        uint type,
+        int desiredWidth,
+        int desiredHeight,
+        uint loadFlags);
+
+    [DllImport("user32.dll", EntryPoint = "LoadImageW", SetLastError = true)]
+    internal static extern nint LoadImageResource(
+        nint instance,
+        nint name,
+        uint type,
+        int desiredWidth,
+        int desiredHeight,
+        uint loadFlags);
+
+    [DllImport("user32.dll", SetLastError = true)]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    internal static extern bool DestroyIcon(nint icon);
+
+    [DllImport("user32.dll", EntryPoint = "MessageBoxW", CharSet = CharSet.Unicode, SetLastError = true)]
+    internal static extern int MessageBox(nint owner, string text, string caption, uint type);
 
     [DllImport("user32.dll", SetLastError = true)]
     [return: MarshalAs(UnmanagedType.Bool)]

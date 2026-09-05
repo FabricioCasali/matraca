@@ -12,7 +12,7 @@ internal sealed class WindowsWebBridge : IDisposable
         PropertyNameCaseInsensitive = true,
     };
 
-    private readonly TrayApp _app;
+    private readonly IWindowsWebBridgeApp _app;
     private readonly WindowsMicrophoneMonitor _microphone;
     private readonly SemaphoreSlim _microphoneGate = new(1, 1);
     private readonly object _hotkeyCaptureGate = new();
@@ -28,7 +28,7 @@ internal sealed class WindowsWebBridge : IDisposable
     private int _stopping;
     private int _disposed;
 
-    public WindowsWebBridge(TrayApp app, IShell shell)
+    public WindowsWebBridge(IWindowsWebBridgeApp app, IShell shell)
     {
         _app = app ?? throw new ArgumentNullException(nameof(app));
         _microphone = new WindowsMicrophoneMonitor(shell);

@@ -15,6 +15,7 @@ internal sealed class WindowsFocusIndicator : IDisposable
     private static IWindowsVirtualDesktopManager? _virtualDesktopManager;
     private static bool _virtualDesktopManagerAttempted;
 
+    private readonly WindowsDispatcher _dispatcher;
     private readonly WindowsNativeWindow _window;
     private readonly int _thickness;
     private nint _brush;
@@ -23,15 +24,17 @@ internal sealed class WindowsFocusIndicator : IDisposable
     private WindowsRectangle _lastBounds;
     private bool _timerRunning;
     private bool _visible;
+    private int _shutdownRequested;
     private int _disposed;
 
     public WindowsFocusIndicator(Color color, int thickness, float opacity)
     {
         _thickness = Math.Max(1, thickness);
-        _brush = CreateBrush(color);
+        _dispatcher = new WindowsDispatcher();
 
         try
         {
+            _brush = CreateBrush(color);
             _window = new WindowsNativeWindow(
                 "FocusIndicator",
                 WindowProcedure,
@@ -57,6 +60,7 @@ internal sealed class WindowsFocusIndicator : IDisposable
         catch
         {
             _window?.Dispose();
+            _dispatcher.Dispose();
             WindowsNativeMethods.DeleteObject(_brush);
             _brush = nint.Zero;
             throw;
@@ -298,8 +302,19 @@ internal sealed class WindowsFocusIndicator : IDisposable
 
     public void Dispose()
     {
-        if (Volatile.Read(ref _disposed) != 0) return;
-        _window.VerifyAccess();
+        if (Interlocked.Exchange(ref _shutdownRequested, 1) != 0) return;
+        if (_window.IsOwnerThread)
+        {
+            DisposeOnOwnerThread();
+            return;
+        }
+
+        try { _dispatcher.Post(DisposeOnOwnerThread); }
+        catch (ObjectDisposedException) { }
+    }
+
+    private void DisposeOnOwnerThread()
+    {
         if (Interlocked.Exchange(ref _disposed, 1) != 0) return;
 
         StopTimer();
@@ -307,5 +322,6 @@ internal sealed class WindowsFocusIndicator : IDisposable
         _window.Dispose();
         WindowsNativeMethods.DeleteObject(_brush);
         _brush = nint.Zero;
+        _dispatcher.Dispose();
     }
 }

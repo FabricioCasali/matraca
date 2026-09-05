@@ -4,7 +4,7 @@ using System.Text.Json.Nodes;
 
 namespace Matraca;
 
-internal sealed class TrayApp : ApplicationContext
+internal sealed class TrayApp : ApplicationContext, IWindowsWebBridgeApp
 {
     private Config _config;
     private IKeyboardHook _keyboard;
@@ -188,26 +188,26 @@ internal sealed class TrayApp : ApplicationContext
             $"Atalho: {next.HotkeyName} · modo: {next.Mode}.");
     }
 
-    internal event Action<ShellState, string>? StateChanged
+    public event Action<ShellState, string>? StateChanged
     {
         add => _shell.StateChanged += value;
         remove => _shell.StateChanged -= value;
     }
 
-    internal event Action<Config>? ConfigChanged;
-    internal Config CurrentConfig => _config;
-    internal string RuntimeGpu => _runtimeGpu;
-    internal ShellState CurrentState => _shell.CurrentState;
-    internal string CurrentStateText => _shell.CurrentText;
-    internal RawConfig LoadRawConfig() => WindowsConfig.LoadRaw();
-    internal IReadOnlyList<string> ListAudioDevices() => _audio.ListDevices();
-    internal List<DictationHistoryEntry> HistorySnapshot()
+    public event Action<Config>? ConfigChanged;
+    public Config CurrentConfig => _config;
+    public string RuntimeGpu => _runtimeGpu;
+    public ShellState CurrentState => _shell.CurrentState;
+    public string CurrentStateText => _shell.CurrentText;
+    public RawConfig LoadRawConfig() => WindowsConfig.LoadRaw();
+    public IReadOnlyList<string> ListAudioDevices() => _audio.ListDevices();
+    public List<DictationHistoryEntry> HistorySnapshot()
         => _controller.CurrentHistory?.Snapshot() ?? [];
-    internal bool PostProcessingActive => _controller.PostProcessingActive;
-    internal bool RemoveHistory(DateTime at, string text)
+    public bool PostProcessingActive => _controller.PostProcessingActive;
+    public bool RemoveHistory(DateTime at, string text)
         => _controller.CurrentHistory?.Remove(at, text) == true;
 
-    internal async Task<(RawConfig Config, bool RestartRequired)> ApplyAndSaveConfigPatchAsync(
+    public async Task<(RawConfig Config, bool RestartRequired)> ApplyAndSaveConfigPatchAsync(
         string patchJson)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(patchJson);
@@ -267,7 +267,7 @@ internal sealed class TrayApp : ApplicationContext
         finally { _configGate.Release(); }
     }
 
-    internal bool CopyText(string text)
+    public bool CopyText(string text)
     {
         bool copied = false;
         Exception? failure = null;
@@ -283,7 +283,7 @@ internal sealed class TrayApp : ApplicationContext
         return copied;
     }
 
-    internal void CaptureWebTarget(IntPtr excludedWindow)
+    public void CaptureWebTarget(IntPtr excludedWindow)
     {
         if (TextInjector.GetForegroundWindowHandle() == excludedWindow) return;
         TargetToken? next = _targets.CaptureActive();
@@ -296,7 +296,7 @@ internal sealed class TrayApp : ApplicationContext
         if (previous != null) _targets.Release(previous);
     }
 
-    internal void ReleaseWebTarget()
+    public void ReleaseWebTarget()
     {
         TargetToken? target;
         lock (_webTargetGate)
@@ -307,7 +307,7 @@ internal sealed class TrayApp : ApplicationContext
         if (target != null) _targets.Release(target);
     }
 
-    internal TargetToken? TakeWebTarget()
+    public TargetToken? TakeWebTarget()
     {
         lock (_webTargetGate)
         {
@@ -317,7 +317,7 @@ internal sealed class TrayApp : ApplicationContext
         }
     }
 
-    internal async Task<TextDeliveryResult> RepasteAsync(string text, TargetToken target)
+    public async Task<TextDeliveryResult> RepasteAsync(string text, TargetToken target)
     {
         try
         {
@@ -330,20 +330,20 @@ internal sealed class TrayApp : ApplicationContext
         finally { _targets.Release(target); }
     }
 
-    internal void ShowWebError(string message)
+    public void ShowWebError(string message)
         => _ui.Post(_ => _shell.ShowNotification(
             "Operação da interface falhou",
             message,
             ShellNotificationLevel.Error), null);
 
-    internal async Task BeginMicrophoneMonitorAsync()
+    public async Task BeginMicrophoneMonitorAsync()
     {
         if (_controller.IsSessionActive || _controller.IsBusy)
             throw new InvalidOperationException("Encerre o ditado antes de calibrar o microfone.");
         await _controller.SuspendAsync();
     }
 
-    internal Task EndMicrophoneMonitorAsync() => _controller.ResumeAsync();
+    public Task EndMicrophoneMonitorAsync() => _controller.ResumeAsync();
 
     private async Task ApplyConfigLockedAsync(Config next)
     {
