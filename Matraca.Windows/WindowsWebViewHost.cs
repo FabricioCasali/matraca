@@ -13,6 +13,8 @@ internal sealed class WindowsWebViewHost : IDisposable
     private readonly string _assetRoot;
     private readonly string _userDataFolder;
     private readonly Action<Action> _dispatch;
+    private readonly string _entryPath;
+    private readonly bool _transparentBackground;
     private readonly Queue<string> _pendingMessages = new();
     private CoreWebView2Environment? _environment;
     private CoreWebView2Controller? _controller;
@@ -27,7 +29,9 @@ internal sealed class WindowsWebViewHost : IDisposable
         nint parentWindow,
         string assetRoot,
         string userDataFolder,
-        Action<Action> dispatch)
+        Action<Action> dispatch,
+        string entryPath = "index.html",
+        bool transparentBackground = false)
     {
         if (parentWindow == nint.Zero) throw new ArgumentException("O HWND pai e obrigatorio.", nameof(parentWindow));
         ArgumentException.ThrowIfNullOrWhiteSpace(assetRoot);
@@ -38,6 +42,8 @@ internal sealed class WindowsWebViewHost : IDisposable
         _assetRoot = Path.GetFullPath(assetRoot);
         _userDataFolder = Path.GetFullPath(userDataFolder);
         _dispatch = dispatch;
+        _entryPath = NormalizeEntryPath(_assetRoot, entryPath);
+        _transparentBackground = transparentBackground;
     }
 
     public event Action<string>? MessageReceived;
@@ -46,8 +52,9 @@ internal sealed class WindowsWebViewHost : IDisposable
     {
         ObjectDisposedException.ThrowIf(_disposed, this);
         if (_initialization != null) return _initialization;
-        if (!File.Exists(Path.Combine(_assetRoot, "index.html")))
-            throw new DirectoryNotFoundException($"Assets web nao encontrados em {_assetRoot}.");
+        if (!File.Exists(Path.Combine(_assetRoot, _entryPath)))
+            throw new DirectoryNotFoundException(
+                $"Assets web nao encontrados em {_assetRoot} (entrada: {_entryPath}).");
 
         Directory.CreateDirectory(_userDataFolder);
         var completion = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
@@ -172,6 +179,7 @@ internal sealed class WindowsWebViewHost : IDisposable
 
         _controller = controller;
         _controller.AllowExternalDrop = false;
+        if (_transparentBackground) _controller.DefaultBackgroundColor = Color.Transparent;
         _core = controller.CoreWebView2;
         _core.Settings.AreDefaultContextMenusEnabled = false;
         _core.Settings.AreDevToolsEnabled = false;
@@ -315,7 +323,27 @@ internal sealed class WindowsWebViewHost : IDisposable
         catch (JsonException) { return false; }
     }
 
-    private static string BuildUri(string route) => $"https://{VirtualHost}/index.html#{route}";
+    private string BuildUri(string route) => $"https://{VirtualHost}/{EscapePath(_entryPath)}#{route}";
+
+    private static string NormalizeEntryPath(string assetRoot, string entryPath)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(entryPath);
+        if (entryPath.Contains('#') || entryPath.Contains('?') || Path.IsPathRooted(entryPath))
+            throw new ArgumentException("A entrada web deve ser um caminho relativo sem query ou fragmento.", nameof(entryPath));
+
+        string fullPath = Path.GetFullPath(Path.Combine(assetRoot, entryPath));
+        string relativePath = Path.GetRelativePath(assetRoot, fullPath);
+        if (relativePath == ".."
+            || relativePath.StartsWith($"..{Path.DirectorySeparatorChar}", StringComparison.Ordinal))
+            throw new ArgumentException("A entrada web deve permanecer dentro da raiz autorizada.", nameof(entryPath));
+
+        return relativePath;
+    }
+
+    private static string EscapePath(string path)
+        => string.Join('/', path.Split(
+            new[] { Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar },
+            StringSplitOptions.RemoveEmptyEntries).Select(Uri.EscapeDataString));
 
     private static bool IsLocalUri(string? value)
         => Uri.TryCreate(value, UriKind.Absolute, out Uri? uri)

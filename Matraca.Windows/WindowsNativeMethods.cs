@@ -9,6 +9,7 @@ internal static class WindowsNativeMethods
     internal const uint WmSize = 0x0005;
     internal const uint WmPaint = 0x000F;
     internal const uint WmClose = 0x0010;
+    internal const uint WmMouseActivate = 0x0021;
     internal const uint WmGetMinMaxInfo = 0x0024;
     internal const uint WmNcHitTest = 0x0084;
     internal const uint WmTimer = 0x0113;
@@ -56,6 +57,8 @@ internal static class WindowsNativeMethods
     internal const uint SwpNoActivate = 0x0010;
     internal const uint SwpShowWindow = 0x0040;
     internal const uint LayeredWindowAlpha = 0x00000002;
+    internal const uint MonitorDefaultToPrimary = 0x00000001;
+    internal const uint MonitorDefaultToNearest = 0x00000002;
     internal const int RegionDifference = 4;
     internal const int DwmExtendedFrameBounds = 9;
     internal const uint SpiGetWorkArea = 0x0030;
@@ -113,6 +116,13 @@ internal static class WindowsNativeMethods
     [DllImport("user32.dll", SetLastError = true)]
     [return: MarshalAs(UnmanagedType.Bool)]
     internal static extern bool GetClientRect(nint window, out WindowsRectangle rectangle);
+
+    [DllImport("user32.dll")]
+    internal static extern nint MonitorFromWindow(nint window, uint flags);
+
+    [DllImport("user32.dll", EntryPoint = "GetMonitorInfoW", CharSet = CharSet.Unicode, SetLastError = true)]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    internal static extern bool GetMonitorInfo(nint monitor, ref WindowsMonitorInfo monitorInfo);
 
     [DllImport("user32.dll")]
     internal static extern uint GetDpiForWindow(nint window);
