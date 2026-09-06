@@ -69,9 +69,6 @@ O desenho da frente 2.0 está em [`PLANO-2.0.md`](PLANO-2.0.md).
 - **MT-029** **Adicionar DeepSeek como revisor** — provedor usa endpoint oficial, chave
   isolada, seleção de V4 Flash/Pro e raciocínio desligado/baixo/alto/máximo. A ativação exige
   modelo e raciocínio; resta prova assistida com credencial real. · `[2.0]` · P · melhoria
-- **MT-030** **Remover a barra de título nativa duplicada no Windows** — janela frameless
-  preserva arraste e controles na barra compartilhada. Resta a confirmação visual no Windows.
-  · `[2.0]` · P · importante
 
 ## 📋 A fazer
 
