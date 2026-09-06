@@ -63,17 +63,18 @@ O desenho da frente 2.0 está em [`PLANO-2.0.md`](PLANO-2.0.md).
 - **MT-028** **Corrigir o cartão de última frase** — cada entrega, inclusive trecho live,
   atualiza texto e horário; o menu `•••` copia, recola ou exclui com confirmação. Resta a
   prova na UI real. · `[2.0]` · P · importante
+- **MT-031** **Medir consumo e saldo da revisão por IA** — cada resposta DeepSeek captura
+  entrada, cache hit/miss, saída, raciocínio e total; o histórico mostra a chamada e o
+  custo estimado pela tabela oficial versionada, enquanto o ledger local mantém agregados
+  diários sem texto. A tela Revisão consolida o consumo e consulta `/user/balance` somente
+  por ação do usuário, com cache de 30 segundos. Restam a prova de um ditado real e a
+  confirmação visual do saldo. · `[2.0]` · M · melhoria
 
 ## 📋 A fazer
 
 - **MT-007** **Fase 5 — empacotamento** — `.app` + `.dmg` no Mac, Inno seguindo no
   Windows com teste do WebView2 Runtime, e `macos-14` na matriz do CI. · `[2.0]` · M ·
   importante
-- **MT-031** **Medir consumo e saldo da revisão por IA** — capturar o `usage` exato de
-  cada chamada, associar tokens e custo estimado ao histórico e consolidar o consumo na
-  seleção do provedor. Para DeepSeek, conciliar o saldo sob demanda via `/user/balance`,
-  sem consulta periódica em segundo plano. · `[2.0]` · M · melhoria
-
 ## 🗂️ Backlog
 
 - **MT-008** **Testes manuais pendentes da 1.1** — `pinDelivery: "nofocus"`, onboarding,
