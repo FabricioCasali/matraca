@@ -1,214 +1,225 @@
 [English](README.md) | **Português (Brasil)**
 
-# Matraca — ditado por voz (speech-to-text) pra prompts
+# Matraca
 
-App de bandeja (tray) em C#/.NET 8 que transcreve sua voz e **cola o texto na janela em foco**.
-Pensado pra ditar prompts no Claude Code (terminal), mas funciona em qualquer lugar com cursor de
-texto: navegador, Word, chat, etc.
+Ditado por voz local para qualquer lugar com cursor de texto. O Matraca fica na bandeja,
+transcreve com Whisper e entrega o texto na janela escolhida. Nasceu para ditar prompts em
+terminais, mas funciona também em editores, navegadores e chats.
 
-Motor de transcrição: **Whisper** via [Whisper.net](https://github.com/sandrohanea/whisper.net)
-(binding do whisper.cpp), rodando na **GPU via Vulkan**. Reaproveita o modelo `ggml-large-v3-turbo.bin`
-já baixado pelo app Vibe — **não precisa do Vibe rodando**.
+O áudio permanece na memória da máquina e nunca é enviado ou gravado em disco.
 
-## Como funciona
+> "Matraca" é como chamamos, em português brasileiro, alguém que não para de falar.
 
-1. Você aperta sua tecla de atalho → começa a gravar (beep + ícone muda).
-2. Fala o prompt.
-3. Aperta a tecla de novo → para, transcreve (~0,3s na RTX 4070 Ti) e **cola no campo em foco**.
-4. Você revisa e dá Enter. (Não envia sozinho — config `autoEnter`.)
+## Disponibilidade
 
-O texto vai pra **onde quer que o cursor esteja** — por padrão o app **digita direto** (SendInput
-Unicode), sem encostar no seu clipboard; se preferir, dá pra voltar pra colagem por clipboard +
-`Ctrl+V` (config `pasteMethod`), que preserva o que você já tinha copiado. Durante a gravação, uma
-**moldura colorida** marca a janela que vai receber o texto — se um pop-up roubar o foco, você vê
-antes de colar.
+| Canal | Plataforma | Estado |
+|---|---|---|
+| [v1.1.0](https://github.com/FabricioCasali/matraca/releases/tag/v1.1.0) | Windows x64 | Release pública mais recente, com a interface nativa anterior. |
+| `main` / 2.0 | Windows x64 e macOS Apple Silicon | Em desenvolvimento. A arquitetura compartilhada está funcionando, mas ainda faltam validações físicas e o empacotamento final. |
 
-## Primeiro uso
+Para instalar a versão pública no Windows, baixe
+[`matraca-setup-1.1.0.exe`](https://github.com/FabricioCasali/matraca/releases/download/v1.1.0/matraca-setup-1.1.0.exe).
+O instalador atual não possui assinatura digital. O Windows pode exibir um aviso antes de
+executá-lo.
 
-Se não houver um modelo Whisper configurado, o Matraca abre uma **tela de primeiro uso** que
-baixa um pra você (large-v3-turbo, small ou base — direto do repositório do whisper.cpp no
-Hugging Face) e captura sua tecla de atalho. Já tem um `.bin`? Aponte pro seu. É toda a
-configuração necessária.
+As seções abaixo descrevem o código atual da `main`, que será a versão 2.0. Não há `.dmg` nem
+release pública para macOS ainda.
 
-## Revisando o texto com IA (opcional, desligado por padrão)
+## O que existe na 2.0
 
-Com `postProcess` ligado, o texto transcrito passa por um modelo Claude na Anthropic ou por um
-endpoint OpenAI-compatible configurado por você. O modelo corrige pontuação e capitalização e
-tira as muletas de fala ("é...", "tipo", "né") — sem reescrever o que você disse.
+- Whisper local com Vulkan no Windows e Metal no macOS, com fallback para CPU.
+- Uma interface compartilhada para Windows e Mac, com tema claro e escuro.
+- Quatro modos de ditado: `toggle`, `hold`, `live` e `push`.
+- HUD de gravação, medidor de microfone e limiar visual para detecção de voz.
+- Entrega Unicode direta, sem alterar o clipboard, ou colagem com restauração do conteúdo anterior.
+- Moldura que mostra qual janela receberá o texto e atalho para fixar um destino.
+- Histórico local com busca, cópia, nova entrega e exclusão.
+- Vocabulário de contexto para nomes próprios, siglas e termos técnicos.
+- Configuração aplicada a quente. Apenas a troca entre GPU e CPU exige reinício.
+- Revisão opcional por Anthropic, DeepSeek ou um endpoint OpenAI-compatible.
+- Contagem local de tokens e custo estimado da DeepSeek, além de consulta manual de saldo.
 
-> Esse é o **único** recurso que manda algo pra fora da sua máquina, e só o texto, nunca o áudio.
-> Custa uma ida à rede por ditado (por *frase* nos modos `live`/`push`, o que joga contra a baixa
-> latência que esses modos buscam). Se falhar, estourar o tempo ou for recusado, você recebe a
-> transcrição original — nenhum ditado se perde por causa disso.
+## Como usar
 
-## Primeiro uso alternativo — descobrir sua tecla
+Escolha uma tecla global, deixe o cursor no destino e dite. O comportamento depende do modo:
 
-O `appsettings.json` já vem com `"hotkey": "discover"`. Rode o app:
+| Modo | Comportamento |
+|---|---|
+| `toggle` | Pressione uma vez para começar e outra para parar. O trecho inteiro é entregue ao final. |
+| `hold` | Mantenha a tecla pressionada enquanto fala. O trecho inteiro é entregue ao soltar. |
+| `live` | Pressione para abrir uma sessão. Cada pausa encerra e entrega uma frase; pressione novamente para fechar. |
+| `push` | Igual ao `live`, mas a sessão existe apenas enquanto a tecla permanece pressionada. |
 
-```powershell
-dotnet run --project Matraca.Windows
-# ou rode o exe compilado:
-# .\bin\Debug\net8.0-windows\Matraca.exe
-```
+Por padrão, o Matraca usa `live`, a tecla `F15`, entrega Unicode e não pressiona Enter. A troca de
+modo vale para a próxima sessão de ditado.
 
-Um ícone aparece na bandeja em **MODO DESCOBERTA**. Aperte a tecla custom do seu teclado: um balão
-mostra o código e o nome sugerido (ex.: `F24`), e também grava no `matraca.log`. Coloque esse nome no
-`appsettings.json` e reinicie o app:
+No primeiro uso, a interface permite escolher um modelo Whisper, baixá-lo do repositório do
+whisper.cpp no Hugging Face ou apontar para um arquivo `.bin` existente. Ela também captura o
+atalho e, no Mac, orienta a concessão das permissões de Microfone e Acessibilidade.
 
-```json
-{
-  "hotkey": "F24"
-}
-```
+## Janela de destino
 
-Pronto — agora a tecla é o gatilho do ditado. (Ou use a tela de configurações, abaixo.)
+Durante a gravação, uma moldura não ativável acompanha a janela que receberá o texto. Ela não
+aceita clique nem rouba o foco.
 
-## Instalação (recomendado)
-
-Baixe/gere o instalador e execute:
-
-```powershell
-# gerar o instalador (requer .NET 8 SDK e Inno Setup 6):
-installer\build-installer.ps1 -Version 1.1.0
-# saida: installer\output\matraca-setup-1.1.0.exe
-```
-
-O instalador é self-contained (não precisa de .NET instalado) e oferece duas opções:
-
-- **Iniciar com o Windows** — atalho na pasta de inicialização.
-- **Ditar em janelas elevadas (Admin)** — instala a variante com `uiAccess` e assina o exe com um
-  certificado local criado na hora (necessário pro Windows honrar o uiAccess). Sem essa opção o app
-  funciona normalmente, só não captura o atalho quando a janela em foco é elevada.
+Configure `pinHotkey` para fixar a janela em foco. Os ditados seguintes continuam indo para esse
+destino até o atalho ser pressionado novamente. Com `pinDelivery: "focus"`, o Matraca traz o
+destino para frente, entrega o texto e restaura o foco anterior. O modo `nofocus` depende do tipo
+de campo e da plataforma; terminais e aplicativos Chromium/Electron costumam rejeitar esse tipo
+de entrega silenciosa.
 
 ## Configuração
 
-**Menu da bandeja → Configurações...** abre a tela de parametrização: tecla de atalho (clique em
-*Capturar* e pressione a tecla), modo de ditado, idioma, moldura de foco, VAD, GPU etc. Salva em
-`%LOCALAPPDATA%\Matraca\appsettings.json` e **aplica tudo na hora** — sem reiniciar. A única
-exceção é a troca entre GPU e CPU, que é fixada por processo; só nesse caso ele pergunta se você
-quer reiniciar.
+A interface salva o arquivo `appsettings.json` nestes diretórios:
 
-O mesmo arquivo pode ser editado na mão (`appsettings.json`):
+| Plataforma | Diretório de dados |
+|---|---|
+| Windows | `%LOCALAPPDATA%\Matraca` |
+| macOS | `~/Library/Application Support/Matraca` |
 
-| Campo | Default | O que faz |
+O token `%MATRACA_DATA%` pode ser usado nos caminhos do arquivo e resolve para o diretório da
+plataforma atual. Os mesmos nomes de tecla e campos de configuração servem nos dois sistemas.
+
+### Ditado e áudio
+
+| Campo | Padrão | Efeito |
 |---|---|---|
-| `modelPath` | modelo do Vibe | Caminho do `.bin` ggml do Whisper. Aceita variáveis (`%LOCALAPPDATA%`). |
-| `language` | `pt` | Idioma do áudio. `pt` lida bem com termos em inglês embutidos. |
-| `hotkey` | `discover` | Tecla de atalho: `F13`–`F24`, media keys, numpad (`NumPad0`), teclas de navegação, código cru (`0xB6`) ou combo (`Ctrl+Alt+X`). Também aceita `discover` pra descobrir sua tecla. Letras, dígitos e teclas de edição só são aceitos **com** modificador — sozinhos parariam de funcionar no sistema inteiro, já que a tecla configurada é reservada pro ditado. |
-| `pinHotkey` | `none` | Tecla que **fixa a janela de destino** (veja abaixo). `none` desliga. Precisa ser diferente da `hotkey`. |
-| `pinDelivery` | `focus` | Como a janela fixada recebe o texto. `focus`: traz pra frente, digita e devolve o foco — funciona em qualquer app. `nofocus`: entrega em silêncio — só campos Win32 clássicos. |
-| `mode` | `toggle` | `toggle` (aperta liga / aperta desliga), `hold` (segura pra falar), `live`/`push` (ver abaixo). |
-| `autoEnter` | `false` | Se `true`, pressiona Enter depois de colar (envia na hora). |
-| `pasteMethod` | `unicode` | Como o texto é entregue. `unicode`: digita direto via SendInput — **não encosta no seu clipboard**. `clipboard`: copia e manda `Ctrl+V`, restaurando o conteúdo anterior depois. Use `clipboard` se algum app não aceitar entrada Unicode sintética. |
-| `beep` | `true` | Sons de início (subindo) / fim (descendo) de gravação. |
-| `silenceMs` | `700` | (modo live) duração da pausa que finaliza uma frase. |
-| `vadThreshold` | `0.012` | (modo live) energia mínima (RMS) p/ considerar que há fala. É o valor de fallback, usado quando o microfone atual não tem entrada em `micSensitivity`. |
-| `micSensitivity` | `{}` | Sensibilidade por microfone (`{"Nome do mic": 0.02}`). Microfones têm níveis de saída bem diferentes, então um valor único está errado pra pelo menos um deles. Ajuste na tela de configurações: fale e arraste a marca sobre o medidor ao vivo — a barra fica verde quando o Matraca considera que é fala. |
-| `idleUnloadMinutes` | `5` | Descarrega o modelo (libera ~1,5 GB de VRAM) após N min sem uso. Recarrega sozinho no próximo ditado. `0` = nunca descarrega. |
-| `gpu` | `auto` | `auto` (GPU se houver, senão CPU), `gpu` (força o backend de GPU da plataforma) ou `cpu` (força CPU). Valores legados `vulkan` seguem aceitos no Windows. |
-| `focusBorder` | `true` | Desenha uma moldura colorida na janela em foco enquanto grava — mostra **onde o texto vai ser colado** (útil quando um pop-up rouba o foco). A moldura segue o foco em tempo real e não interfere em cliques nem no foco. |
-| `focusBorderColor` | `#E81123` | Cor da moldura (hex HTML). |
-| `focusBorderThickness` | `4` | Espessura da moldura em pixels (1–40). |
-| `focusBorderOpacity` | `0.9` | Opacidade da moldura (0.1–1.0). |
-| `focusBorderColorBusy` | `#FFB900` | Cor da moldura enquanto transcreve. |
-| `focusBorderColorPinned` | `#0078D4` | Cor da moldura quando há uma janela de destino fixada. |
-| `phraseMaxSeconds` | `6` | (modo live) passando disto numa fala contínua, uma pausa curta já encerra a frase — o texto continua fluindo em vez de esperar o corte duro de 20s. |
-| `inputDevice` | `""` | Nome do microfone. Vazio = padrão do Windows. Guardado por nome, então plugar/desplugar outros dispositivos não muda a escolha. |
-| `vocabulary` | `[]` | Termos que o Whisper costuma errar (nomes próprios, siglas, jargão). Vão como prompt inicial do modelo. |
-| `history` | `true` | Guarda as transcrições recentes em **texto puro** em `%LOCALAPPDATA%\Matraca\history.json`. Menu da bandeja → "Histórico de ditados...". |
-| `historyMaxItems` | `100` | Quantas transcrições manter. |
-| `postProcess` | `false` | Revisa o texto transcrito com o provedor configurado (veja abaixo). |
-| `postProcessProvider` | `anthropic` | `anthropic` ou `openai-compatible`. |
-| `postProcessEndpoint` | `""` | URL completa de chat completions. No provedor OpenAI-compatible, vazio usa `https://api.openai.com/v1/chat/completions`. |
-| `postProcessModel` | `claude-opus-5` | Nome do modelo usado na revisão. |
-| `postProcessApiKey` | `""` | Chave da Anthropic. Vazio usa `ANTHROPIC_API_KEY`. |
-| `postProcessOpenAiApiKey` | `""` | Chave OpenAI-compatible. Vazio usa `OPENAI_API_KEY`; endpoints locais podem dispensá-la. Credenciais nunca são compartilhadas entre provedores. |
-| `postProcessPrompt` | `""` | Instrução customizada de limpeza. Vazio = usa a padrão embutida. |
-| `postProcessTimeoutMs` | `8000` | Passando disso, entrega a transcrição original sem limpar. |
+| `modelPath` | `%MATRACA_DATA%\models\ggml-large-v3-turbo.bin` | Arquivo ggml do Whisper. |
+| `language` | `pt` | Idioma do áudio. |
+| `hotkey` | `F15` | Atalho global. Aceita teclas como `F13` a `F24`, mídia, numpad e combinações como `Ctrl+Alt+X`. |
+| `mode` | `live` | `toggle`, `hold`, `live` ou `push`. |
+| `inputDevice` | vazio | Nome do microfone. Vazio usa o dispositivo padrão do sistema. |
+| `beep` / `beepVolume` | `true` / `0.8` | Sons de início e fim e seu volume. |
+| `startSound` / `stopSound` | vazio | Arquivos de som locais opcionais. |
+| `silenceMs` | `450` | Pausa que encerra uma frase nos modos contínuos. |
+| `phraseMaxSeconds` | `6` | Após esse tempo de fala contínua, uma pausa curta já fecha a frase. |
+| `vadThreshold` | `0.012` | Limiar geral da detecção de voz. |
+| `micSensitivity` | `{}` | Limiares por nome de microfone. A tela de áudio permite ajustá-los sobre o medidor ao vivo. |
+| `vocabulary` | `[]` | Termos enviados como contexto inicial ao Whisper. |
+| `gpu` | `auto` | `auto`, `gpu` ou `cpu`. O alias legado `vulkan` ainda funciona no Windows. |
+| `idleUnloadMinutes` | `5` | Libera o modelo após esse período ocioso. `0` mantém o modelo carregado. |
 
-### Concorrência de GPU (VRAM)
+### Entrega e armazenamento
 
-Enquanto o modelo está carregado ele ocupa **~1,5–2 GB de VRAM**. Duas formas de lidar quando você
-precisa da GPU pra outra coisa:
+| Campo | Padrão | Efeito |
+|---|---|---|
+| `autoEnter` | `false` | Pressiona Enter após entregar o texto. |
+| `pasteMethod` | `unicode` | `unicode` digita diretamente; `clipboard` cola e restaura o conteúdo anterior. |
+| `pinHotkey` | `none` | Atalho para fixar ou liberar a janela de destino. |
+| `pinDelivery` | `focus` | `focus` entrega com restauração de foco; `nofocus` tenta entregar sem ativar o destino. |
+| `focusBorder` | `true` | Mostra a moldura do destino. |
+| `focusBorderColor*` | cores por estado | Cores normal, ocupada e fixada. |
+| `focusBorderThickness` / `focusBorderOpacity` | `4` / `0.9` | Espessura e opacidade da moldura. |
+| `history` | `true` | Mantém transcrições recentes em texto puro no computador. |
+| `historyMaxItems` | `100` | Limite de itens do histórico. |
 
-- **`idleUnloadMinutes`** (automático): depois de ocioso, o app **libera a VRAM sozinho** e recarrega
-  (~2–8s) quando você voltar a ditar. É o comportamento padrão (5 min).
-- **`gpu: "cpu"`** (manual): roda **100% na CPU**, VRAM zero — porém a transcrição fica **lenta
-  (~13s por frase)** com o modelo large. Bom pra quando a GPU está totalmente ocupada. Trocar entre
-  `cpu`/`gpu`/`auto` exige **reiniciar o app** (o runtime nativo é fixado por processo).
+## Revisão por IA
 
-> Durante a transcrição o uso de GPU é só uma **rajada de ~0,3s**; não é carga contínua.
+A revisão é opcional e vem desligada. Quando ligada, o Matraca envia o texto transcrito, junto da
+instrução de limpeza, ao provedor escolhido. O áudio nunca faz parte da requisição. A instrução
+padrão corrige pontuação, acentuação e capitalização e remove hesitações sem resumir, traduzir ou
+reescrever o ditado.
 
-### Fixando uma janela de destino
+Se a chamada falhar, exceder o tempo limite, for recusada ou devolver texto vazio, o Matraca
+entrega a transcrição original.
 
-Defina uma tecla em `pinHotkey` e, ao apertá-la, o Matraca **fixa a janela que está em foco naquele
-momento** como destino do ditado. A partir daí o texto vai sempre pra ela, não importa em qual janela
-você esteja — dá pra ditar no editor enquanto lê o navegador, por exemplo. Aperte a tecla de novo pra
-liberar. Enquanto fixada, a moldura marca a janela fixa e o tooltip da bandeja mostra o título dela.
+| Provedor | Configuração |
+|---|---|
+| Anthropic | `postProcessProvider: "anthropic"`, modelo e `postProcessApiKey` ou `ANTHROPIC_API_KEY`. |
+| DeepSeek | `postProcessProvider: "deepseek"`, modelo, nível de raciocínio e `postProcessDeepSeekApiKey` ou `DEEPSEEK_API_KEY`. |
+| OpenAI-compatible | `postProcessProvider: "openai-compatible"`, modelo, endpoint e `postProcessOpenAiApiKey` ou `OPENAI_API_KEY`. Endpoint vazio usa a API da OpenAI. HTTP só é aceito em endereço local; endpoints remotos exigem HTTPS. |
 
-A entrega tem dois modos, escolhidos em `pinDelivery`:
+Outros campos disponíveis: `postProcessPrompt`, `postProcessReasoning` (`off`, `low`, `high` ou
+`max`) e `postProcessTimeoutMs`, cujo padrão é `8000`.
 
-- **`focus`** (padrão) — traz a janela fixada pra frente, digita e **devolve o foco pra onde você
-  estava**. Funciona em qualquer alvo, inclusive terminal e apps Electron. O custo é a janela
-  piscar na tela por um instante.
-- **`nofocus`** — posta a mensagem direto na janela, sem trazê-la pra frente. Mais discreto, mas
-  só funciona em campos Win32 clássicos: **terminal, console e apps Chromium/Electron tratam a
-  entrada do jeito deles e ignoram mensagens postadas**, então nesses o texto não aparece.
+Para respostas da DeepSeek, o histórico registra tokens da chamada e custo estimado. O arquivo
+`ai-usage.json` mantém somente totais diários por provedor e modelo, sem o texto do ditado. A
+consulta de saldo chama `https://api.deepseek.com/user/balance` apenas quando o usuário aperta o
+botão correspondente e reutiliza o resultado por 30 segundos.
 
-### Modo `live` (ditado por pausa / VAD)
+## Privacidade e rede
 
-Com `"mode": "live"`, aperta o atalho pra **iniciar a sessão** e aperta de novo pra **encerrar**.
-Durante a sessão, o app grava contínuo e, **a cada pausa** sua (>= `silenceMs`), transcreve aquela
-frase e cola — enquanto você continua falando a próxima. Dá a sensação de "ir escrevendo" conforme
-você fala, frase a frase (não letra a letra — isso é proposital, fica estável e cola limpo).
+- O áudio existe somente em memória durante captura e transcrição.
+- Não há telemetria, analytics, relatório automático de falhas ou verificação de atualização.
+- Log e histórico podem conter o texto transcrito e ficam somente no diretório local do Matraca.
+- A revisão por IA transmite texto apenas quando o usuário a habilita.
+- O download de modelo acessa `huggingface.co` quando solicitado.
+- A consulta de saldo acessa a DeepSeek apenas por ação manual e não envia texto de ditado.
 
-Dica: o texto é colado com um espaço ao final de cada frase, então as frases se encadeiam naturalmente.
-O modo `push` é igual, mas só enquanto a tecla está pressionada (push-to-talk).
+As chaves de API informadas na interface são gravadas no `appsettings.json` local. Para evitar
+armazená-las no arquivo, use as variáveis de ambiente descritas acima. Consulte a
+[política completa](CODE_SIGNING_POLICY.md#privacy-policy).
 
-## Build / publicar
+## Compilar e testar
+
+Requer o SDK do .NET 8. A solução inteira deve compilar mesmo quando o comando roda fora do
+Windows:
+
+```bash
+dotnet build Matraca.sln -c Release -p:EnableWindowsTargeting=true
+dotnet test Matraca.sln -c Release
+```
+
+### Windows
+
+Para gerar o instalador self-contained x64, instale também o
+[Inno Setup 6](https://jrsoftware.org/isinfo.php):
 
 ```powershell
-dotnet build Matraca.sln -c Release
-# exe portátil (usa o .NET 8 já instalado):
-dotnet publish Matraca.Windows -c Release -r win-x64 --self-contained false
+.\installer\build-installer.ps1 -Version 0.0.0
+# saída: installer\output\matraca-setup-0.0.0.exe
+```
+
+O instalador pode criar um atalho de inicialização e, opcionalmente, instalar a variante
+`uiAccess` para ditar em janelas elevadas. Essa opção cria e confia um certificado local para
+assinar o executável instalado.
+
+### macOS
+
+O projeto atual exige Apple Silicon, macOS 15 ou posterior, Xcode Command Line Tools e uma
+identidade local de assinatura chamada `Matraca Dev`. Outra identidade pode ser passada em
+`MATRACA_SIGN_IDENTITY`:
+
+```bash
+bash Matraca.Mac/pack.sh
+# saída: Matraca.Mac/bin/Matraca.app
+```
+
+Esse pacote é para desenvolvimento. Ele não é notarizado e ainda não existe `.dmg` público.
+
+## Arquitetura
+
+```text
+Matraca.Core      pipeline, configuração, Whisper, VAD, histórico e fila de entrega
+Matraca.Web       HTML, CSS e JavaScript compartilhados pela interface e pelo HUD
+Matraca.Windows   hotkey, áudio, entrega, bandeja e WebView2 no Windows
+Matraca.Mac       event tap, AudioQueue, Acessibilidade, bandeja e WKWebView no macOS
+tests             contratos e testes do Core e das fronteiras
 ```
 
 ## Diagnóstico
 
-- Log: `%LOCALAPPDATA%\Matraca\matraca.log`. Menu da bandeja → "Abrir matraca.log".
-- Testar a transcrição com um WAV (16 kHz mono) sem usar o mic:
-  ```powershell
-  Matraca.exe --transcribe caminho\audio.wav
-  # resultado e backend (Vulkan/CPU) vão pro matraca.log
-  ```
+- Windows: `%LOCALAPPDATA%\Matraca\matraca.log`
+- macOS: `~/Library/Application Support/Matraca/matraca.log`
+- O menu da bandeja abre o log.
+- O Windows pode testar um WAV mono de 16 kHz sem usar o microfone:
 
-## Notas
+```powershell
+Matraca.exe --transcribe caminho\audio.wav
+```
 
-- **Antivírus/Defender**: o app instala um *hook* global de teclado (necessário pra capturar a tecla
-  de atalho). É comportamento normal de apps de hotkey, mas pode gerar alerta heurístico.
-- **GPU**: usa Vulkan (só precisa do driver NVIDIA — sem CUDA Toolkit). Para máxima velocidade no
-  futuro, dá pra instalar o CUDA Toolkit 12.4+/13 e trocar o pacote `Whisper.net.Runtime.Vulkan` por
-  `Whisper.net.Runtime.Cuda` no `.csproj`.
-- A 1ª transcrição após abrir o app pode demorar alguns segundos (carga do modelo na VRAM); as
-  seguintes são quase instantâneas.
+O hook global de teclado pode provocar alerta heurístico de antivírus. Ele existe para capturar o
+atalho em qualquer aplicação. Para capturar o atalho em janelas executadas como administrador, use
+a opção `uiAccess` do instalador.
 
-## Privacidade
+## Assinatura de código
 
-O áudio nunca sai da sua máquina e nunca é gravado em disco. Não há telemetria, analytics nem
-verificação de atualização. Dois recursos escrevem em disco (o log e o histórico de ditados,
-ambos em `%LOCALAPPDATA%\Matraca`, ambos com o texto transcrito), e um recurso opcional e
-desligado por padrão transmite texto (o pós-processamento com IA configurado pelo usuário). Detalhes completos na
-[política de privacidade](CODE_SIGNING_POLICY.md#privacy-policy).
+O workflow gera releases Windows a partir do commit da tag. Se a integração com o SignPath estiver
+configurada, o instalador passa por aprovação manual antes da assinatura. Sem essa configuração, o
+workflow publica o instalador sem assinatura, como ocorreu na `v1.1.0`.
 
-## Code signing policy
-
-Free code signing provided by [SignPath.io](https://signpath.io), certificate by
-[SignPath Foundation](https://signpath.org).
-
-Os releases são gerados apenas pelo GitHub Actions a partir do commit da tag, e cada release exige
-aprovação manual antes de ser assinado. Os papéis do time, o processo de build e a
-[política de privacidade](CODE_SIGNING_POLICY.md#privacy-policy) estão na
-[Code Signing Policy](CODE_SIGNING_POLICY.md) completa.
+O pacote de desenvolvimento do Mac usa uma identidade local. Distribuição para terceiros ainda
+depende de assinatura e notarização Apple. Leia a [política de assinatura](CODE_SIGNING_POLICY.md).
 
 ## Licença
 
