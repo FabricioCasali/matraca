@@ -35,6 +35,7 @@ internal sealed class WindowsWebBridge : IDisposable
         _microphone.Frame += OnMicrophoneFrame;
         _app.StateChanged += OnStateChanged;
         _app.ConfigChanged += OnConfigChanged;
+        _app.DeliveryCompleted += OnDeliveryCompleted;
     }
 
     public event Action<string>? MessageProduced;
@@ -590,6 +591,14 @@ internal sealed class WindowsWebBridge : IDisposable
         catch (Exception exception) { Logger.Error("Falha ao publicar configuração para a UI", exception); }
     }
 
+    private void OnDeliveryCompleted(string text, TextDeliveryResult result, bool streaming)
+        => Emit("dictation.completed", new
+        {
+            text,
+            at = DateTime.Now,
+            history = BuildHistory(),
+        });
+
     private static object BuildPublicConfig(RawConfig raw)
     {
         JsonElement serialized = JsonSerializer.SerializeToElement(raw, JsonOptions);
@@ -636,6 +645,7 @@ internal sealed class WindowsWebBridge : IDisposable
         ShutdownAsync().GetAwaiter().GetResult();
         _app.StateChanged -= OnStateChanged;
         _app.ConfigChanged -= OnConfigChanged;
+        _app.DeliveryCompleted -= OnDeliveryCompleted;
         _app.ReleaseWebTarget();
         _microphone.Frame -= OnMicrophoneFrame;
         _microphone.Dispose();

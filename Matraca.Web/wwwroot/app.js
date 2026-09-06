@@ -195,19 +195,24 @@
         : "Inativo; revise provedor, endpoint, modelo e chave.");
   }
 
-  function setHistory(entries) {
-    state.history = entries || [];
-    if (!state.history.some(entry => entry.id === state.selectedHistoryId))
-      state.selectedHistoryId = state.history[0]?.id ?? null;
-    renderHistory();
-    const latest = state.history[0];
-    text("[data-last-phrase]", latest?.text || "O histórico local aparecerá aqui.");
-    text("[data-last-phrase-time]", latest
-      ? `ÚLTIMA FRASE · ${new Date(latest.at).toLocaleTimeString([], {
+  function setLastPhrase(entry) {
+    text("[data-last-phrase]", entry?.text || "O histórico local aparecerá aqui.");
+    text("[data-last-phrase-time]", entry
+      ? `ÚLTIMA FRASE · ${new Date(entry.at).toLocaleTimeString([], {
           hour: "2-digit",
           minute: "2-digit"
         })}`
       : "SEM DITADOS");
+  }
+
+  function setHistory(entries, updateLastPhrase = true) {
+    state.history = entries || [];
+    if (!state.history.some(entry => entry.id === state.selectedHistoryId))
+      state.selectedHistoryId = state.history[0]?.id ?? null;
+    renderHistory();
+    if (updateLastPhrase) setLastPhrase(state.history[0]);
+    document.querySelectorAll("[data-last-phrase-copy], [data-last-phrase-repaste], [data-last-phrase-delete]")
+      .forEach(button => { button.disabled = !state.history.length; });
   }
 
   function renderHistory() {
@@ -618,6 +623,21 @@
       text("[data-history-time]", error?.message || "Não foi possível recolar.");
     }
   });
+  document.querySelector("[data-last-phrase-copy]")?.addEventListener("click", () => {
+    state.selectedHistoryId = state.history[0]?.id ?? null;
+    document.querySelector("[data-history-copy]")?.click();
+    document.querySelector("[data-last-phrase-menu]")?.removeAttribute("open");
+  });
+  document.querySelector("[data-last-phrase-repaste]")?.addEventListener("click", () => {
+    state.selectedHistoryId = state.history[0]?.id ?? null;
+    document.querySelector("[data-history-repaste]")?.click();
+    document.querySelector("[data-last-phrase-menu]")?.removeAttribute("open");
+  });
+  document.querySelector("[data-last-phrase-delete]")?.addEventListener("click", () => {
+    state.selectedHistoryId = state.history[0]?.id ?? null;
+    document.querySelector("[data-history-delete]")?.click();
+    document.querySelector("[data-last-phrase-menu]")?.removeAttribute("open");
+  });
   document.querySelectorAll("[data-open-permission]").forEach(button => {
     button.addEventListener("click", () => globalThis.matraca?.request(
       "permissions.open-settings",
@@ -634,6 +654,10 @@
       showRoute(location.hash.slice(1));
     }
     if (message.type === "hud.state") applyRuntime(message.payload);
+    if (message.type === "dictation.completed") {
+      setHistory(message.payload.history?.entries, false);
+      setLastPhrase(message.payload);
+    }
     if (message.type === "model.download.progress") {
       const progress = document.querySelector("[data-model-progress]");
       if (progress) {

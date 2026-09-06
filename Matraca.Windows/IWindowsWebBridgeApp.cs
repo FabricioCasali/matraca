@@ -4,6 +4,7 @@ internal interface IWindowsWebBridgeApp
 {
     event Action<ShellState, string>? StateChanged;
     event Action<Config>? ConfigChanged;
+    event Action<string, TextDeliveryResult, bool>? DeliveryCompleted;
 
     Config CurrentConfig { get; }
     string RuntimeGpu { get; }

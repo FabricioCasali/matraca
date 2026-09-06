@@ -100,6 +100,12 @@ internal sealed class WindowsApplication : IWindowsWebBridgeApp, IDisposable
 
     public event Action<Config>? ConfigChanged;
 
+    public event Action<string, TextDeliveryResult, bool>? DeliveryCompleted
+    {
+        add => _controller.DeliveryCompleted += value;
+        remove => _controller.DeliveryCompleted -= value;
+    }
+
     public Config CurrentConfig => _config;
 
     public string RuntimeGpu => _runtimeGpu;

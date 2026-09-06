@@ -93,6 +93,22 @@ public sealed class WebUiContractTests
         Assert.Contains("\"dictation.toggle\"", macos);
     }
 
+    [Fact]
+    public void HomeUpdatesAndOperatesOnTheLastDeliveredPhrase()
+    {
+        string html = ReadProjectFile("Matraca.Web", "wwwroot", "index.html");
+        string script = ReadProjectFile("Matraca.Web", "wwwroot", "app.js");
+        string windows = ReadProjectFile("Matraca.Windows", "WindowsWebBridge.cs");
+        string macos = ReadProjectFile("Matraca.Mac", "Platform", "Web", "MacWebBridge.cs");
+
+        Assert.Contains("data-last-phrase-copy", html);
+        Assert.Contains("data-last-phrase-repaste", html);
+        Assert.Contains("data-last-phrase-delete", html);
+        Assert.Contains("message.type === \"dictation.completed\"", script);
+        Assert.Contains("Emit(\"dictation.completed\"", windows);
+        Assert.Contains("Emit(\"dictation.completed\"", macos);
+    }
+
     private static string ReadProjectFile(params string[] parts)
     {
         DirectoryInfo? directory = new(AppContext.BaseDirectory);

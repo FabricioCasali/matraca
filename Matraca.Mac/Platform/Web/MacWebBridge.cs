@@ -37,6 +37,7 @@ internal sealed class MacWebBridge : IDisposable
         if (_app == null) return;
         _app.StateChanged += OnStateChanged;
         _app.ConfigChanged += OnConfigChanged;
+        _app.DeliveryCompleted += OnDeliveryCompleted;
     }
 
     public event Action<string>? MessageProduced;
@@ -156,6 +157,7 @@ internal sealed class MacWebBridge : IDisposable
         {
             _app.StateChanged -= OnStateChanged;
             _app.ConfigChanged -= OnConfigChanged;
+            _app.DeliveryCompleted -= OnDeliveryCompleted;
             _app.ReleaseWebTarget();
         }
         CancelHotkeyCapture();
@@ -553,6 +555,14 @@ internal sealed class MacWebBridge : IDisposable
         }
         catch (Exception exception) { Logger.Error("Falha ao publicar configuracao para a UI", exception); }
     }
+
+    private void OnDeliveryCompleted(string text, TextDeliveryResult result, bool streaming)
+        => Emit("dictation.completed", new
+        {
+            text,
+            at = DateTime.Now,
+            history = BuildHistory(),
+        });
 
     private static object BuildPublicConfig(RawConfig raw)
     {
