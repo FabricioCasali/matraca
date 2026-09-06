@@ -213,7 +213,7 @@ internal static class TextInjector
     /// consagrado de contornar e' grudar nossa fila de entrada na da thread que esta' em
     /// primeiro plano pelo instante da troca — dai o SetForegroundWindow e' aceito.
     /// </summary>
-    public static void FocusWindow(IntPtr hwnd)
+    private static void FocusWindow(IntPtr hwnd)
     {
         if (!IsWindowAlive(hwnd)) return;
         try
@@ -241,11 +241,16 @@ internal static class TextInjector
     /// proprio hook de teclado engasgar e o Windows descartar caracteres). Por isso digita
     /// sempre via SendInput para manter a thread do hook livre.
     /// </summary>
-    public static bool DeliverWithFocus(IntPtr hwnd, string text, bool autoEnter)
+    public static bool DeliverWithFocus(
+        IntPtr hwnd,
+        IntPtr focusedControl,
+        string text,
+        bool autoEnter)
     {
         if (!IsWindowAlive(hwnd)) return false;
 
         var previous = GetForegroundWindow();
+        var previousFocus = GetFocusedControl(previous);
         bool delivered = false;
         try
         {
@@ -257,14 +262,31 @@ internal static class TextInjector
             }
             else
             {
-                delivered = SendUnicode(text) && (!autoEnter || SendEnter());
-                Thread.Sleep(SettleMsFor(text));
+                if (focusedControl != IntPtr.Zero && !RestoreFocusedControl(hwnd, focusedControl))
+                {
+                    Logger.Warn("A janela fixada veio ao primeiro plano, mas o campo que tinha o cursor nao recuperou o foco.");
+                }
+                else
+                {
+                    delivered = SendUnicode(text) && (!autoEnter || SendEnter());
+                    Thread.Sleep(SettleMsFor(text));
+                }
             }
         }
         catch (Exception ex) { Logger.Error("Falha ao entregar na janela fixada", ex); }
         finally
         {
-            try { if (previous != hwnd && IsWindowAlive(previous)) FocusWindow(previous); }
+            try
+            {
+                if (previous != hwnd
+                    && IsWindowAlive(previous)
+                    && GetForegroundWindow() == hwnd)
+                {
+                    FocusWindow(previous);
+                    if (WaitForForeground(previous, 800) && previousFocus != IntPtr.Zero)
+                        RestoreFocusedControl(previous, previousFocus);
+                }
+            }
             catch (Exception ex) { Logger.Warn("Falha ao devolver o foco: " + ex.Message); }
         }
         return delivered;
@@ -276,6 +298,45 @@ internal static class TextInjector
     /// devolucao do foco em textos enormes nem encurtar demais nos curtos.
     /// </summary>
     private static int SettleMsFor(string text) => Math.Clamp(120 + text.Length * 2, 200, 1500);
+
+    public static IntPtr GetFocusedControl(IntPtr topLevel)
+    {
+        if (!IsWindowAlive(topLevel)) return IntPtr.Zero;
+        uint thread = GetWindowThreadProcessId(topLevel, out _);
+        if (thread == 0) return IntPtr.Zero;
+        var info = new WindowsGuiThreadInfo
+        {
+            Size = (uint)Marshal.SizeOf<WindowsGuiThreadInfo>(),
+        };
+        if (!GetGUIThreadInfo(thread, ref info)) return IntPtr.Zero;
+        IntPtr focused = info.FocusedWindow;
+        return focused != IntPtr.Zero && (focused == topLevel || IsChild(topLevel, focused))
+            ? focused
+            : IntPtr.Zero;
+    }
+
+    private static bool RestoreFocusedControl(IntPtr topLevel, IntPtr focusedControl)
+    {
+        if (!IsWindowAlive(topLevel)
+            || !IsWindowAlive(focusedControl)
+            || (focusedControl != topLevel && !IsChild(topLevel, focusedControl)))
+            return false;
+
+        uint targetThread = GetWindowThreadProcessId(focusedControl, out _);
+        uint ourThread = GetCurrentThreadId();
+        bool attached = targetThread != 0
+            && targetThread != ourThread
+            && AttachThreadInput(ourThread, targetThread, true);
+        try
+        {
+            SetFocus(focusedControl);
+            return GetFocusedControl(topLevel) == focusedControl;
+        }
+        finally
+        {
+            if (attached) AttachThreadInput(ourThread, targetThread, false);
+        }
+    }
 
     private static bool WaitForForeground(IntPtr hwnd, int timeoutMs)
     {
@@ -376,6 +437,12 @@ internal static class TextInjector
 
     [DllImport("user32.dll")]
     private static extern IntPtr GetFocus();
+
+    [DllImport("user32.dll")]
+    private static extern IntPtr SetFocus(IntPtr hWnd);
+
+    [DllImport("user32.dll", SetLastError = true)]
+    private static extern bool GetGUIThreadInfo(uint idThread, ref WindowsGuiThreadInfo info);
 
     [DllImport("user32.dll")]
     private static extern bool IsChild(IntPtr hWndParent, IntPtr hWnd);

@@ -53,6 +53,20 @@ public sealed class WindowsNativeShellContractTests
         Assert.Contains("HtCaption", native);
     }
 
+    [Fact]
+    public void PinnedTargetsPreserveTheFocusedChildControl()
+    {
+        string target = ReadProjectFile("Matraca.Windows", "WindowsTargetWindow.cs");
+        string sink = ReadProjectFile("Matraca.Windows", "WindowsTextSink.cs");
+        string injector = ReadProjectFile("Matraca.Windows", "TextInjector.cs");
+
+        Assert.Contains("TextInjector.GetFocusedControl(handle)", target);
+        Assert.Contains("descriptor.FocusedControl", sink);
+        Assert.Contains("RestoreFocusedControl(hwnd, focusedControl)", injector);
+        Assert.Contains("GetGUIThreadInfo", injector);
+        Assert.Contains("GetForegroundWindow() == hwnd", injector);
+    }
+
     [Theory]
     [InlineData("TrayApp.cs")]
     [InlineData("SettingsForm.cs")]

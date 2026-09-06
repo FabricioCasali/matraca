@@ -31,13 +31,18 @@ internal sealed class WindowsTextSink : ITextSink
         if (request.Method is TextDeliveryMethod.TargetWithFocus or TextDeliveryMethod.TargetWithoutFocus)
         {
             if (request.Target == null) return TextDeliveryResult.InvalidRequest;
-            if (!_targets.TryResolve(request.Target, out var handle) || !TextInjector.IsWindowAlive(handle))
+            if (!_targets.TryResolveDescriptor(request.Target, out WindowsTargetDescriptor descriptor)
+                || !TextInjector.IsWindowAlive(descriptor.Window))
                 return TextDeliveryResult.TargetUnavailable;
 
             if (request.Method == TextDeliveryMethod.TargetWithoutFocus)
-                return TextInjector.SendToWindow(handle, request.Text, request.PressEnter);
+                return TextInjector.SendToWindow(descriptor.Window, request.Text, request.PressEnter);
 
-            return TextInjector.DeliverWithFocus(handle, request.Text, request.PressEnter)
+            return TextInjector.DeliverWithFocus(
+                    descriptor.Window,
+                    descriptor.FocusedControl,
+                    request.Text,
+                    request.PressEnter)
                 ? TextDeliveryResult.Delivered
                 : TextDeliveryResult.Failed;
         }

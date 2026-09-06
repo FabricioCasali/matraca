@@ -4,7 +4,7 @@ namespace Matraca;
 
 internal sealed class WindowsTargetWindow : ITargetWindow
 {
-    private readonly System.Collections.Concurrent.ConcurrentDictionary<Guid, IntPtr> _handles = new();
+    private readonly System.Collections.Concurrent.ConcurrentDictionary<Guid, WindowsTargetDescriptor> _targets = new();
     private WindowsFocusIndicator? _indicator;
     private bool _indicatorEnabled;
 
@@ -14,7 +14,9 @@ internal sealed class WindowsTargetWindow : ITargetWindow
         if (handle == IntPtr.Zero) return null;
 
         var token = TargetToken.Create();
-        _handles[token.Value] = handle;
+        _targets[token.Value] = new WindowsTargetDescriptor(
+            handle,
+            TextInjector.GetFocusedControl(handle));
         return token;
     }
 
@@ -22,14 +24,14 @@ internal sealed class WindowsTargetWindow : ITargetWindow
     {
         if (!TryResolve(target, out var handle)) return false;
         if (TextInjector.IsWindowAlive(handle)) return true;
-        _handles.TryRemove(target.Value, out _);
+        _targets.TryRemove(target.Value, out _);
         return false;
     }
 
     public string GetTitle(TargetToken target)
         => TryResolve(target, out var handle) ? TextInjector.GetWindowTitle(handle) : "";
 
-    public void Release(TargetToken target) => _handles.TryRemove(target.Value, out _);
+    public void Release(TargetToken target) => _targets.TryRemove(target.Value, out _);
 
     public void ConfigureIndicator(bool enabled, string color, int thickness, double opacity)
     {
@@ -70,11 +72,22 @@ internal sealed class WindowsTargetWindow : ITargetWindow
     public void HideIndicator() => _indicator?.HideBorder();
 
     internal bool TryResolve(TargetToken target, out IntPtr handle)
-        => _handles.TryGetValue(target.Value, out handle);
+    {
+        if (_targets.TryGetValue(target.Value, out WindowsTargetDescriptor? descriptor))
+        {
+            handle = descriptor.Window;
+            return true;
+        }
+        handle = IntPtr.Zero;
+        return false;
+    }
+
+    internal bool TryResolveDescriptor(TargetToken target, out WindowsTargetDescriptor descriptor)
+        => _targets.TryGetValue(target.Value, out descriptor!);
 
     public void Dispose()
     {
         _indicator?.Dispose();
-        _handles.Clear();
+        _targets.Clear();
     }
 }
