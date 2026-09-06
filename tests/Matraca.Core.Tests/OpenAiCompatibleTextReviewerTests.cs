@@ -62,6 +62,36 @@ public sealed class OpenAiCompatibleTextReviewerTests
         Assert.Null(await reviewer.ReviewAsync("raw", CancellationToken.None));
     }
 
+    [Theory]
+    [InlineData("off", "disabled", false)]
+    [InlineData("low", "enabled", true)]
+    [InlineData("high", "enabled", true)]
+    [InlineData("max", "enabled", true)]
+    public async Task SendsDeepSeekThinkingMode(string effort, string thinking, bool hasEffort)
+    {
+        string? body = null;
+        using var http = new HttpClient(new StubHttpMessageHandler((request, _) =>
+        {
+            body = request.Content!.ReadAsStringAsync().GetAwaiter().GetResult();
+            return JsonResponse("""{"choices":[{"message":{"content":"Revisto."}}]}""");
+        }));
+        using var reviewer = new OpenAiCompatibleTextReviewer(
+            http,
+            new Uri(OpenAiCompatibleTextReviewer.DeepSeekEndpoint),
+            "deepseek-secret",
+            "deepseek-v4-flash",
+            "Review.",
+            effort);
+
+        await reviewer.ReviewAsync("raw", CancellationToken.None);
+
+        using JsonDocument document = JsonDocument.Parse(body!);
+        JsonElement root = document.RootElement;
+        Assert.Equal(thinking, root.GetProperty("thinking").GetProperty("type").GetString());
+        Assert.Equal(hasEffort, root.TryGetProperty("reasoning_effort", out JsonElement value));
+        if (hasEffort) Assert.Equal(effort, value.GetString());
+    }
+
     [Fact]
     public void RemoteHttpEndpointIsRejected()
     {

@@ -28,6 +28,7 @@ public sealed class ConfigTests
     [InlineData("anthropic", "anthropic")]
     [InlineData("openai", "openai-compatible")]
     [InlineData("openai-compatible", "openai-compatible")]
+    [InlineData("deepseek", "deepseek")]
     [InlineData(" OPENAI ", "openai-compatible")]
     [InlineData("unknown", "unknown")]
     public void PostProcessProviderUsesCanonicalValues(string raw, string expected)
@@ -52,6 +53,28 @@ public sealed class ConfigTests
         Assert.Equal("", Config.FromRaw(raw).PostProcessApiKey);
         raw.postProcessProvider = "anthropic";
         Assert.Equal("anthropic-secret", Config.FromRaw(raw).PostProcessApiKey);
+        raw.postProcessProvider = "deepseek";
+        raw.postProcessDeepSeekApiKey = "deepseek-secret";
+        Assert.Equal("deepseek-secret", Config.FromRaw(raw).PostProcessApiKey);
+        raw.postProcessDeepSeekApiKey = null;
+        Assert.Equal("", Config.FromRaw(raw).PostProcessApiKey);
+    }
+
+    [Theory]
+    [InlineData("off", "off")]
+    [InlineData("low", "low")]
+    [InlineData("high", "high")]
+    [InlineData("max", "max")]
+    [InlineData("invalid", "")]
+    public void DeepSeekReasoningUsesCanonicalValues(string raw, string expected)
+    {
+        var config = Config.FromRaw(new RawConfig
+        {
+            postProcessProvider = "deepseek",
+            postProcessReasoning = raw,
+        });
+
+        Assert.Equal(expected, config.PostProcessReasoning);
     }
 
     [Theory]

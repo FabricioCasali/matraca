@@ -109,6 +109,22 @@ public sealed class WebUiContractTests
         Assert.Contains("Emit(\"dictation.completed\"", macos);
     }
 
+    [Fact]
+    public void ReviewSettingsOfferDeepSeekModelReasoningAndDedicatedCredential()
+    {
+        string html = ReadProjectFile("Matraca.Web", "wwwroot", "index.html");
+        string script = ReadProjectFile("Matraca.Web", "wwwroot", "app.js");
+        string processor = ReadProjectFile("Matraca.Core", "TextPostProcessor.cs");
+
+        Assert.Contains("<option value=\"deepseek\">DeepSeek</option>", html);
+        Assert.Contains("deepseek-v4-flash", html);
+        Assert.Contains("deepseek-v4-pro", html);
+        Assert.Contains("data-config-field=\"postProcessReasoning\"", html);
+        Assert.Contains("postProcessDeepSeekApiKey", script);
+        Assert.Contains("DEEPSEEK_API_KEY", processor);
+        Assert.Contains("OpenAiCompatibleTextReviewer.DeepSeekEndpoint", processor);
+    }
+
     private static string ReadProjectFile(params string[] parts)
     {
         DirectoryInfo? directory = new(AppContext.BaseDirectory);

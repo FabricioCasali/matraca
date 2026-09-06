@@ -14,7 +14,7 @@
     startSound: "", stopSound: "", vocabulary: [],
     inputDevice: "", history: true, historyMaxItems: 100,
     postProcess: false, postProcessProvider: "anthropic", postProcessEndpoint: "",
-    postProcessModel: "claude-opus-5", postProcessPrompt: "",
+    postProcessModel: "claude-opus-5", postProcessReasoning: "", postProcessPrompt: "",
     postProcessTimeoutMs: 8000, idleUnloadMinutes: 5, gpu: "auto",
     focusBorder: true, focusBorderThickness: 4, focusBorderOpacity: .9,
     focusBorderColor: "#E81123", focusBorderColorBusy: "#FFB900",
@@ -113,15 +113,39 @@
       ? "Configurada; digite apenas para substituir."
       : "Não configurada; nunca é devolvida à interface.");
     const openAiCompatible = state.config.postProcessProvider === "openai-compatible";
+    const deepSeek = state.config.postProcessProvider === "deepseek";
     const apiKey = document.querySelector("[data-config-secret]");
-    if (apiKey) apiKey.dataset.configSecret = openAiCompatible
-      ? "postProcessOpenAiApiKey"
-      : "postProcessApiKey";
+    if (apiKey) apiKey.dataset.configSecret = deepSeek
+      ? "postProcessDeepSeekApiKey"
+      : openAiCompatible ? "postProcessOpenAiApiKey" : "postProcessApiKey";
     document.querySelectorAll("[data-openai-compatible]")
       .forEach(element => element.hidden = !openAiCompatible);
-    text("[data-review-provider-effect]", openAiCompatible
-      ? "Usa o endpoint configurado; apenas o texto transcrito é enviado."
-      : "Usa a API da Anthropic; apenas o texto transcrito é enviado.");
+    document.querySelectorAll("[data-deepseek]")
+      .forEach(element => element.hidden = !deepSeek);
+    text("[data-review-provider-effect]", deepSeek
+      ? "Usa a API oficial da DeepSeek; apenas o texto transcrito é enviado."
+      : openAiCompatible
+        ? "Usa o endpoint configurado; apenas o texto transcrito é enviado."
+        : "Usa a API da Anthropic; apenas o texto transcrito é enviado.");
+    text("[data-review-model-effect]", deepSeek
+      ? "Escolha DeepSeek V4 Flash ou Pro."
+      : "Nome aceito pelo provedor para revisar o texto transcrito.");
+    const reviewModel = document.querySelector("[data-review-model]");
+    if (reviewModel) {
+      if (deepSeek) reviewModel.setAttribute("list", "deepseek-models");
+      else reviewModel.removeAttribute("list");
+      reviewModel.placeholder = deepSeek ? "Escolha um modelo" : "claude-opus-5";
+    }
+    const reviewReady = !deepSeek
+      || Boolean(state.config.postProcessModel && state.config.postProcessReasoning);
+    const reviewToggle = document.querySelector('[data-config-toggle="postProcess"]');
+    if (reviewToggle) {
+      reviewToggle.disabled = !reviewReady;
+      if (!reviewReady) {
+        reviewToggle.classList.remove("active");
+        reviewToggle.setAttribute("aria-pressed", "false");
+      }
+    }
     const modelSetup = document.querySelector("[data-model-setup]");
     modelSetup?.classList.toggle("complete", Boolean(state.config.modelPath));
     text("[data-model-icon]", state.config.modelPath ? "✓" : "↓");
@@ -486,10 +510,18 @@
         ? control.value.split(/[\n,]/).map(item => item.trim()).filter(Boolean)
         : numeric ? Number(control.value) : control.value;
       if (field === "postProcessProvider" && value !== state.config?.postProcessProvider) {
-        const apiKeyField = state.config?.postProcessProvider === "openai-compatible"
-          ? "postProcessOpenAiApiKey"
-          : "postProcessApiKey";
-        saveConfig({ postProcessProvider: value, postProcess: false, [apiKeyField]: null });
+        const apiKeyField = state.config?.postProcessProvider === "deepseek"
+          ? "postProcessDeepSeekApiKey"
+          : state.config?.postProcessProvider === "openai-compatible"
+            ? "postProcessOpenAiApiKey"
+            : "postProcessApiKey";
+        saveConfig({
+          postProcessProvider: value,
+          postProcess: false,
+          postProcessModel: value === "anthropic" ? "claude-opus-5" : "",
+          postProcessReasoning: "",
+          [apiKeyField]: null
+        });
       } else {
         saveConfig({ [field]: value });
       }

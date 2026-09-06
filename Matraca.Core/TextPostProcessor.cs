@@ -40,7 +40,7 @@ public sealed class TextPostProcessor : IDisposable
     {
         if (!config.PostProcess) return null;
 
-        if (config.PostProcessProvider == "openai-compatible")
+        if (config.PostProcessProvider is "openai-compatible" or "deepseek")
             return TryCreateOpenAiCompatible(config);
         if (config.PostProcessProvider != "anthropic")
         {
@@ -142,7 +142,16 @@ public sealed class TextPostProcessor : IDisposable
 
     private static TextPostProcessor? TryCreateOpenAiCompatible(Config config)
     {
-        string endpointText = config.PostProcessEndpoint.Length > 0
+        bool deepSeek = config.PostProcessProvider == "deepseek";
+        if (deepSeek && (config.PostProcessModel.Length == 0 || config.PostProcessReasoning.Length == 0))
+        {
+            Logger.Warn("Pos-processamento DeepSeek aguarda a escolha de modelo e raciocinio.");
+            return null;
+        }
+
+        string endpointText = deepSeek
+            ? OpenAiCompatibleTextReviewer.DeepSeekEndpoint
+            : config.PostProcessEndpoint.Length > 0
             ? config.PostProcessEndpoint
             : OpenAiCompatibleTextReviewer.DefaultEndpoint;
         if (!Uri.TryCreate(endpointText, UriKind.Absolute, out Uri? endpoint)
@@ -155,7 +164,9 @@ public sealed class TextPostProcessor : IDisposable
             return null;
         }
 
-        string key = ResolveKey(config.PostProcessApiKey, "OPENAI_API_KEY");
+        string key = ResolveKey(
+            config.PostProcessApiKey,
+            deepSeek ? "DEEPSEEK_API_KEY" : "OPENAI_API_KEY");
         if (key.Length == 0 && !endpoint.IsLoopback)
         {
             Logger.Warn("Pos-processamento OpenAI-compatible remoto ligado, mas sem chave de API.");
@@ -170,9 +181,10 @@ public sealed class TextPostProcessor : IDisposable
                 key,
                 config.PostProcessModel,
                 config.PostProcessPrompt.Length > 0 ? config.PostProcessPrompt : DefaultPrompt,
+                deepSeek ? config.PostProcessReasoning : "",
                 disposeHttpClient: true);
             Logger.Info(
-                $"Pos-processamento de texto ligado (provedor openai-compatible, modelo "
+                $"Pos-processamento de texto ligado (provedor {config.PostProcessProvider}, modelo "
                 + $"{config.PostProcessModel}, timeout {config.PostProcessTimeoutMs}ms).");
             return new TextPostProcessor(
                 reviewer.ReviewAsync,

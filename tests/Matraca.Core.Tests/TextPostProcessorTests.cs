@@ -49,6 +49,25 @@ public sealed class TextPostProcessorTests
         Assert.Null(TextPostProcessor.TryCreate(config));
     }
 
+    [Theory]
+    [InlineData("", "low")]
+    [InlineData("deepseek-v4-flash", "")]
+    public void DeepSeekStaysInactiveUntilModelAndReasoningAreSelected(
+        string model,
+        string reasoning)
+    {
+        Config config = Config.FromRaw(new RawConfig
+        {
+            postProcess = true,
+            postProcessProvider = "deepseek",
+            postProcessModel = model,
+            postProcessReasoning = reasoning,
+            postProcessDeepSeekApiKey = "deepseek-secret",
+        });
+
+        Assert.Null(TextPostProcessor.TryCreate(config));
+    }
+
     [Fact]
     public async Task SuccessfulRequestReturnsTrimmedText()
     {

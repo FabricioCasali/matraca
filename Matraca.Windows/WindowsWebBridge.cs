@@ -606,14 +606,18 @@ internal sealed class WindowsWebBridge : IDisposable
         foreach (JsonProperty property in serialized.EnumerateObject())
         {
             if (property.Name is nameof(RawConfig.postProcessApiKey)
-                or nameof(RawConfig.postProcessOpenAiApiKey)) continue;
+                or nameof(RawConfig.postProcessOpenAiApiKey)
+                or nameof(RawConfig.postProcessDeepSeekApiKey)) continue;
             result[property.Name] = property.Value.Clone();
         }
         string provider = Config.NormalizePostProcessProvider(raw.postProcessProvider);
         result["postProcessProvider"] = provider;
-        bool openAiCompatible = provider == "openai-compatible";
-        result["postProcessApiKeyConfigured"] = !string.IsNullOrWhiteSpace(
-            openAiCompatible ? raw.postProcessOpenAiApiKey : raw.postProcessApiKey);
+        result["postProcessApiKeyConfigured"] = !string.IsNullOrWhiteSpace(provider switch
+        {
+            "openai-compatible" => raw.postProcessOpenAiApiKey,
+            "deepseek" => raw.postProcessDeepSeekApiKey,
+            _ => raw.postProcessApiKey,
+        });
         return result;
     }
 

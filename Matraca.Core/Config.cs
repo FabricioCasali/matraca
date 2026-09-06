@@ -44,6 +44,7 @@ public sealed class Config
     public string PostProcessEndpoint { get; init; } = "";
     public string PostProcessModel { get; init; } = "claude-opus-5";
     public string PostProcessApiKey { get; init; } = "";
+    public string PostProcessReasoning { get; init; } = "";
     public string PostProcessPrompt { get; init; } = "";
     public int PostProcessTimeoutMs { get; init; } = 8000;
     public int IdleUnloadMinutes { get; init; } = 5;
@@ -93,6 +94,7 @@ public sealed class Config
         PostProcessEndpoint = PostProcessEndpoint,
         PostProcessModel = PostProcessModel,
         PostProcessApiKey = PostProcessApiKey,
+        PostProcessReasoning = PostProcessReasoning,
         PostProcessPrompt = PostProcessPrompt,
         PostProcessTimeoutMs = PostProcessTimeoutMs,
         IdleUnloadMinutes = IdleUnloadMinutes,
@@ -227,11 +229,15 @@ public sealed class Config
             PostProcessProvider = postProcessProvider,
             PostProcessEndpoint = (raw.postProcessEndpoint ?? "").Trim(),
             PostProcessModel = string.IsNullOrWhiteSpace(raw.postProcessModel)
-                ? "claude-opus-5"
+                ? postProcessProvider == "deepseek" ? "" : "claude-opus-5"
                 : raw.postProcessModel.Trim(),
-            PostProcessApiKey = ((postProcessProvider == "openai-compatible"
-                ? raw.postProcessOpenAiApiKey
-                : raw.postProcessApiKey) ?? "").Trim(),
+            PostProcessApiKey = ((postProcessProvider switch
+            {
+                "openai-compatible" => raw.postProcessOpenAiApiKey,
+                "deepseek" => raw.postProcessDeepSeekApiKey,
+                _ => raw.postProcessApiKey,
+            }) ?? "").Trim(),
+            PostProcessReasoning = NormalizePostProcessReasoning(raw.postProcessReasoning),
             PostProcessPrompt = (raw.postProcessPrompt ?? "").Trim(),
             PostProcessTimeoutMs = Math.Clamp(raw.postProcessTimeoutMs ?? 8000, 1000, 60000),
             IdleUnloadMinutes = Math.Clamp(raw.idleUnloadMinutes ?? 5, 0, 240),
@@ -290,6 +296,12 @@ public sealed class Config
         var provider = (value ?? "").Trim().ToLowerInvariant();
         if (provider.Length == 0 || provider == "anthropic") return "anthropic";
         return provider == "openai" ? "openai-compatible" : provider;
+    }
+
+    public static string NormalizePostProcessReasoning(string? value)
+    {
+        var reasoning = (value ?? "").Trim().ToLowerInvariant();
+        return reasoning is "off" or "low" or "high" or "max" ? reasoning : "";
     }
 
     private static string ResolveConfiguredPath(string? value, AppPaths? paths)

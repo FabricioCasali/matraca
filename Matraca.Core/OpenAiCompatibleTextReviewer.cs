@@ -7,12 +7,14 @@ namespace Matraca.Core;
 public sealed class OpenAiCompatibleTextReviewer : IDisposable
 {
     public const string DefaultEndpoint = "https://api.openai.com/v1/chat/completions";
+    public const string DeepSeekEndpoint = "https://api.deepseek.com/chat/completions";
 
     private readonly HttpClient _httpClient;
     private readonly Uri _endpoint;
     private readonly string _apiKey;
     private readonly string _model;
     private readonly string _prompt;
+    private readonly string _reasoning;
     private readonly bool _disposeHttpClient;
 
     public OpenAiCompatibleTextReviewer(
@@ -21,6 +23,7 @@ public sealed class OpenAiCompatibleTextReviewer : IDisposable
         string apiKey,
         string model,
         string prompt,
+        string reasoning = "",
         bool disposeHttpClient = false)
     {
         _httpClient = httpClient ?? throw new ArgumentNullException(nameof(httpClient));
@@ -36,20 +39,27 @@ public sealed class OpenAiCompatibleTextReviewer : IDisposable
         _prompt = string.IsNullOrWhiteSpace(prompt)
             ? throw new ArgumentException("Prompt is required.", nameof(prompt))
             : prompt;
+        _reasoning = Config.NormalizePostProcessReasoning(reasoning);
         _disposeHttpClient = disposeHttpClient;
     }
 
     public async Task<string?> ReviewAsync(string text, CancellationToken cancellationToken)
     {
-        string payload = JsonSerializer.Serialize(new
+        var payloadValues = new Dictionary<string, object>
         {
-            model = _model,
-            messages = new[]
+            ["model"] = _model,
+            ["messages"] = new[]
             {
                 new { role = "system", content = _prompt },
                 new { role = "user", content = text },
             },
-        });
+        };
+        if (_reasoning.Length > 0)
+        {
+            payloadValues["thinking"] = new { type = _reasoning == "off" ? "disabled" : "enabled" };
+            if (_reasoning != "off") payloadValues["reasoning_effort"] = _reasoning;
+        }
+        string payload = JsonSerializer.Serialize(payloadValues);
         using var request = new HttpRequestMessage(HttpMethod.Post, _endpoint)
         {
             Content = new StringContent(payload, Encoding.UTF8, "application/json"),
