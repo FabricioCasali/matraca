@@ -64,6 +64,19 @@ public sealed class WebUiContractTests
         Assert.Contains("request(\"window.drag\")", script);
     }
 
+    [Fact]
+    public void SharedUiUsesReadableTypeTokensAndSolidSelectColors()
+    {
+        string css = ReadProjectFile("Matraca.Web", "wwwroot", "styles.css");
+        string hud = ReadProjectFile("Matraca.Web", "wwwroot", "hud.css");
+
+        Assert.Contains("--font-caption: 11px", css);
+        Assert.Contains("--font-body: 13px", css);
+        Assert.Contains(".select option", css);
+        Assert.Contains("background: var(--control-bg)", css);
+        Assert.Contains(".state-copy span { color:#b4b4c7;font-size:12px }", hud);
+    }
+
     private static string ReadProjectFile(params string[] parts)
     {
         DirectoryInfo? directory = new(AppContext.BaseDirectory);

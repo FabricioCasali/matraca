@@ -11,7 +11,13 @@
   --cyan: #4dd6eb;
   --green: #59d69f;
   --red: #ff746d;
+  --control-bg: #20233a;
+  --control-text: #f4f3ff;
+  --control-selected: #443574;
   --shadow: 0 24px 70px rgba(0,0,0,.26);
+  --font-caption: 11px;
+  --font-body: 13px;
+  --font-control: 13px;
   font-family: ui-sans-serif, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
 }
 
@@ -28,6 +34,9 @@
   --cyan: #006273;
   --green: #0b6037;
   --red: #ad2438;
+  --control-bg: #ffffff;
+  --control-text: #211d32;
+  --control-selected: #ded6ff;
   --shadow: 0 24px 70px rgba(43,31,78,.16);
 }
 
@@ -129,6 +138,37 @@ button:disabled { cursor: not-allowed; opacity: .48; }
 .setup-actions { display: flex; align-items: center; gap: 7px; }.setup-actions select { max-width: 190px; padding: 8px; border: 1px solid var(--line); border-radius: 8px; background: var(--surface-strong); font-size: 8px; }.setup-actions button { padding: 9px 12px; border: 0; border-radius: 8px; background: #6e56dc; color: white; font-size: 8px; }.setup-card progress { width: 100%; height: 5px; margin-top: 9px; accent-color: var(--violet); }
 .key-control button.secondary { border: 1px solid var(--line); background: var(--surface-strong); color: var(--muted); }.color-controls { display: flex; gap: 14px; }.color-controls label { display: grid; gap: 6px; color: var(--muted); font-size: 8px; text-align: center; }.color-controls input { width: 48px; height: 30px; padding: 2px; border: 1px solid var(--line); border-radius: 8px; background: var(--surface); }
 
+/* Text below 11px is not readable on high-density desktop displays. */
+.privacy,.hotkey,.device,.status-pill,.target-card p em,.target-card b,
+.supporting,.last-phrase small,.runtime-state small,.spectrum-head,.spectrum-scale,
+.threshold-head small,.threshold-scale,.stat-row small,.day,.history-item time,
+.history-item small,.detail-meta,.saved,.onboarding-heading small,.setup-card > div > small,
+.setup-card > b,.color-controls label { font-size: var(--font-caption); }
+.voice-copy p,.calibration-copy p,.last-phrase p,.setting p,.onboarding-heading p,
+.setup-card p,.local-note { font-size: var(--font-body); }
+.sidebar nav button,.segments span,.mode-options button,.tabs button,.key-control button,
+.select,.field,.number-control input,.clear-history,.file-control button,.setup-actions select,
+.setup-actions button,.permission-list button,.detail-actions button { font-size: var(--font-control); }
+.target-card p strong,.runtime-state strong,.history-item strong,.setting strong,
+.threshold-head strong,.stat-row strong,.setup-card h2,.detail-info b { font-size: 14px; }
+.page-heading small,.glass-card > small,.runtime-preview > div > small,
+.level > small,.level strong em,.detail-info small { font-size: var(--font-caption); }
+.history-detail blockquote { font-size: 20px; line-height: 1.55; }
+
+.select,.setup-actions select {
+  color: var(--control-text);
+  background: var(--control-bg);
+}
+.select option,.select optgroup,.setup-actions select option {
+  color: var(--control-text);
+  background: var(--control-bg);
+}
+.select option:checked,.setup-actions select option:checked {
+  color: var(--control-text);
+  background: var(--control-selected);
+}
+.select:disabled,.setup-actions select:disabled { color: var(--faint); }
+
 @media (max-width: 940px) {
   .app-layout { grid-template-columns: 86px 1fr; }.sidebar { padding-inline: 10px; }.sidebar .logo { margin-inline: auto; }.sidebar nav button { justify-content: center; font-size: 0; }.sidebar nav button span { width: auto; font-size: 17px; }.privacy { justify-content: center; }.privacy span { display: none; }.page { padding-inline: 30px; }.voice-card { grid-template-columns: 1fr 1fr; }.level { display: none; }.runtime-preview { grid-template-columns: 1fr; }.calibration-card { grid-template-columns: 1fr; }.calibration-copy p { max-width: none; }.history-detail blockquote { font-size: 20px; }.stat-row { grid-template-columns: 1fr 1fr; }
 }
@@ -166,6 +206,9 @@ button:disabled { cursor: not-allowed; opacity: .48; }
     --cyan: #006273;
     --green: #0b6037;
     --red: #ad2438;
+    --control-bg: #ffffff;
+    --control-text: #211d32;
+    --control-selected: #ded6ff;
     --shadow: 0 24px 70px rgba(43,31,78,.16);
   }
   :root:not([data-theme]) .voice-card,

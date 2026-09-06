@@ -15,7 +15,8 @@ public sealed class LightThemeContrastTests
         string[] names =
         [
             "bg", "surface", "surface-strong", "line", "text", "muted", "faint",
-            "violet", "cyan", "green", "red", "shadow",
+            "violet", "cyan", "green", "red", "control-bg", "control-text",
+            "control-selected", "shadow",
         ];
 
         foreach (string name in names)
@@ -36,6 +37,9 @@ public sealed class LightThemeContrastTests
         var line = ParseRgba(manual["line"]);
         Assert.True(Contrast(Composite(line, background), background) >= 3, "line sobre bg");
         Assert.True(Contrast(Composite(line, surface), surface) >= 3, "line sobre surface");
+        Assert.True(
+            Contrast(ParseHex(manual["control-text"]), ParseHex(manual["control-bg"])) >= 4.5,
+            "control-text sobre control-bg");
     }
 
     private static Dictionary<string, string> ReadTokens(string css, string selector)
