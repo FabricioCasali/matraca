@@ -68,6 +68,8 @@ public sealed class WindowsNativeShellContractTests
         Assert.Contains("TextInjector.GetFocusedControl(handle)", target);
         Assert.Contains("descriptor.FocusedControl", sink);
         Assert.Contains("RestoreFocusedControl(hwnd, focusedControl)", injector);
+        Assert.Contains("Thread.Sleep(TargetActivationSettleMs)", injector);
+        Assert.Contains("GetForegroundWindow() != hwnd", injector);
         Assert.Contains("GetGUIThreadInfo", injector);
         Assert.Contains("GetForegroundWindow() == hwnd", injector);
     }

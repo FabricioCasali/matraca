@@ -52,6 +52,8 @@ internal static class TextInjector
     // (terminal, apps Electron) e caracteres somem. Envia em blocos com uma folga minima.
     private const int UnicodeChunkChars = 40;
     private const int UnicodeChunkPauseMs = 2;
+    private const int TargetActivationSettleMs = 120;
+    private const int FocusRestoreSettleMs = 30;
 
     private static bool SendUnicode(string text)
     {
@@ -262,12 +264,19 @@ internal static class TextInjector
             }
             else
             {
+                // Chromium restaura o foco do renderer de forma assincrona ao ativar a janela.
+                Thread.Sleep(TargetActivationSettleMs);
                 if (focusedControl != IntPtr.Zero && !RestoreFocusedControl(hwnd, focusedControl))
                 {
                     Logger.Warn("A janela fixada veio ao primeiro plano, mas o campo que tinha o cursor nao recuperou o foco.");
                 }
+                else if (GetForegroundWindow() != hwnd)
+                {
+                    Logger.Warn("A janela fixada perdeu o primeiro plano antes da entrega.");
+                }
                 else
                 {
+                    if (focusedControl != IntPtr.Zero) Thread.Sleep(FocusRestoreSettleMs);
                     delivered = SendUnicode(text) && (!autoEnter || SendEnter());
                     Thread.Sleep(SettleMsFor(text));
                 }
