@@ -225,6 +225,8 @@ internal sealed class WindowsWebBridge : IDisposable
                 completionTokens = entry.ReviewUsage.CompletionTokens,
                 reasoningTokens = entry.ReviewUsage.ReasoningTokens,
                 totalTokens = entry.ReviewUsage.TotalTokens,
+                estimatedCostUsd = entry.ReviewUsage.EstimatedCostUsd,
+                pricingVersion = AiCostEstimator.DeepSeekPricingVersion,
             },
         }).ToArray(),
     };
@@ -244,6 +246,8 @@ internal sealed class WindowsWebBridge : IDisposable
                 completionTokens = group.Sum(item => item.CompletionTokens),
                 reasoningTokens = group.Sum(item => item.ReasoningTokens),
                 totalTokens = group.Sum(item => item.TotalTokens),
+                estimatedCostUsd = group.Sum(item => item.EstimatedCostUsd),
+                pricingVersion = AiCostEstimator.DeepSeekPricingVersion,
             })
             .ToArray(),
     };

@@ -10,4 +10,5 @@ public sealed record AiUsageBucket(
     long PromptCacheMissTokens,
     long CompletionTokens,
     long ReasoningTokens,
-    long TotalTokens);
+    long TotalTokens,
+    decimal EstimatedCostUsd = 0);

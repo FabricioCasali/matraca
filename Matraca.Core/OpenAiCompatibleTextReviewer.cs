@@ -126,18 +126,31 @@ public sealed class OpenAiCompatibleTextReviewer : IDisposable
                 ? responseId.GetString() ?? ""
                 : "";
 
+        DateTime at = DateTime.Now;
+        int promptTokens = ReadInt32(usage, "prompt_tokens");
+        int promptCacheHitTokens = ReadInt32(usage, "prompt_cache_hit_tokens");
+        int promptCacheMissTokens = ReadInt32(usage, "prompt_cache_miss_tokens");
+        int completionTokens = ReadInt32(usage, "completion_tokens");
         return new TextReviewUsage(
             Guid.NewGuid(),
-            DateTime.Now,
+            at,
             _provider,
             model,
             requestId,
-            ReadInt32(usage, "prompt_tokens"),
-            ReadInt32(usage, "prompt_cache_hit_tokens"),
-            ReadInt32(usage, "prompt_cache_miss_tokens"),
-            ReadInt32(usage, "completion_tokens"),
+            promptTokens,
+            promptCacheHitTokens,
+            promptCacheMissTokens,
+            completionTokens,
             ReadNestedInt32(usage, "completion_tokens_details", "reasoning_tokens"),
-            ReadInt32(usage, "total_tokens"));
+            ReadInt32(usage, "total_tokens"),
+            AiCostEstimator.EstimateUsd(
+                _provider,
+                model,
+                at,
+                promptTokens,
+                promptCacheHitTokens,
+                promptCacheMissTokens,
+                completionTokens));
     }
 
     private static int ReadInt32(JsonElement parent, string property)

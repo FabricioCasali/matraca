@@ -11,4 +11,5 @@ public sealed record TextReviewUsage(
     int PromptCacheMissTokens,
     int CompletionTokens,
     int ReasoningTokens,
-    int TotalTokens);
+    int TotalTokens,
+    decimal? EstimatedCostUsd = null);

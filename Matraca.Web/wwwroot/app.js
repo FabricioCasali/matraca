@@ -251,6 +251,14 @@
     text("[data-ai-cache-tokens]", formatTokens(deepSeek?.promptCacheHitTokens));
     text("[data-ai-completion-tokens]", formatTokens(deepSeek?.completionTokens));
     text("[data-ai-total-tokens]", formatTokens(deepSeek?.totalTokens));
+    text("[data-ai-estimated-cost]", formatEstimatedCost(deepSeek?.estimatedCostUsd));
+    text("[data-ai-pricing-version]", deepSeek?.pricingVersion
+      ? new Date(`${deepSeek.pricingVersion}T00:00:00`).toLocaleDateString()
+      : "—");
+  }
+
+  function formatEstimatedCost(value) {
+    return value == null ? "—" : `US$ ${Number(value).toFixed(Number(value) < .01 ? 6 : 4)}`;
   }
 
   async function refreshAiUsage() {
@@ -380,6 +388,7 @@
     text("[data-history-completion-tokens]", formatTokens(usage?.completionTokens));
     text("[data-history-reasoning-tokens]", formatTokens(usage?.reasoningTokens));
     text("[data-history-total-tokens]", formatTokens(usage?.totalTokens));
+    text("[data-history-estimated-cost]", formatEstimatedCost(usage?.estimatedCostUsd));
     document.querySelectorAll("[data-history-detail] button")
       .forEach(button => button.disabled = !selected);
   }

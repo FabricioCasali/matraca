@@ -46,7 +46,8 @@ public sealed class AiUsageLedger
                 (previous?.PromptCacheMissTokens ?? 0) + usage.PromptCacheMissTokens,
                 (previous?.CompletionTokens ?? 0) + usage.CompletionTokens,
                 (previous?.ReasoningTokens ?? 0) + usage.ReasoningTokens,
-                (previous?.TotalTokens ?? 0) + usage.TotalTokens);
+                (previous?.TotalTokens ?? 0) + usage.TotalTokens,
+                (previous?.EstimatedCostUsd ?? 0) + (usage.EstimatedCostUsd ?? 0));
             if (index >= 0) _items[index] = updated;
             else _items.Add(updated);
             if (Save()) return true;

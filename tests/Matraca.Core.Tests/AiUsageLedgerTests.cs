@@ -23,6 +23,7 @@ public sealed class AiUsageLedgerTests
             Assert.Equal(usage.Model, bucket.Model);
             Assert.Equal(2, bucket.Requests);
             Assert.Equal(usage.TotalTokens * 2, bucket.TotalTokens);
+            Assert.Equal(0.0002m, bucket.EstimatedCostUsd);
             string persisted = File.ReadAllText(paths.AiUsageFile);
             Assert.DoesNotContain("dictated text", persisted, StringComparison.OrdinalIgnoreCase);
         }
@@ -74,7 +75,8 @@ public sealed class AiUsageLedgerTests
         40,
         30,
         10,
-        150);
+        150,
+        0.0001m);
 
     private static string NewTemporaryDirectory()
     {

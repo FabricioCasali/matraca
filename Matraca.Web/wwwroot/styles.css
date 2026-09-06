@@ -123,7 +123,7 @@ button:disabled { cursor: not-allowed; opacity: .48; }
 .history-tools,.file-control { display: flex; align-items: center; gap: 8px; }
 .clear-history,.file-control button { padding: 10px 13px; border: 1px solid var(--line); border-radius: 9px; background: var(--surface-strong); color: var(--muted); font-size: 8px; white-space: nowrap; }
 .clear-history { color: var(--red); }
-.review-usage { display: grid; grid-template-columns: repeat(5,1fr); gap: 7px; margin: -12px 0 24px; padding: 13px; border: 1px solid var(--line); border-radius: 12px; background: var(--surface); }
+.review-usage { display: grid; grid-template-columns: repeat(6,1fr); gap: 7px; margin: -12px 0 24px; padding: 13px; border: 1px solid var(--line); border-radius: 12px; background: var(--surface); }
 .review-usage > div { grid-column: 1/-1; display: flex; align-items: baseline; justify-content: space-between; gap: 12px; padding-bottom: 10px; border-bottom: 1px solid var(--line); }
 .review-usage > span { display: grid; gap: 5px; }
 .review-usage small { color: var(--faint); font-size: var(--font-caption); letter-spacing: .08em; }
@@ -136,7 +136,7 @@ button:disabled { cursor: not-allowed; opacity: .48; }
 .review-account strong { display: block; margin-top: 5px; font-size: 14px; }
 .review-account button { padding: 10px 13px; border: 1px solid var(--line); border-radius: 9px; background: var(--surface-strong); color: var(--muted); font-size: var(--font-control); white-space: nowrap; }
 .review-account button.primary { border-color: transparent; background: #6e56dc; color: white; }
-.review-account-grid { display: grid; grid-template-columns: repeat(5,1fr); border-block: 1px solid var(--line); }
+.review-account-grid { display: grid; grid-template-columns: repeat(6,1fr); border-block: 1px solid var(--line); }
 .review-account-grid span { min-height: 70px; display: grid; align-content: center; gap: 7px; padding: 13px 18px; border-right: 1px solid var(--line); }
 .review-account-grid span:last-child { border-right: 0; }
 .review-account-grid b { font-size: 16px; }
