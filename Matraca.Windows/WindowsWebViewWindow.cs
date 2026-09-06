@@ -30,7 +30,7 @@ internal sealed class WindowsWebViewWindow : IDisposable
                 "WebViewWindow",
                 WindowProcedure,
                 "Matraca",
-                WindowsNativeMethods.WsResizableWindow,
+                WindowsNativeMethods.WsFramelessResizableWindow,
                 0,
                 bounds.Left,
                 bounds.Top,
@@ -248,7 +248,7 @@ internal sealed class WindowsWebViewWindow : IDisposable
         };
         if (!WindowsNativeMethods.AdjustWindowRectExForDpi(
                 ref bounds,
-                WindowsNativeMethods.WsResizableWindow,
+                WindowsNativeMethods.WsFramelessResizableWindow,
                 false,
                 0,
                 dpi))

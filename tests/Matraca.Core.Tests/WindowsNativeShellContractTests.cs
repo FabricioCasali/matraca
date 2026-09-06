@@ -46,8 +46,10 @@ public sealed class WindowsNativeShellContractTests
         string window = ReadProjectFile("Matraca.Windows", "WindowsWebViewWindow.cs");
         string native = ReadProjectFile("Matraca.Windows", "WindowsNativeMethods.cs");
 
-        Assert.Contains("WindowsNativeMethods.WsResizableWindow", window);
+        Assert.Contains("WindowsNativeMethods.WsFramelessResizableWindow", window);
         Assert.DoesNotContain("WindowsNativeMethods.WsOverlappedWindow", window);
+        Assert.Contains("WsPopup | WsThickFrame | WsMinimizeBox | WsMaximizeBox", native);
+        Assert.DoesNotContain("WsSystemMenu | WsThickFrame", native);
         Assert.Contains("WsThickFrame", native);
         Assert.Contains("WmNcLButtonDown", native);
         Assert.Contains("HtCaption", native);

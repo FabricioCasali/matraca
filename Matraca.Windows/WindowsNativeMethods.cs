@@ -74,8 +74,8 @@ internal static class WindowsNativeMethods
     internal const uint WsThickFrame = 0x00040000;
     internal const uint WsMinimizeBox = 0x00020000;
     internal const uint WsMaximizeBox = 0x00010000;
-    internal const uint WsResizableWindow = WsSystemMenu | WsThickFrame | WsMinimizeBox | WsMaximizeBox;
     internal const uint WsPopup = 0x80000000;
+    internal const uint WsFramelessResizableWindow = WsPopup | WsThickFrame | WsMinimizeBox | WsMaximizeBox;
     internal const uint WsExTransparent = 0x00000020;
     internal const uint WsExToolWindow = 0x00000080;
     internal const uint WsExLayered = 0x00080000;
