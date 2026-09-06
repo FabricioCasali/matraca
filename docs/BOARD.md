@@ -57,18 +57,12 @@ O desenho da frente 2.0 está em [`PLANO-2.0.md`](PLANO-2.0.md).
 - **MT-025** **Corrigir as cores do seletor de idioma** — selects e opções agora usam cores
   explícitas e contrastantes nos temas claro e escuro. Resta a confirmação visual. · `[2.0]`
   · P · importante
-- **MT-026** **Entregar o ditado na janela pinada** — o token Windows preserva a janela
-  principal e o controle interno focado, restaurando o cursor antes da entrega. Resta repetir
-  a reprodução com Node Terminal pinado e navegador em foco. · `[2.0]` · P · importante
 - **MT-027** **Tornar funcionais os controles da tela principal** — núcleo visual inicia e
   encerra o modo toggle com alvo explícito; `FLUXO` troca o modo a quente. Resta a prova na
   UI real. · `[2.0]` · M · melhoria
 - **MT-028** **Corrigir o cartão de última frase** — cada entrega, inclusive trecho live,
   atualiza texto e horário; o menu `•••` copia, recola ou exclui com confirmação. Resta a
   prova na UI real. · `[2.0]` · P · importante
-- **MT-029** **Adicionar DeepSeek como revisor** — provedor usa endpoint oficial, chave
-  isolada, seleção de V4 Flash/Pro e raciocínio desligado/baixo/alto/máximo. A ativação exige
-  modelo e raciocínio; resta prova assistida com credencial real. · `[2.0]` · P · melhoria
 
 ## 📋 A fazer
 
