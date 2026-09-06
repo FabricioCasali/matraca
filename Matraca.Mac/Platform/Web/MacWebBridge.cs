@@ -97,6 +97,7 @@ internal sealed class MacWebBridge : IDisposable
                 "model.download.cancel" => CancelModelDownload(),
                 "mic.monitor.start" => await StartMicrophoneAsync(parameters).ConfigureAwait(false),
                 "mic.monitor.stop" => await StopMicrophoneAsync().ConfigureAwait(false),
+                "dictation.toggle" => await ToggleDictationAsync().ConfigureAwait(false),
                 "permissions.get" => BuildPermissions(),
                 "permissions.open-settings" => OpenPermissionSettings(parameters),
                 _ => throw new NotSupportedException(method),
@@ -500,7 +501,15 @@ internal sealed class MacWebBridge : IDisposable
     {
         state = StateName(_app?.CurrentState ?? ShellState.Idle),
         text = _app?.CurrentStateText ?? "Acessibilidade necessaria.",
+        active = _app?.CurrentState == ShellState.Recording,
     };
+
+    private async Task<object> ToggleDictationAsync()
+    {
+        if (_app == null) throw new InvalidOperationException("O aplicativo não está disponível.");
+        await _app.ToggleDictationFromUiAsync(_app.CurrentWebTarget).ConfigureAwait(false);
+        return BuildState();
+    }
 
     private float CurrentThreshold
         => _app?.CurrentConfig.VadThresholdFor(_monitoredDevice) ?? 0.012f;

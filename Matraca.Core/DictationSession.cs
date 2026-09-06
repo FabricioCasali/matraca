@@ -9,6 +9,7 @@ internal sealed class DictationSession
     public required TextPostProcessor? PostProcessor { get; init; }
     public required DictationHistory? History { get; init; }
     public required CancellationTokenSource Cancellation { get; init; }
+    public TargetToken? DeliveryTarget { get; init; }
     public bool Streaming { get; init; }
     public VoiceActivityDetector? Detector { get; set; }
     public BlockingCollection<float[]>? Segments { get; set; }

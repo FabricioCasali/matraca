@@ -99,6 +99,10 @@ internal sealed class MacTrayApp : IDisposable
     internal List<DictationHistoryEntry> HistorySnapshot()
         => _controller.CurrentHistory?.Snapshot() ?? [];
     internal bool PostProcessingActive => _controller.PostProcessingActive;
+    internal TargetToken? CurrentWebTarget
+    {
+        get { lock (_webTargetGate) return _webTarget; }
+    }
     internal Task<HotkeyGesture> CaptureHotkeyAsync(CancellationToken cancellationToken)
         => _keyboard.CaptureNextAsync(cancellationToken);
 
@@ -212,6 +216,9 @@ internal sealed class MacTrayApp : IDisposable
             _targets.Release(target);
         }
     }
+
+    internal Task ToggleDictationFromUiAsync(TargetToken? target)
+        => _controller.ToggleDictationFromUiAsync(target);
 
     private void OnWillSleep()
     {

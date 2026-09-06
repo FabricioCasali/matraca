@@ -96,6 +96,7 @@ internal sealed class WindowsWebBridge : IDisposable
                 "mic.monitor.stop" => await StopMicrophoneAsync(),
                 "model.download.start" => await DownloadModelAsync(parameters),
                 "model.download.cancel" => CancelModelDownload(),
+                "dictation.toggle" => await ToggleDictationAsync(),
                 "permissions.get" => BuildPermissions(),
                 "permissions.open-settings" => OpenPermissionSettings(parameters),
                 "window.minimize" => RequestWindowMinimize(),
@@ -333,6 +334,12 @@ internal sealed class WindowsWebBridge : IDisposable
         return new { requested = true };
     }
 
+    private async Task<object> ToggleDictationAsync()
+    {
+        await _app.ToggleDictationFromUiAsync(_app.CurrentWebTarget).ConfigureAwait(false);
+        return BuildState();
+    }
+
     private object CancelHotkeyCapture()
     {
         lock (_hotkeyCaptureGate) _hotkeyCaptureCancellation?.Cancel();
@@ -528,6 +535,7 @@ internal sealed class WindowsWebBridge : IDisposable
     {
         state = StateName(_app.CurrentState),
         text = _app.CurrentStateText,
+        active = _app.CurrentState == ShellState.Recording,
     };
 
     private DictationHistoryEntry FindHistoryEntry(JsonElement parameters)

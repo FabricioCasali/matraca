@@ -10,6 +10,7 @@ internal interface IWindowsWebBridgeApp
     ShellState CurrentState { get; }
     string CurrentStateText { get; }
     bool PostProcessingActive { get; }
+    TargetToken? CurrentWebTarget { get; }
 
     RawConfig LoadRawConfig();
     IReadOnlyList<string> ListAudioDevices();
@@ -24,6 +25,7 @@ internal interface IWindowsWebBridgeApp
     void ReleaseWebTarget();
     TargetToken? TakeWebTarget();
     Task<TextDeliveryResult> RepasteAsync(string text, TargetToken target);
+    Task ToggleDictationFromUiAsync(TargetToken? target);
     void ShowWebError(string message);
     Task BeginMicrophoneMonitorAsync();
     Task EndMicrophoneMonitorAsync();

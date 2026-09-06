@@ -110,6 +110,11 @@ internal sealed class WindowsApplication : IWindowsWebBridgeApp, IDisposable
 
     public bool PostProcessingActive => _controller.PostProcessingActive;
 
+    public TargetToken? CurrentWebTarget
+    {
+        get { lock (_webTargetGate) return _webTarget; }
+    }
+
     public int Run()
     {
         if (!_dispatcher.IsDispatchThread)
@@ -290,6 +295,9 @@ internal sealed class WindowsApplication : IWindowsWebBridgeApp, IDisposable
             _targets.Release(target);
         }
     }
+
+    public Task ToggleDictationFromUiAsync(TargetToken? target)
+        => _controller.ToggleDictationFromUiAsync(target);
 
     public void ShowWebError(string message)
         => PostToDispatcher(() => _shell.ShowNotification(

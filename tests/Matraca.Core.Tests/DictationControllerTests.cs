@@ -75,6 +75,36 @@ public sealed class DictationControllerTests
     }
 
     [Fact]
+    public async Task UiToggleDeliversToTheExplicitTargetInsteadOfThePanel()
+    {
+        var setup = CreateController(NewConfig("toggle"), ["spoken"]);
+        TargetToken target = setup.Targets.CreateAliveTarget();
+        setup.Controller.Start();
+
+        await setup.Controller.ToggleDictationFromUiAsync(target);
+        Assert.True(setup.Controller.IsSessionActive);
+        await setup.Controller.ToggleDictationFromUiAsync(target);
+
+        TextDeliveryRequest request = Assert.Single(setup.Sink.Requests);
+        Assert.Equal(TextDeliveryMethod.TargetWithFocus, request.Method);
+        Assert.Same(target, request.Target);
+        await setup.Controller.ShutdownAsync();
+    }
+
+    [Fact]
+    public async Task UiToggleRejectsModesWithDifferentPressSemantics()
+    {
+        var setup = CreateController(NewConfig("live"), ["spoken"]);
+        setup.Controller.Start();
+
+        await Assert.ThrowsAsync<InvalidOperationException>(
+            () => setup.Controller.ToggleDictationFromUiAsync(null));
+
+        Assert.False(setup.Controller.IsSessionActive);
+        await setup.Controller.ShutdownAsync();
+    }
+
+    [Fact]
     public async Task ReplacedKeyboardOwnsEventsAfterHotReload()
     {
         var setup = CreateController(NewConfig("toggle"), ["text"]);

@@ -103,6 +103,9 @@ public sealed class DictationController : IDisposable
     public Task HandleDictationKeyAsync(bool pressed)
         => EnqueueCommand(() => HandleDictationKeyCoreAsync(pressed));
 
+    public Task ToggleDictationFromUiAsync(TargetToken? deliveryTarget)
+        => EnqueueCommand(() => ToggleDictationFromUiCoreAsync(deliveryTarget));
+
     public Task TogglePinAsync()
         => EnqueueCommand(TogglePinCoreAsync);
 
@@ -274,7 +277,20 @@ public sealed class DictationController : IDisposable
         }
     }
 
-    private async Task StartSessionAsync()
+    private async Task ToggleDictationFromUiCoreAsync(TargetToken? deliveryTarget)
+    {
+        if (_config.Mode != "toggle")
+            throw new InvalidOperationException("O botão central grava somente no modo toggle.");
+        if (_config.DiscoverMode || IsSuspended)
+            throw new InvalidOperationException("O ditado não está disponível neste momento.");
+        if (IsBusy) return;
+
+        _models.Touch();
+        if (_session == null) await StartSessionAsync(deliveryTarget).ConfigureAwait(false);
+        else await StopSessionAsync().ConfigureAwait(false);
+    }
+
+    private async Task StartSessionAsync(TargetToken? deliveryTarget = null)
     {
         DictationSession session;
         Config snapshot;
@@ -295,6 +311,7 @@ public sealed class DictationController : IDisposable
                 PostProcessor = _postProcessor,
                 History = _history,
                 Cancellation = sessionCancellation,
+                DeliveryTarget = deliveryTarget,
             };
             _session = session;
         }
@@ -545,6 +562,17 @@ public sealed class DictationController : IDisposable
             {
                 ReleaseTargetUse(pinnedTarget);
             }
+        }
+
+        TargetToken? deliveryTarget = session.DeliveryTarget;
+        if (deliveryTarget != null)
+        {
+            if (!_targets.IsAlive(deliveryTarget)) return TextDeliveryResult.TargetUnavailable;
+            return await EnqueueDeliveryAsync(session, new TextDeliveryRequest(
+                text,
+                pressEnter,
+                TextDeliveryMethod.TargetWithFocus,
+                deliveryTarget)).ConfigureAwait(false);
         }
 
         var fallbackMethod = session.Config.PasteMethod == "clipboard"

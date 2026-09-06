@@ -6,7 +6,7 @@
   const routes = [...document.querySelectorAll("[data-route]")];
   const validRoutes = new Set(pages.map(page => page.dataset.page));
   const spectrum = document.querySelector("[data-spectrum]");
-  const state = { config: null, history: [], devices: [], models: [], platform: null, capabilities: {}, selectedHistoryId: null, monitoredDevice: "" };
+  const state = { config: null, history: [], devices: [], models: [], platform: null, capabilities: {}, selectedHistoryId: null, monitoredDevice: "", runtime: { state: "ready" } };
   const configDefaults = {
     language: "pt", hotkey: "F15", pinHotkey: "", pinDelivery: "focus",
     mode: "live", autoEnter: false,
@@ -126,6 +126,7 @@
     modelSetup?.classList.toggle("complete", Boolean(state.config.modelPath));
     text("[data-model-icon]", state.config.modelPath ? "✓" : "↓");
     updateConfigEffects();
+    applyRuntime(state.runtime);
   }
 
   function applyDevices(devices) {
@@ -163,6 +164,7 @@
 
   function applyRuntime(runtime) {
     if (!runtime) return;
+    state.runtime = runtime;
     const value = runtime.state || "ready";
     const labels = {
       ready: "PRONTO",
@@ -176,6 +178,13 @@
       pill.replaceChildren(document.createElement("i"), document.createTextNode(` ${labels[value] || value}`));
     }
     text("[data-home-heading]", runtime.text || "Sua voz está pronta.");
+    const toggle = document.querySelector("[data-dictation-toggle]");
+    if (toggle) {
+      const recording = value === "listening";
+      toggle.disabled = state.config?.mode !== "toggle" || value === "thinking";
+      toggle.setAttribute("aria-pressed", String(recording));
+      toggle.setAttribute("aria-label", recording ? "Encerrar gravação" : "Iniciar gravação");
+    }
   }
 
   function applyPostProcessRuntime(active) {
@@ -408,6 +417,20 @@
   document.querySelector("[data-history-search]")?.addEventListener("input", renderHistory);
   document.querySelectorAll("[data-config-mode] [data-value]").forEach(button => {
     button.addEventListener("click", () => saveConfig({ mode: button.dataset.value }));
+  });
+  document.querySelectorAll("[data-home-mode] [data-mode]").forEach(button => {
+    button.addEventListener("click", () => saveConfig({ mode: button.dataset.mode }));
+  });
+  document.querySelector("[data-dictation-toggle]")?.addEventListener("click", async event => {
+    if (!globalThis.matraca || event.currentTarget.disabled) return;
+    event.currentTarget.disabled = true;
+    try {
+      const runtime = await globalThis.matraca.request("dictation.toggle");
+      applyRuntime(runtime);
+    } catch (error) {
+      text("[data-home-heading]", error?.message || "Não foi possível alternar a gravação.");
+      applyRuntime(state.runtime);
+    }
   });
   document.querySelector("[data-config-auto-enter]")?.addEventListener("click", () => {
     saveConfig({ autoEnter: state.config?.autoEnter !== true });

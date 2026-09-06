@@ -146,7 +146,7 @@ button:disabled { cursor: not-allowed; opacity: .48; }
 .setup-card > b,.color-controls label { font-size: var(--font-caption); }
 .voice-copy p,.calibration-copy p,.last-phrase p,.setting p,.onboarding-heading p,
 .setup-card p,.local-note { font-size: var(--font-body); }
-.sidebar nav button,.segments span,.mode-options button,.tabs button,.key-control button,
+.sidebar nav button,.segments button,.mode-options button,.tabs button,.key-control button,
 .select,.field,.number-control input,.clear-history,.file-control button,.setup-actions select,
 .setup-actions button,.permission-list button,.detail-actions button { font-size: var(--font-control); }
 .target-card p strong,.runtime-state strong,.history-item strong,.setting strong,
@@ -168,6 +168,24 @@ button:disabled { cursor: not-allowed; opacity: .48; }
   background: var(--control-selected);
 }
 .select:disabled,.setup-actions select:disabled { color: var(--faint); }
+
+.voice-orbit { position: relative; border: 0; background: transparent; }
+.voice-orbit:not(:disabled):hover .voice-core { transform: scale(1.05); }
+.voice-orbit:focus-visible { outline: 2px solid var(--cyan); outline-offset: 5px; border-radius: 50%; }
+.voice-orbit[aria-pressed="true"] .voice-core {
+  background: radial-gradient(circle at 35% 25%,#ff9b96,#d94754 58%,#681c2b);
+  box-shadow: 0 0 62px rgba(255,81,100,.55),inset 0 1px 1px rgba(255,255,255,.5);
+}
+.voice-core { transition: transform .16s ease,background .16s ease,box-shadow .16s ease; }
+.segments button {
+  flex: 1;
+  padding: 8px;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--muted);
+  text-align: center;
+}
 
 @media (max-width: 940px) {
   .app-layout { grid-template-columns: 86px 1fr; }.sidebar { padding-inline: 10px; }.sidebar .logo { margin-inline: auto; }.sidebar nav button { justify-content: center; font-size: 0; }.sidebar nav button span { width: auto; font-size: 17px; }.privacy { justify-content: center; }.privacy span { display: none; }.page { padding-inline: 30px; }.voice-card { grid-template-columns: 1fr 1fr; }.level { display: none; }.runtime-preview { grid-template-columns: 1fr; }.calibration-card { grid-template-columns: 1fr; }.calibration-copy p { max-width: none; }.history-detail blockquote { font-size: 20px; }.stat-row { grid-template-columns: 1fr 1fr; }

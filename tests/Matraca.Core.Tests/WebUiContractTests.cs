@@ -77,6 +77,22 @@ public sealed class WebUiContractTests
         Assert.Contains(".state-copy span { color:#b4b4c7;font-size:12px }", hud);
     }
 
+    [Fact]
+    public void HomeWiresModeSelectionAndToggleDictation()
+    {
+        string html = ReadProjectFile("Matraca.Web", "wwwroot", "index.html");
+        string script = ReadProjectFile("Matraca.Web", "wwwroot", "app.js");
+        string windows = ReadProjectFile("Matraca.Windows", "WindowsWebBridge.cs");
+        string macos = ReadProjectFile("Matraca.Mac", "Platform", "Web", "MacWebBridge.cs");
+
+        Assert.Contains("data-dictation-toggle", html);
+        Assert.Contains("<button data-mode=\"hold\"", html);
+        Assert.Contains("request(\"dictation.toggle\")", script);
+        Assert.Contains("[data-home-mode] [data-mode]", script);
+        Assert.Contains("\"dictation.toggle\"", windows);
+        Assert.Contains("\"dictation.toggle\"", macos);
+    }
+
     private static string ReadProjectFile(params string[] parts)
     {
         DirectoryInfo? directory = new(AppContext.BaseDirectory);
