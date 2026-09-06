@@ -36,7 +36,6 @@ internal sealed class WindowsWebViewWindow : IDisposable
                 bounds.Top,
                 bounds.Width,
                 bounds.Height);
-            HideNativeBorder(_window.Handle);
             _host = new WindowsWebViewHost(
                 _window.Handle,
                 Path.Combine(AppContext.BaseDirectory, "Web"),
@@ -160,6 +159,10 @@ internal sealed class WindowsWebViewWindow : IDisposable
             case WindowsNativeMethods.WmGetMinMaxInfo:
                 ApplyMinimumSize(window, lParam);
                 return nint.Zero;
+            case WindowsNativeMethods.WmNcCalcSize:
+                return nint.Zero;
+            case WindowsNativeMethods.WmNcHitTest:
+                return HitTestResizeBorder(window, lParam);
             case WindowsNativeMethods.WmDpiChanged:
                 ApplyDpiBounds(window, lParam);
                 return nint.Zero;
@@ -304,14 +307,31 @@ internal sealed class WindowsWebViewWindow : IDisposable
     private static int Scale(int value, uint dpi)
         => checked((int)Math.Round(value * dpi / (double)DefaultDpi));
 
-    private static void HideNativeBorder(nint window)
+    private static nint HitTestResizeBorder(nint window, nint parameter)
     {
-        uint color = WindowsNativeMethods.DwmColorNone;
-        _ = WindowsNativeMethods.DwmSetWindowAttribute(
-            window,
-            WindowsNativeMethods.DwmBorderColor,
-            ref color,
-            sizeof(uint));
+        if (WindowsNativeMethods.IsZoomed(window)
+            || !WindowsNativeMethods.GetWindowRect(window, out WindowsRectangle bounds))
+            return WindowsNativeMethods.HtClient;
+
+        long coordinates = parameter.ToInt64();
+        int x = (short)(coordinates & 0xFFFF);
+        int y = (short)((coordinates >> 16) & 0xFFFF);
+        uint dpi = WindowsNativeMethods.GetDpiForWindow(window);
+        int border = Scale(8, dpi == 0 ? DefaultDpi : dpi);
+        bool left = x < bounds.Left + border;
+        bool right = x >= bounds.Right - border;
+        bool top = y < bounds.Top + border;
+        bool bottom = y >= bounds.Bottom - border;
+
+        if (top) return left ? WindowsNativeMethods.HtTopLeft
+            : right ? WindowsNativeMethods.HtTopRight
+            : WindowsNativeMethods.HtTop;
+        if (bottom) return left ? WindowsNativeMethods.HtBottomLeft
+            : right ? WindowsNativeMethods.HtBottomRight
+            : WindowsNativeMethods.HtBottom;
+        if (left) return WindowsNativeMethods.HtLeft;
+        if (right) return WindowsNativeMethods.HtRight;
+        return WindowsNativeMethods.HtClient;
     }
 
     private static string NormalizeRoute(string route)

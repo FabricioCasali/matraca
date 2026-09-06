@@ -14,6 +14,7 @@ internal static class WindowsNativeMethods
     internal const uint WmEndSession = 0x0016;
     internal const uint WmMouseActivate = 0x0021;
     internal const uint WmGetMinMaxInfo = 0x0024;
+    internal const uint WmNcCalcSize = 0x0083;
     internal const uint WmNcHitTest = 0x0084;
     internal const uint WmNcLButtonDown = 0x00A1;
     internal const uint WmTimer = 0x0113;
@@ -93,12 +94,19 @@ internal static class WindowsNativeMethods
     internal const uint MonitorDefaultToNearest = 0x00000002;
     internal const int RegionDifference = 4;
     internal const int DwmExtendedFrameBounds = 9;
-    internal const int DwmBorderColor = 34;
-    internal const uint DwmColorNone = 0xFFFFFFFE;
     internal const uint SpiGetWorkArea = 0x0030;
     internal const int SmCxScreen = 0;
     internal const int SmCyScreen = 1;
+    internal const int HtClient = 1;
     internal const int HtCaption = 2;
+    internal const int HtLeft = 10;
+    internal const int HtRight = 11;
+    internal const int HtTop = 12;
+    internal const int HtTopLeft = 13;
+    internal const int HtTopRight = 14;
+    internal const int HtBottom = 15;
+    internal const int HtBottomLeft = 16;
+    internal const int HtBottomRight = 17;
 
     internal static readonly nint MessageOnlyWindow = new(-3);
     internal static readonly nint TopMostWindow = new(-1);
@@ -401,13 +409,6 @@ internal static class WindowsNativeMethods
         nint window,
         int attribute,
         out WindowsRectangle value,
-        int valueSize);
-
-    [DllImport("dwmapi.dll")]
-    internal static extern int DwmSetWindowAttribute(
-        nint window,
-        int attribute,
-        ref uint value,
         int valueSize);
 
     [DllImport("shell32.dll", EntryPoint = "Shell_NotifyIconW", CharSet = CharSet.Unicode, SetLastError = true)]
