@@ -69,6 +69,10 @@ O desenho da frente 2.0 está em [`PLANO-2.0.md`](PLANO-2.0.md).
 - **MT-007** **Fase 5 — empacotamento** — `.app` + `.dmg` no Mac, Inno seguindo no
   Windows com teste do WebView2 Runtime, e `macos-14` na matriz do CI. · `[2.0]` · M ·
   importante
+- **MT-031** **Medir consumo e saldo da revisão por IA** — capturar o `usage` exato de
+  cada chamada, associar tokens e custo estimado ao histórico e consolidar o consumo na
+  seleção do provedor. Para DeepSeek, conciliar o saldo sob demanda via `/user/balance`,
+  sem consulta periódica em segundo plano. · `[2.0]` · M · melhoria
 
 ## 🗂️ Backlog
 
