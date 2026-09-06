@@ -69,12 +69,15 @@ O desenho da frente 2.0 está em [`PLANO-2.0.md`](PLANO-2.0.md).
   diários sem texto. A tela Revisão consolida o consumo e consulta `/user/balance` somente
   por ação do usuário, com cache de 30 segundos. Restam a prova de um ditado real e a
   confirmação visual do saldo. · `[2.0]` · M · melhoria
+- **MT-007** **Fase 5 — empacotamento** — o instalador Windows voltou a publicar as
+  variantes standard e uiAccess sem propagar o manifest para o Core. Restam `.app` +
+  `.dmg` no Mac, `macos-14` na matriz do CI e a validação dos artefatos finais. · `[2.0]`
+  · M · importante
 
 ## 📋 A fazer
 
-- **MT-007** **Fase 5 — empacotamento** — `.app` + `.dmg` no Mac, Inno seguindo no
-  Windows com teste do WebView2 Runtime, e `macos-14` na matriz do CI. · `[2.0]` · M ·
-  importante
+_(nada a fazer)_
+
 ## 🗂️ Backlog
 
 - **MT-008** **Testes manuais pendentes da 1.1** — `pinDelivery: "nofocus"`, onboarding,

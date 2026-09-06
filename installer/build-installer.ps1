@@ -22,7 +22,7 @@ foreach ($variant in @(
     if (Test-Path $out) { Remove-Item $out -Recurse -Force }
     Write-Host "Publicando variante $($variant.Out) ($($variant.Manifest))..." -ForegroundColor Cyan
     & dotnet publish $csproj -c Release -r win-x64 --self-contained true `
-        -p:ApplicationManifest=$($variant.Manifest) -p:Version=$Version -o $out
+        -p:MatracaApplicationManifest=$($variant.Manifest) -p:Version=$Version -o $out
     if ($LASTEXITCODE -ne 0) { throw "dotnet publish ($($variant.Out)) falhou" }
 }
 

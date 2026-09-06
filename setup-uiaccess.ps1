@@ -71,7 +71,7 @@ $staging = Join-Path $env:TEMP "matraca-publish"
 if (Test-Path $staging) { Remove-Item $staging -Recurse -Force }
 Write-Host "Publicando (Release, manifest uiAccess)..." -ForegroundColor Cyan
 & dotnet publish (Join-Path $proj 'Matraca.Windows\Matraca.Windows.csproj') -c Release `
-    -p:ApplicationManifest=app.uiaccess.manifest -o $staging
+    -p:MatracaApplicationManifest=app.uiaccess.manifest -o $staging
 if ($LASTEXITCODE -ne 0) { throw "dotnet publish falhou (exit $LASTEXITCODE)" }
 
 # --- 3. copiar para Program Files ---
