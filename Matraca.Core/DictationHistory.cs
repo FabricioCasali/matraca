@@ -33,14 +33,14 @@ public sealed class DictationHistory
         lock (_gate) return new List<DictationHistoryEntry>(_items);
     }
 
-    public void Add(string? text)
+    public void Add(string? text, TextReviewUsage? reviewUsage = null)
     {
         text = (text ?? "").Trim();
         if (text.Length == 0) return;
 
         lock (_gate)
         {
-            _items.Insert(0, new DictationHistoryEntry(_clock(), text));
+            _items.Insert(0, new DictationHistoryEntry(_clock(), text, reviewUsage));
             if (_items.Count > _max) _items.RemoveRange(_max, _items.Count - _max);
             Save();
         }

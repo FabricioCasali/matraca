@@ -62,6 +62,54 @@ public sealed class OpenAiCompatibleTextReviewerTests
         Assert.Null(await reviewer.ReviewAsync("raw", CancellationToken.None));
     }
 
+    [Fact]
+    public async Task CapturesDeepSeekUsageAndRequestIdentity()
+    {
+        using var http = new HttpClient(new StubHttpMessageHandler((_, _) =>
+        {
+            HttpResponseMessage response = JsonResponse("""
+                {
+                  "id":"completion-1",
+                  "model":"deepseek-v4-flash",
+                  "choices":[{"message":{"content":"Texto revisto."}}],
+                  "usage":{
+                    "prompt_tokens":120,
+                    "prompt_cache_hit_tokens":80,
+                    "prompt_cache_miss_tokens":40,
+                    "completion_tokens":30,
+                    "completion_tokens_details":{"reasoning_tokens":10},
+                    "total_tokens":150
+                  }
+                }
+                """);
+            response.Headers.Add("x-request-id", "request-1");
+            return response;
+        }));
+        using var reviewer = new OpenAiCompatibleTextReviewer(
+            http,
+            new Uri(OpenAiCompatibleTextReviewer.DeepSeekEndpoint),
+            "secret",
+            "configured-model",
+            "Review.",
+            provider: "deepseek");
+
+        TextReviewResult result = await reviewer.ReviewWithUsageAsync(
+            "Texto bruto.",
+            CancellationToken.None);
+
+        Assert.Equal("Texto revisto.", result.Text);
+        TextReviewUsage usage = Assert.IsType<TextReviewUsage>(result.Usage);
+        Assert.Equal("deepseek", usage.Provider);
+        Assert.Equal("deepseek-v4-flash", usage.Model);
+        Assert.Equal("request-1", usage.RequestId);
+        Assert.Equal(120, usage.PromptTokens);
+        Assert.Equal(80, usage.PromptCacheHitTokens);
+        Assert.Equal(40, usage.PromptCacheMissTokens);
+        Assert.Equal(30, usage.CompletionTokens);
+        Assert.Equal(10, usage.ReasoningTokens);
+        Assert.Equal(150, usage.TotalTokens);
+    }
+
     [Theory]
     [InlineData("off", "disabled", false)]
     [InlineData("low", "enabled", true)]

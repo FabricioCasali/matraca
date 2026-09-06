@@ -52,7 +52,8 @@ internal sealed class MacTrayApp : IDisposable
             next => next.History
                 ? new DictationHistory(MacConfig.Paths, next.HistoryMaxItems)
                 : null,
-            MainThread.Post);
+            MainThread.Post,
+            usageLedger: new AiUsageLedger(MacConfig.Paths));
     }
 
     public void Start()

@@ -17,6 +17,7 @@ public sealed class DictationController : IDisposable
     private readonly TranscriptionModelManager _models;
     private readonly Func<Config, TextPostProcessor?> _postProcessorFactory;
     private readonly Func<Config, DictationHistory?> _historyFactory;
+    private readonly AiUsageLedger? _usageLedger;
     private readonly Action<Action> _dispatch;
     private readonly DeliveryQueue _delivery;
     private readonly CancellationTokenSource _shutdownCancellation = new();
@@ -60,7 +61,8 @@ public sealed class DictationController : IDisposable
         Func<Config, TextPostProcessor?>? postProcessorFactory = null,
         Func<Config, DictationHistory?>? historyFactory = null,
         Action<Action>? dispatch = null,
-        Action<Thread>? configureDeliveryThread = null)
+        Action<Thread>? configureDeliveryThread = null,
+        AiUsageLedger? usageLedger = null)
     {
         _config = config ?? throw new ArgumentNullException(nameof(config));
         _keyboard = keyboard ?? throw new ArgumentNullException(nameof(keyboard));
@@ -70,6 +72,7 @@ public sealed class DictationController : IDisposable
         _models = models ?? throw new ArgumentNullException(nameof(models));
         _postProcessorFactory = postProcessorFactory ?? (_ => null);
         _historyFactory = historyFactory ?? (_ => null);
+        _usageLedger = usageLedger;
         _dispatch = dispatch ?? (action => action());
         _delivery = new DeliveryQueue(textSink, configureDeliveryThread);
         _postProcessor = CreatePostProcessor(config);
@@ -78,6 +81,7 @@ public sealed class DictationController : IDisposable
 
     public DeliveryQueue Delivery => _delivery;
     public DictationHistory? CurrentHistory => _history;
+    public AiUsageLedger? UsageLedger => _usageLedger;
     public bool IsSessionActive => _session != null;
     public bool IsBusy => Volatile.Read(ref _busy) != 0;
     public bool IsSuspended => Volatile.Read(ref _lifecycleState) != LifecycleActive;
@@ -424,8 +428,13 @@ public sealed class DictationController : IDisposable
             return;
         }
 
-        text = await PostProcessAsync(session, text).ConfigureAwait(false);
-        session.DeliveredSpeech = await DeliverAsync(session, text, session.Config.AutoEnter)
+        TextReviewResult review = await PostProcessAsync(session, text).ConfigureAwait(false);
+        text = review.Text!;
+        session.DeliveredSpeech = await DeliverAsync(
+            session,
+            text,
+            session.Config.AutoEnter,
+            reviewUsage: review.Usage)
             .ConfigureAwait(false) == TextDeliveryResult.Delivered;
     }
 
@@ -468,9 +477,14 @@ public sealed class DictationController : IDisposable
                     _models.Touch();
                     if (string.IsNullOrWhiteSpace(text)) continue;
 
-                    text = await PostProcessAsync(session, text).ConfigureAwait(false);
+                    TextReviewResult review = await PostProcessAsync(session, text).ConfigureAwait(false);
+                    text = review.Text!;
                     string chunk = text.Trim() + " ";
-                    if (await DeliverAsync(session, chunk, pressEnter: false).ConfigureAwait(false)
+                    if (await DeliverAsync(
+                            session,
+                            chunk,
+                            pressEnter: false,
+                            reviewUsage: review.Usage).ConfigureAwait(false)
                         == TextDeliveryResult.Delivered)
                         session.DeliveredSpeech = true;
                     else
@@ -498,23 +512,30 @@ public sealed class DictationController : IDisposable
         }
     }
 
-    private static async Task<string> PostProcessAsync(DictationSession session, string text)
-        => session.PostProcessor == null
-            ? text
-            : await session.PostProcessor.CleanAsync(text, session.Cancellation.Token).ConfigureAwait(false);
+    private async Task<TextReviewResult> PostProcessAsync(DictationSession session, string text)
+    {
+        TextReviewResult result = session.PostProcessor == null
+            ? new TextReviewResult(text, null)
+            : await session.PostProcessor
+                .CleanWithUsageAsync(text, session.Cancellation.Token)
+                .ConfigureAwait(false);
+        if (result.Usage != null) _usageLedger?.Add(result.Usage);
+        return result;
+    }
 
     private async Task<TextDeliveryResult> DeliverAsync(
         DictationSession session,
         string text,
         bool pressEnter,
-        bool addToHistory = true)
+        bool addToHistory = true,
+        TextReviewUsage? reviewUsage = null)
     {
         if (Volatile.Read(ref _shuttingDown) != 0 || session.Cancellation.IsCancellationRequested)
             return TextDeliveryResult.Cancelled;
         if (!session.Streaming)
             SetShellState(ShellState.Busy, "Matraca - escrevendo...");
         if (text.Length > 0) DeliveryStarted?.Invoke(session.Streaming);
-        if (addToHistory) session.History?.Add(text);
+        if (addToHistory) session.History?.Add(text, reviewUsage);
 
         TextDeliveryResult result = await DeliverCoreAsync(session, text, pressEnter)
             .ConfigureAwait(false);

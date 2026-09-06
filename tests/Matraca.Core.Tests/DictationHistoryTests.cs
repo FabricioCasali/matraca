@@ -151,6 +151,39 @@ public sealed class DictationHistoryTests
         }
     }
 
+    [Fact]
+    public void AddAssociatesUsageWithThePersistedDictation()
+    {
+        var home = NewTemporaryDirectory();
+        try
+        {
+            var paths = AppPaths.ForMac(home);
+            var history = new DictationHistory(paths, 10);
+            var usage = new TextReviewUsage(
+                Guid.NewGuid(),
+                new DateTime(2026, 9, 6, 10, 30, 0),
+                "deepseek",
+                "deepseek-v4-flash",
+                "request-1",
+                120,
+                80,
+                40,
+                30,
+                10,
+                150);
+
+            history.Add("reviewed text", usage);
+
+            DictationHistoryEntry entry = Assert.Single(new DictationHistory(paths, 10).Snapshot());
+            Assert.Equal("reviewed text", entry.Text);
+            Assert.Equal(usage, entry.ReviewUsage);
+        }
+        finally
+        {
+            Directory.Delete(home, recursive: true);
+        }
+    }
+
     private static string NewTemporaryDirectory()
     {
         var path = Path.Combine(Path.GetTempPath(), "matraca-tests", Guid.NewGuid().ToString("N"));

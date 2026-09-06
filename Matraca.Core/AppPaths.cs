@@ -9,6 +9,7 @@ public sealed class AppPaths
         ConfigFile = Combine(dataDirectory, separator, "appsettings.json");
         LogFile = Combine(dataDirectory, separator, "matraca.log");
         HistoryFile = Combine(dataDirectory, separator, "history.json");
+        AiUsageFile = Combine(dataDirectory, separator, "ai-usage.json");
         ModelsDirectory = Combine(dataDirectory, separator, "models");
     }
 
@@ -16,6 +17,7 @@ public sealed class AppPaths
     public string ConfigFile { get; }
     public string LogFile { get; }
     public string HistoryFile { get; }
+    public string AiUsageFile { get; }
     public string ModelsDirectory { get; }
 
     private char Separator { get; }

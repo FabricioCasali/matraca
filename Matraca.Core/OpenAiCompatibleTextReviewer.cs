@@ -15,6 +15,7 @@ public sealed class OpenAiCompatibleTextReviewer : IDisposable
     private readonly string _model;
     private readonly string _prompt;
     private readonly string _reasoning;
+    private readonly string _provider;
     private readonly bool _disposeHttpClient;
 
     public OpenAiCompatibleTextReviewer(
@@ -24,7 +25,8 @@ public sealed class OpenAiCompatibleTextReviewer : IDisposable
         string model,
         string prompt,
         string reasoning = "",
-        bool disposeHttpClient = false)
+        bool disposeHttpClient = false,
+        string provider = "openai-compatible")
     {
         _httpClient = httpClient ?? throw new ArgumentNullException(nameof(httpClient));
         _endpoint = endpoint ?? throw new ArgumentNullException(nameof(endpoint));
@@ -40,10 +42,16 @@ public sealed class OpenAiCompatibleTextReviewer : IDisposable
             ? throw new ArgumentException("Prompt is required.", nameof(prompt))
             : prompt;
         _reasoning = Config.NormalizePostProcessReasoning(reasoning);
+        _provider = string.IsNullOrWhiteSpace(provider) ? "openai-compatible" : provider.Trim();
         _disposeHttpClient = disposeHttpClient;
     }
 
     public async Task<string?> ReviewAsync(string text, CancellationToken cancellationToken)
+        => (await ReviewWithUsageAsync(text, cancellationToken).ConfigureAwait(false)).Text;
+
+    public async Task<TextReviewResult> ReviewWithUsageAsync(
+        string text,
+        CancellationToken cancellationToken)
     {
         var payloadValues = new Dictionary<string, object>
         {
@@ -78,24 +86,70 @@ public sealed class OpenAiCompatibleTextReviewer : IDisposable
                 cancellationToken: cancellationToken)
             .ConfigureAwait(false);
         JsonElement root = document.RootElement;
+        TextReviewUsage? usage = ParseUsage(root, response);
         if (!root.TryGetProperty("choices", out JsonElement choices)
             || choices.ValueKind != JsonValueKind.Array
             || choices.GetArrayLength() == 0
             || !choices[0].TryGetProperty("message", out JsonElement message)
             || message.ValueKind != JsonValueKind.Object)
-            return null;
+            return new TextReviewResult(null, usage);
         if (message.TryGetProperty("refusal", out JsonElement refusal)
             && refusal.ValueKind == JsonValueKind.String
             && !string.IsNullOrWhiteSpace(refusal.GetString()))
-            return null;
-        return message.TryGetProperty("content", out JsonElement content)
+            return new TextReviewResult(null, usage);
+        string? reviewed = message.TryGetProperty("content", out JsonElement content)
             && content.ValueKind == JsonValueKind.String
                 ? content.GetString()
                 : null;
+        return new TextReviewResult(reviewed, usage);
     }
 
     public void Dispose()
     {
         if (_disposeHttpClient) _httpClient.Dispose();
     }
+
+    private TextReviewUsage? ParseUsage(JsonElement root, HttpResponseMessage response)
+    {
+        if (!root.TryGetProperty("usage", out JsonElement usage)
+            || usage.ValueKind != JsonValueKind.Object)
+            return null;
+
+        string model = root.TryGetProperty("model", out JsonElement responseModel)
+            && responseModel.ValueKind == JsonValueKind.String
+            ? responseModel.GetString() ?? _model
+            : _model;
+        string requestId = response.Headers.TryGetValues("x-request-id", out IEnumerable<string>? values)
+            ? values.FirstOrDefault() ?? ""
+            : root.TryGetProperty("id", out JsonElement responseId)
+                && responseId.ValueKind == JsonValueKind.String
+                ? responseId.GetString() ?? ""
+                : "";
+
+        return new TextReviewUsage(
+            Guid.NewGuid(),
+            DateTime.Now,
+            _provider,
+            model,
+            requestId,
+            ReadInt32(usage, "prompt_tokens"),
+            ReadInt32(usage, "prompt_cache_hit_tokens"),
+            ReadInt32(usage, "prompt_cache_miss_tokens"),
+            ReadInt32(usage, "completion_tokens"),
+            ReadNestedInt32(usage, "completion_tokens_details", "reasoning_tokens"),
+            ReadInt32(usage, "total_tokens"));
+    }
+
+    private static int ReadInt32(JsonElement parent, string property)
+        => parent.TryGetProperty(property, out JsonElement value)
+            && value.ValueKind == JsonValueKind.Number
+            && value.TryGetInt32(out int number)
+                ? number
+                : 0;
+
+    private static int ReadNestedInt32(JsonElement parent, string group, string property)
+        => parent.TryGetProperty(group, out JsonElement nested)
+            && nested.ValueKind == JsonValueKind.Object
+                ? ReadInt32(nested, property)
+                : 0;
 }

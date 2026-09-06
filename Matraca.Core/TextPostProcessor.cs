@@ -13,7 +13,7 @@ public sealed class TextPostProcessor : IDisposable
       + "Preserve o vocabulário, os termos técnicos e o tom de quem falou.\n"
       + "Responda APENAS com o texto corrigido, sem aspas, sem comentários e sem preâmbulo.";
 
-    private readonly Func<string, CancellationToken, Task<string?>> _clean;
+    private readonly Func<string, CancellationToken, Task<TextReviewResult>> _clean;
     private readonly int _timeoutMs;
     private readonly IDisposable? _resource;
     private readonly CancellationTokenSource _disposalCancellation = new();
@@ -22,12 +22,17 @@ public sealed class TextPostProcessor : IDisposable
     public TextPostProcessor(
         Func<string, CancellationToken, Task<string?>> clean,
         int timeoutMs)
-        : this(clean, timeoutMs, null)
+        : this(
+            async (text, cancellationToken) => new TextReviewResult(
+                await clean(text, cancellationToken).ConfigureAwait(false),
+                null),
+            timeoutMs,
+            null)
     {
     }
 
     private TextPostProcessor(
-        Func<string, CancellationToken, Task<string?>> clean,
+        Func<string, CancellationToken, Task<TextReviewResult>> clean,
         int timeoutMs,
         IDisposable? resource)
     {
@@ -67,13 +72,16 @@ public sealed class TextPostProcessor : IDisposable
                 : DefaultPrompt;
             Logger.Info($"Pos-processamento de texto ligado (modelo {model}, timeout {config.PostProcessTimeoutMs}ms).");
             return new TextPostProcessor(
-                (text, cancellationToken) => RequestAsync(
-                    client,
-                    model,
-                    prompt,
-                    text,
-                    cancellationToken),
-                config.PostProcessTimeoutMs);
+                async (text, cancellationToken) => new TextReviewResult(
+                    await RequestAsync(
+                        client,
+                        model,
+                        prompt,
+                        text,
+                        cancellationToken).ConfigureAwait(false),
+                    null),
+                config.PostProcessTimeoutMs,
+                null);
         }
         catch (Exception ex)
         {
@@ -85,11 +93,16 @@ public sealed class TextPostProcessor : IDisposable
     public async Task<string> CleanAsync(
         string text,
         CancellationToken cancellationToken = default)
-    {
-        if (string.IsNullOrWhiteSpace(text)) return text;
-        if (Volatile.Read(ref _disposed) != 0) return text;
+        => (await CleanWithUsageAsync(text, cancellationToken).ConfigureAwait(false)).Text!;
 
-        Task<string?>? request = null;
+    public async Task<TextReviewResult> CleanWithUsageAsync(
+        string text,
+        CancellationToken cancellationToken = default)
+    {
+        if (string.IsNullOrWhiteSpace(text)) return new TextReviewResult(text, null);
+        if (Volatile.Read(ref _disposed) != 0) return new TextReviewResult(text, null);
+
+        Task<TextReviewResult>? request = null;
         try
         {
             using var timeout = new CancellationTokenSource(_timeoutMs);
@@ -103,17 +116,18 @@ public sealed class TextPostProcessor : IDisposable
                 cancellation.Token.ThrowIfCancellationRequested();
                 return _clean(text, cancellation.Token);
             }, CancellationToken.None);
-            var cleaned = (await request.WaitAsync(cancellation.Token))?.Trim();
+            TextReviewResult result = await request.WaitAsync(cancellation.Token);
+            string? cleaned = result.Text?.Trim();
 
             if (string.IsNullOrEmpty(cleaned))
             {
                 Logger.Warn("Pos-processamento devolveu vazio; usando a transcricao original.");
-                return text;
+                return new TextReviewResult(text, result.Usage);
             }
 
             stopwatch.Stop();
             Logger.Info($"[pos] {stopwatch.ElapsedMilliseconds}ms: \"{text}\" -> \"{cleaned}\"");
-            return cleaned;
+            return new TextReviewResult(cleaned, result.Usage);
         }
         catch (OperationCanceledException)
         {
@@ -122,12 +136,12 @@ public sealed class TextPostProcessor : IDisposable
                 Logger.Info("Pos-processamento cancelado; usando a transcricao original.");
             else
                 Logger.Warn($"Pos-processamento estourou {_timeoutMs}ms; usando a transcricao original.");
-            return text;
+            return new TextReviewResult(text, null);
         }
         catch (Exception ex)
         {
             Logger.Error("Pos-processamento falhou; usando a transcricao original", ex);
-            return text;
+            return new TextReviewResult(text, null);
         }
     }
 
@@ -182,12 +196,13 @@ public sealed class TextPostProcessor : IDisposable
                 config.PostProcessModel,
                 config.PostProcessPrompt.Length > 0 ? config.PostProcessPrompt : DefaultPrompt,
                 deepSeek ? config.PostProcessReasoning : "",
-                disposeHttpClient: true);
+                disposeHttpClient: true,
+                provider: config.PostProcessProvider);
             Logger.Info(
                 $"Pos-processamento de texto ligado (provedor {config.PostProcessProvider}, modelo "
                 + $"{config.PostProcessModel}, timeout {config.PostProcessTimeoutMs}ms).");
             return new TextPostProcessor(
-                reviewer.ReviewAsync,
+                reviewer.ReviewWithUsageAsync,
                 config.PostProcessTimeoutMs,
                 reviewer);
         }

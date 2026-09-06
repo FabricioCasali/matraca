@@ -75,7 +75,8 @@ internal sealed class WindowsApplication : IWindowsWebBridgeApp, IDisposable
                 ? new DictationHistory(WindowsConfig.Paths, config.HistoryMaxItems)
                 : null,
             _dispatcher.Post,
-            thread => thread.SetApartmentState(ApartmentState.STA));
+            thread => thread.SetApartmentState(ApartmentState.STA),
+            new AiUsageLedger(WindowsConfig.Paths));
 
         _webBridge = new WindowsWebBridge(this, _shell);
         _webWindow = new WindowsWebViewWindow(_webBridge);
