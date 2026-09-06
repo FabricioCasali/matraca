@@ -239,6 +239,16 @@
       .forEach(button => { button.disabled = !state.history.length; });
   }
 
+  function formatTokens(value) {
+    return new Intl.NumberFormat().format(value || 0);
+  }
+
+  function reviewProviderLabel(provider) {
+    if (provider === "deepseek") return "DeepSeek";
+    if (provider === "anthropic") return "Anthropic";
+    return "OpenAI-compatible";
+  }
+
   function renderHistory() {
     const list = document.querySelector("[data-history-list]");
     if (!list) return;
@@ -268,7 +278,9 @@
       const summary = document.createElement("strong");
       summary.textContent = entry.text;
       const meta = document.createElement("small");
-      meta.textContent = `${entry.characterCount} caracteres`;
+      meta.textContent = entry.reviewUsage
+        ? `${entry.characterCount} caracteres · ${formatTokens(entry.reviewUsage.totalTokens)} tokens`
+        : `${entry.characterCount} caracteres`;
       content.append(summary, meta);
       button.append(time, content);
       button.addEventListener("click", () => {
@@ -286,6 +298,17 @@
     text("[data-history-mode]", state.config?.mode || "—");
     text("[data-history-language]", state.config?.language || "—");
     text("[data-history-length]", String(selected?.characterCount ?? 0));
+    const usage = selected?.reviewUsage;
+    const usagePanel = document.querySelector("[data-history-review-usage]");
+    if (usagePanel) usagePanel.hidden = !usage;
+    text("[data-history-review-model]", usage
+      ? `${reviewProviderLabel(usage.provider)} · ${usage.model}`
+      : "—");
+    text("[data-history-prompt-tokens]", formatTokens(usage?.promptTokens));
+    text("[data-history-cache-tokens]", formatTokens(usage?.promptCacheHitTokens));
+    text("[data-history-completion-tokens]", formatTokens(usage?.completionTokens));
+    text("[data-history-reasoning-tokens]", formatTokens(usage?.reasoningTokens));
+    text("[data-history-total-tokens]", formatTokens(usage?.totalTokens));
     document.querySelectorAll("[data-history-detail] button")
       .forEach(button => button.disabled = !selected);
   }

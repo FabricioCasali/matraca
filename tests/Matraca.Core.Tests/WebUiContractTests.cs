@@ -14,10 +14,12 @@ public sealed class WebUiContractTests
         Assert.Contains("filePick = true", windows);
         Assert.Contains("soundPreview = true", windows);
         Assert.Contains("historyClear = true", windows);
+        Assert.Contains("reviewUsage = entry.ReviewUsage", windows);
         Assert.Contains("platform = \"macos\"", macos);
         Assert.Contains("filePick = false", macos);
         Assert.Contains("soundPreview = false", macos);
         Assert.Contains("historyClear = true", macos);
+        Assert.Contains("reviewUsage = entry.ReviewUsage", macos);
     }
 
     [Fact]
@@ -33,6 +35,7 @@ public sealed class WebUiContractTests
         Assert.Contains("request(\"file.pick\"", script);
         Assert.Contains("request(\"sound.preview\"", script);
         Assert.Contains("request(\"history.clear\")", script);
+        Assert.Contains("data-history-total-tokens", html);
         Assert.Contains("confirm(\"Limpar todo o histórico local?", script);
     }
 

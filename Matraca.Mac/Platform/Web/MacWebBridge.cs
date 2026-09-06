@@ -229,6 +229,17 @@ internal sealed class MacWebBridge : IDisposable
                 at = entry.At,
                 text = entry.Text,
                 characterCount = entry.Text.Length,
+                reviewUsage = entry.ReviewUsage == null ? null : new
+                {
+                    provider = entry.ReviewUsage.Provider,
+                    model = entry.ReviewUsage.Model,
+                    promptTokens = entry.ReviewUsage.PromptTokens,
+                    promptCacheHitTokens = entry.ReviewUsage.PromptCacheHitTokens,
+                    promptCacheMissTokens = entry.ReviewUsage.PromptCacheMissTokens,
+                    completionTokens = entry.ReviewUsage.CompletionTokens,
+                    reasoningTokens = entry.ReviewUsage.ReasoningTokens,
+                    totalTokens = entry.ReviewUsage.TotalTokens,
+                },
             })
             .ToArray(),
     };
