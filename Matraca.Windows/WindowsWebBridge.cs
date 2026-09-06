@@ -39,6 +39,9 @@ internal sealed class WindowsWebBridge : IDisposable
 
     public event Action<string>? MessageProduced;
     public event Action? CloseWindowRequested;
+    public event Action? MinimizeWindowRequested;
+    public event Action? ToggleMaximizeWindowRequested;
+    public event Action? DragWindowRequested;
 
     public void PrepareToOpen(IntPtr excludedWindow)
     {
@@ -95,6 +98,10 @@ internal sealed class WindowsWebBridge : IDisposable
                 "model.download.cancel" => CancelModelDownload(),
                 "permissions.get" => BuildPermissions(),
                 "permissions.open-settings" => OpenPermissionSettings(parameters),
+                "window.minimize" => RequestWindowMinimize(),
+                "window.toggleMaximize" => RequestWindowToggleMaximize(),
+                "window.close" => RequestWindowClose(),
+                "window.drag" => RequestWindowDrag(),
                 _ => throw new NotSupportedException(method),
             };
             return Response(id, result);
@@ -300,6 +307,30 @@ internal sealed class WindowsWebBridge : IDisposable
             }
             cancellation.Dispose();
         }
+    }
+
+    private object RequestWindowMinimize()
+    {
+        MinimizeWindowRequested?.Invoke();
+        return new { requested = true };
+    }
+
+    private object RequestWindowToggleMaximize()
+    {
+        ToggleMaximizeWindowRequested?.Invoke();
+        return new { requested = true };
+    }
+
+    private object RequestWindowClose()
+    {
+        CloseWindowRequested?.Invoke();
+        return new { requested = true };
+    }
+
+    private object RequestWindowDrag()
+    {
+        DragWindowRequested?.Invoke();
+        return new { requested = true };
     }
 
     private object CancelHotkeyCapture()
@@ -602,6 +633,9 @@ internal sealed class WindowsWebBridge : IDisposable
         _microphone.Dispose();
         MessageProduced = null;
         CloseWindowRequested = null;
+        MinimizeWindowRequested = null;
+        ToggleMaximizeWindowRequested = null;
+        DragWindowRequested = null;
     }
 
     private static string StateName(ShellState state) => state switch

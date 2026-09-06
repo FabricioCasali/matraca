@@ -30,7 +30,7 @@ internal sealed class WindowsWebViewWindow : IDisposable
                 "WebViewWindow",
                 WindowProcedure,
                 "Matraca",
-                WindowsNativeMethods.WsOverlappedWindow,
+                WindowsNativeMethods.WsResizableWindow,
                 0,
                 bounds.Left,
                 bounds.Top,
@@ -52,6 +52,9 @@ internal sealed class WindowsWebViewWindow : IDisposable
         _host.MessageReceived += OnMessageReceived;
         _bridge.MessageProduced += PostJson;
         _bridge.CloseWindowRequested += Hide;
+        _bridge.MinimizeWindowRequested += Minimize;
+        _bridge.ToggleMaximizeWindowRequested += ToggleMaximize;
+        _bridge.DragWindowRequested += BeginDrag;
     }
 
     public nint Handle => _window.Handle;
@@ -89,6 +92,9 @@ internal sealed class WindowsWebViewWindow : IDisposable
 
         _bridge.MessageProduced -= PostJson;
         _bridge.CloseWindowRequested -= Hide;
+        _bridge.MinimizeWindowRequested -= Minimize;
+        _bridge.ToggleMaximizeWindowRequested -= ToggleMaximize;
+        _bridge.DragWindowRequested -= BeginDrag;
         _host.MessageReceived -= OnMessageReceived;
         if (_visible) _bridge.WindowClosed();
         _visible = false;
@@ -177,6 +183,29 @@ internal sealed class WindowsWebViewWindow : IDisposable
         _bridge.WindowClosed();
     }
 
+    private void Minimize()
+        => Dispatch(() => WindowsNativeMethods.ShowWindow(
+            _window.Handle,
+            WindowsNativeMethods.SwMinimize));
+
+    private void ToggleMaximize()
+        => Dispatch(() => WindowsNativeMethods.ShowWindow(
+            _window.Handle,
+            WindowsNativeMethods.IsZoomed(_window.Handle)
+                ? WindowsNativeMethods.SwRestore
+                : WindowsNativeMethods.SwMaximize));
+
+    private void BeginDrag()
+        => Dispatch(() =>
+        {
+            WindowsNativeMethods.ReleaseCapture();
+            WindowsNativeMethods.SendMessageW(
+                _window.Handle,
+                WindowsNativeMethods.WmNcLButtonDown,
+                WindowsNativeMethods.HtCaption,
+                nint.Zero);
+        });
+
     private void OnMessageReceived(string json)
         => Observe(HandleMessageAsync(json));
 
@@ -219,7 +248,7 @@ internal sealed class WindowsWebViewWindow : IDisposable
         };
         if (!WindowsNativeMethods.AdjustWindowRectExForDpi(
                 ref bounds,
-                WindowsNativeMethods.WsOverlappedWindow,
+                WindowsNativeMethods.WsResizableWindow,
                 false,
                 0,
                 dpi))

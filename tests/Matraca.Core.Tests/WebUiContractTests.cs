@@ -49,6 +49,21 @@ public sealed class WebUiContractTests
         Assert.Contains("levelPosition(frame.threshold)", script);
     }
 
+    [Fact]
+    public void SharedUiWiresTheCustomWindowsTitleBar()
+    {
+        string html = ReadProjectFile("Matraca.Web", "wwwroot", "index.html");
+        string script = ReadProjectFile("Matraca.Web", "wwwroot", "app.js");
+
+        Assert.Contains("data-window-minimize", html);
+        Assert.Contains("data-window-maximize", html);
+        Assert.Contains("data-window-close", html);
+        Assert.Contains("request(\"window.minimize\")", script);
+        Assert.Contains("request(\"window.toggleMaximize\")", script);
+        Assert.Contains("request(\"window.close\")", script);
+        Assert.Contains("request(\"window.drag\")", script);
+    }
+
     private static string ReadProjectFile(params string[] parts)
     {
         DirectoryInfo? directory = new(AppContext.BaseDirectory);

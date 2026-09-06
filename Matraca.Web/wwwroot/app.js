@@ -391,6 +391,20 @@
       : matchMedia("(prefers-color-scheme: dark)").matches;
     root.dataset.theme = isDark ? "light" : "dark";
   });
+  document.querySelector("[data-window-minimize]")?.addEventListener("click", () =>
+    globalThis.matraca?.request("window.minimize"));
+  document.querySelector("[data-window-maximize]")?.addEventListener("click", () =>
+    globalThis.matraca?.request("window.toggleMaximize"));
+  document.querySelector("[data-window-close]")?.addEventListener("click", () =>
+    globalThis.matraca?.request("window.close"));
+  document.querySelector(".titlebar")?.addEventListener("pointerdown", event => {
+    if (event.button !== 0 || event.target.closest("button")) return;
+    globalThis.matraca?.request("window.drag");
+  });
+  document.querySelector(".titlebar")?.addEventListener("dblclick", event => {
+    if (event.target.closest("button")) return;
+    globalThis.matraca?.request("window.toggleMaximize");
+  });
   document.querySelector("[data-history-search]")?.addEventListener("input", renderHistory);
   document.querySelectorAll("[data-config-mode] [data-value]").forEach(button => {
     button.addEventListener("click", () => saveConfig({ mode: button.dataset.value }));

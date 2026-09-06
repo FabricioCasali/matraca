@@ -40,6 +40,19 @@ public sealed class WindowsNativeShellContractTests
         Assert.Contains("WaveFormatConversionStream.CreatePcmStream(reader)", beeper);
     }
 
+    [Fact]
+    public void WebPanelUsesTheSharedFramelessTitleBar()
+    {
+        string window = ReadProjectFile("Matraca.Windows", "WindowsWebViewWindow.cs");
+        string native = ReadProjectFile("Matraca.Windows", "WindowsNativeMethods.cs");
+
+        Assert.Contains("WindowsNativeMethods.WsResizableWindow", window);
+        Assert.DoesNotContain("WindowsNativeMethods.WsOverlappedWindow", window);
+        Assert.Contains("WsThickFrame", native);
+        Assert.Contains("WmNcLButtonDown", native);
+        Assert.Contains("HtCaption", native);
+    }
+
     [Theory]
     [InlineData("TrayApp.cs")]
     [InlineData("SettingsForm.cs")]

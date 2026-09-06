@@ -15,6 +15,7 @@ internal static class WindowsNativeMethods
     internal const uint WmMouseActivate = 0x0021;
     internal const uint WmGetMinMaxInfo = 0x0024;
     internal const uint WmNcHitTest = 0x0084;
+    internal const uint WmNcLButtonDown = 0x00A1;
     internal const uint WmTimer = 0x0113;
     internal const uint WmDpiChanged = 0x02E0;
     internal const uint WmContextMenu = 0x007B;
@@ -69,13 +70,20 @@ internal static class WindowsNativeMethods
     internal const uint TpmReturnCommand = 0x0100;
 
     internal const uint WsOverlappedWindow = 0x00CF0000;
+    internal const uint WsSystemMenu = 0x00080000;
+    internal const uint WsThickFrame = 0x00040000;
+    internal const uint WsMinimizeBox = 0x00020000;
+    internal const uint WsMaximizeBox = 0x00010000;
+    internal const uint WsResizableWindow = WsSystemMenu | WsThickFrame | WsMinimizeBox | WsMaximizeBox;
     internal const uint WsPopup = 0x80000000;
     internal const uint WsExTransparent = 0x00000020;
     internal const uint WsExToolWindow = 0x00000080;
     internal const uint WsExLayered = 0x00080000;
     internal const uint WsExNoActivate = 0x08000000;
     internal const int SwHide = 0;
+    internal const int SwMaximize = 3;
     internal const int SwShow = 5;
+    internal const int SwMinimize = 6;
     internal const int SwRestore = 9;
     internal const uint SwpNoZOrder = 0x0004;
     internal const uint SwpNoActivate = 0x0010;
@@ -88,6 +96,7 @@ internal static class WindowsNativeMethods
     internal const uint SpiGetWorkArea = 0x0030;
     internal const int SmCxScreen = 0;
     internal const int SmCyScreen = 1;
+    internal const int HtCaption = 2;
 
     internal static readonly nint MessageOnlyWindow = new(-3);
     internal static readonly nint TopMostWindow = new(-1);
@@ -125,6 +134,10 @@ internal static class WindowsNativeMethods
     [DllImport("user32.dll")]
     [return: MarshalAs(UnmanagedType.Bool)]
     internal static extern bool IsIconic(nint window);
+
+    [DllImport("user32.dll")]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    internal static extern bool IsZoomed(nint window);
 
     [DllImport("user32.dll")]
     [return: MarshalAs(UnmanagedType.Bool)]
@@ -244,6 +257,13 @@ internal static class WindowsNativeMethods
 
     [DllImport("user32.dll")]
     internal static extern nint DefWindowProcW(nint window, uint message, nint wParam, nint lParam);
+
+    [DllImport("user32.dll")]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    internal static extern bool ReleaseCapture();
+
+    [DllImport("user32.dll", EntryPoint = "SendMessageW")]
+    internal static extern nint SendMessageW(nint window, uint message, nint wParam, nint lParam);
 
     [DllImport("user32.dll", SetLastError = true)]
     internal static extern int GetMessageW(out WindowsMessage message, nint window, uint minimum, uint maximum);
