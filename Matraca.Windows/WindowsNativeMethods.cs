@@ -93,6 +93,8 @@ internal static class WindowsNativeMethods
     internal const uint MonitorDefaultToNearest = 0x00000002;
     internal const int RegionDifference = 4;
     internal const int DwmExtendedFrameBounds = 9;
+    internal const int DwmBorderColor = 34;
+    internal const uint DwmColorNone = 0xFFFFFFFE;
     internal const uint SpiGetWorkArea = 0x0030;
     internal const int SmCxScreen = 0;
     internal const int SmCyScreen = 1;
@@ -399,6 +401,13 @@ internal static class WindowsNativeMethods
         nint window,
         int attribute,
         out WindowsRectangle value,
+        int valueSize);
+
+    [DllImport("dwmapi.dll")]
+    internal static extern int DwmSetWindowAttribute(
+        nint window,
+        int attribute,
+        ref uint value,
         int valueSize);
 
     [DllImport("shell32.dll", EntryPoint = "Shell_NotifyIconW", CharSet = CharSet.Unicode, SetLastError = true)]

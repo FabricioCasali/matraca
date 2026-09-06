@@ -36,6 +36,7 @@ internal sealed class WindowsWebViewWindow : IDisposable
                 bounds.Top,
                 bounds.Width,
                 bounds.Height);
+            HideNativeBorder(_window.Handle);
             _host = new WindowsWebViewHost(
                 _window.Handle,
                 Path.Combine(AppContext.BaseDirectory, "Web"),
@@ -302,6 +303,16 @@ internal sealed class WindowsWebViewWindow : IDisposable
 
     private static int Scale(int value, uint dpi)
         => checked((int)Math.Round(value * dpi / (double)DefaultDpi));
+
+    private static void HideNativeBorder(nint window)
+    {
+        uint color = WindowsNativeMethods.DwmColorNone;
+        _ = WindowsNativeMethods.DwmSetWindowAttribute(
+            window,
+            WindowsNativeMethods.DwmBorderColor,
+            ref color,
+            sizeof(uint));
+    }
 
     private static string NormalizeRoute(string route)
         => route is "history" or "settings" or "microphone" or "onboarding" ? route : "home";

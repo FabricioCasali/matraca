@@ -50,6 +50,9 @@ public sealed class WindowsNativeShellContractTests
         Assert.DoesNotContain("WindowsNativeMethods.WsOverlappedWindow", window);
         Assert.Contains("WsPopup | WsThickFrame | WsMinimizeBox | WsMaximizeBox", native);
         Assert.DoesNotContain("WsSystemMenu | WsThickFrame", native);
+        Assert.Contains("HideNativeBorder(_window.Handle)", window);
+        Assert.Contains("DwmSetWindowAttribute", native);
+        Assert.Contains("DwmColorNone", native);
         Assert.Contains("WsThickFrame", native);
         Assert.Contains("WmNcLButtonDown", native);
         Assert.Contains("HtCaption", native);
