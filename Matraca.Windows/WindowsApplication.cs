@@ -158,6 +158,9 @@ internal sealed class WindowsApplication : IWindowsWebBridgeApp, IDisposable
     public List<DictationHistoryEntry> HistorySnapshot()
         => _controller.CurrentHistory?.Snapshot() ?? [];
 
+    public List<AiUsageBucket> AiUsageSnapshot()
+        => _controller.UsageLedger?.Snapshot() ?? [];
+
     public bool RemoveHistory(DateTime at, string text)
         => _controller.CurrentHistory?.Remove(at, text) == true;
 

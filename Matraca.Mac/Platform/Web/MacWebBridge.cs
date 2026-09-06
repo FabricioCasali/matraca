@@ -92,6 +92,8 @@ internal sealed class MacWebBridge : IDisposable
                 "history.clear" => ClearHistory(parameters),
                 "history.copy" => CopyHistory(parameters),
                 "history.repaste" => await RepasteHistoryAsync(parameters).ConfigureAwait(false),
+                "ai.usage.get" => BuildAiUsage(),
+                "deepseek.balance.get" => await GetDeepSeekBalanceAsync().ConfigureAwait(false),
                 "hotkey.capture.start" => await CaptureHotkeyAsync().ConfigureAwait(false),
                 "hotkey.capture.cancel" => CancelHotkeyCapture(),
                 "model.download.start" => await DownloadModelAsync(parameters).ConfigureAwait(false),
@@ -178,6 +180,7 @@ internal sealed class MacWebBridge : IDisposable
         },
         config = BuildConfig(),
         history = BuildHistory(),
+        aiUsage = BuildAiUsage(),
         state = BuildState(),
         permissions = BuildPermissions(),
         devices = _app?.ListAudioDevices() ?? _microphone.ListDevices(),
@@ -516,6 +519,45 @@ internal sealed class MacWebBridge : IDisposable
         text = _app?.CurrentStateText ?? "Acessibilidade necessaria.",
         active = _app?.CurrentState == ShellState.Recording,
     };
+
+    private object BuildAiUsage() => new
+    {
+        providers = (_app?.AiUsageSnapshot() ?? [])
+            .GroupBy(item => item.Provider)
+            .OrderBy(group => group.Key)
+            .Select(group => new
+            {
+                provider = group.Key,
+                requests = group.Sum(item => item.Requests),
+                promptTokens = group.Sum(item => item.PromptTokens),
+                promptCacheHitTokens = group.Sum(item => item.PromptCacheHitTokens),
+                promptCacheMissTokens = group.Sum(item => item.PromptCacheMissTokens),
+                completionTokens = group.Sum(item => item.CompletionTokens),
+                reasoningTokens = group.Sum(item => item.ReasoningTokens),
+                totalTokens = group.Sum(item => item.TotalTokens),
+            })
+            .ToArray(),
+    };
+
+    private async Task<object> GetDeepSeekBalanceAsync()
+    {
+        if (_app == null)
+            throw new InvalidOperationException("O runtime de ditado nao esta disponivel.");
+        DeepSeekBalance result = await DeepSeekBalanceClient
+            .GetCurrentAsync(_app.CurrentConfig.PostProcessApiKey)
+            .ConfigureAwait(false);
+        return new
+        {
+            isAvailable = result.IsAvailable,
+            balances = result.Balances.Select(balance => new
+            {
+                currency = balance.Currency,
+                totalBalance = balance.TotalBalance,
+                grantedBalance = balance.GrantedBalance,
+                toppedUpBalance = balance.ToppedUpBalance,
+            }).ToArray(),
+        };
+    }
 
     private async Task<object> ToggleDictationAsync()
     {

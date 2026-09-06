@@ -13,6 +13,7 @@ public sealed class AppPathsTests
         Assert.Equal(@"C:\Users\Ada\AppData\Local\Matraca\appsettings.json", paths.ConfigFile);
         Assert.Equal(@"C:\Users\Ada\AppData\Local\Matraca\matraca.log", paths.LogFile);
         Assert.Equal(@"C:\Users\Ada\AppData\Local\Matraca\history.json", paths.HistoryFile);
+        Assert.Equal(@"C:\Users\Ada\AppData\Local\Matraca\ai-usage.json", paths.AiUsageFile);
         Assert.Equal(@"C:\Users\Ada\AppData\Local\Matraca\models", paths.ModelsDirectory);
     }
 
@@ -45,6 +46,7 @@ public sealed class AppPathsTests
         Assert.Equal("/Users/ada/Library/Application Support/Matraca/appsettings.json", paths.ConfigFile);
         Assert.Equal("/Users/ada/Library/Application Support/Matraca/matraca.log", paths.LogFile);
         Assert.Equal("/Users/ada/Library/Application Support/Matraca/history.json", paths.HistoryFile);
+        Assert.Equal("/Users/ada/Library/Application Support/Matraca/ai-usage.json", paths.AiUsageFile);
         Assert.Equal("/Users/ada/Library/Application Support/Matraca/models", paths.ModelsDirectory);
     }
 

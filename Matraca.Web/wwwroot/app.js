@@ -6,7 +6,7 @@
   const routes = [...document.querySelectorAll("[data-route]")];
   const validRoutes = new Set(pages.map(page => page.dataset.page));
   const spectrum = document.querySelector("[data-spectrum]");
-  const state = { config: null, history: [], devices: [], models: [], platform: null, capabilities: {}, selectedHistoryId: null, monitoredDevice: "", runtime: { state: "ready" } };
+  const state = { config: null, history: [], aiUsage: null, deepSeekBalance: null, deepSeekBalanceAt: 0, devices: [], models: [], platform: null, capabilities: {}, selectedHistoryId: null, monitoredDevice: "", runtime: { state: "ready" } };
   const configDefaults = {
     language: "pt", hotkey: "F15", pinHotkey: "", pinDelivery: "focus",
     mode: "live", autoEnter: false,
@@ -243,6 +243,77 @@
     return new Intl.NumberFormat().format(value || 0);
   }
 
+  function applyAiUsage(usage) {
+    state.aiUsage = usage || { providers: [] };
+    const deepSeek = state.aiUsage.providers?.find(item => item.provider === "deepseek");
+    text("[data-ai-requests]", formatTokens(deepSeek?.requests));
+    text("[data-ai-prompt-tokens]", formatTokens(deepSeek?.promptTokens));
+    text("[data-ai-cache-tokens]", formatTokens(deepSeek?.promptCacheHitTokens));
+    text("[data-ai-completion-tokens]", formatTokens(deepSeek?.completionTokens));
+    text("[data-ai-total-tokens]", formatTokens(deepSeek?.totalTokens));
+  }
+
+  async function refreshAiUsage() {
+    if (!globalThis.matraca) return;
+    try {
+      applyAiUsage(await globalThis.matraca.request("ai.usage.get"));
+    } catch (error) {
+      text("[data-deepseek-balance-detail]", error?.message || "Não foi possível ler o consumo local.");
+    }
+  }
+
+  function formatBalance(balance) {
+    try {
+      return new Intl.NumberFormat(undefined, {
+        style: "currency",
+        currency: balance.currency
+      }).format(balance.totalBalance);
+    } catch {
+      return `${balance.totalBalance} ${balance.currency}`;
+    }
+  }
+
+  function applyDeepSeekBalance(result, cached = false) {
+    const balances = result?.balances || [];
+    text("[data-deepseek-balance]", balances.length
+      ? balances.map(formatBalance).join(" · ")
+      : result?.isAvailable ? "Sem saldo informado" : "Saldo indisponível");
+    const checkedAt = new Date(state.deepSeekBalanceAt).toLocaleTimeString([], {
+      hour: "2-digit",
+      minute: "2-digit",
+      second: "2-digit"
+    });
+    text("[data-deepseek-balance-detail]", result?.isAvailable
+      ? `Saldo atual da conta · consultado às ${checkedAt}${cached ? " · cache recente" : ""}.`
+      : "A DeepSeek informou que o saldo não está disponível.");
+  }
+
+  async function refreshDeepSeekBalance(button) {
+    if (!globalThis.matraca || button.disabled) return;
+    if (state.deepSeekBalance && Date.now() - state.deepSeekBalanceAt < 30000) {
+      applyDeepSeekBalance(state.deepSeekBalance, true);
+      return;
+    }
+    button.disabled = true;
+    button.setAttribute("aria-busy", "true");
+    button.textContent = "Consultando…";
+    text("[data-deepseek-balance-detail]", "Consultando a DeepSeek agora.");
+    try {
+      await saveQueue;
+      const result = await globalThis.matraca.request("deepseek.balance.get");
+      state.deepSeekBalance = result;
+      state.deepSeekBalanceAt = Date.now();
+      applyDeepSeekBalance(result);
+    } catch (error) {
+      text("[data-deepseek-balance]", "Consulta falhou");
+      text("[data-deepseek-balance-detail]", error?.message || "A DeepSeek não respondeu.");
+    } finally {
+      button.disabled = false;
+      button.setAttribute("aria-busy", "false");
+      button.textContent = "Atualizar saldo";
+    }
+  }
+
   function reviewProviderLabel(provider) {
     if (provider === "deepseek") return "DeepSeek";
     if (provider === "anthropic") return "Anthropic";
@@ -409,6 +480,7 @@
       if (snapshot.config.runtime?.restartRequired)
         text("[data-save-state]", `Reinicie: usando ${snapshot.config.runtime.gpu}, salvo ${snapshot.config.runtime.desiredGpu}`);
       setHistory(snapshot.history?.entries);
+      applyAiUsage(snapshot.aiUsage);
       applyRuntime(snapshot.state);
       text(
         "[data-accessibility-permission]",
@@ -493,8 +565,12 @@
         item.classList.toggle("active", item === button));
       document.querySelectorAll("[data-settings-panel]").forEach(panel =>
         panel.classList.toggle("active", panel.dataset.settingsPanel === button.dataset.settingsTab));
+      if (button.dataset.settingsTab === "review") refreshAiUsage();
     });
   });
+  document.querySelector("[data-ai-usage-refresh]")?.addEventListener("click", refreshAiUsage);
+  document.querySelector("[data-deepseek-balance-refresh]")?.addEventListener("click", event =>
+    refreshDeepSeekBalance(event.currentTarget));
   document.querySelector("[data-model-choice]")?.addEventListener("change", event => {
     const model = state.models.find(item => item.id === event.currentTarget.value);
     const button = document.querySelector("[data-model-download]");

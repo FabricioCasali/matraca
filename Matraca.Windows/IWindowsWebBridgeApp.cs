@@ -16,6 +16,7 @@ internal interface IWindowsWebBridgeApp
     RawConfig LoadRawConfig();
     IReadOnlyList<string> ListAudioDevices();
     List<DictationHistoryEntry> HistorySnapshot();
+    List<AiUsageBucket> AiUsageSnapshot();
     bool RemoveHistory(DateTime at, string text);
     void ClearHistory();
     Task<(RawConfig Config, bool RestartRequired)> ApplyAndSaveConfigPatchAsync(string patchJson);

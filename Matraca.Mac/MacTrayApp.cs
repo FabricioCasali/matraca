@@ -100,6 +100,7 @@ internal sealed class MacTrayApp : IDisposable
     internal List<DictationHistoryEntry> HistorySnapshot()
         => _controller.CurrentHistory?.Snapshot() ?? [];
     internal bool PostProcessingActive => _controller.PostProcessingActive;
+    internal List<AiUsageBucket> AiUsageSnapshot() => _controller.UsageLedger?.Snapshot() ?? [];
     internal TargetToken? CurrentWebTarget
     {
         get { lock (_webTargetGate) return _webTarget; }

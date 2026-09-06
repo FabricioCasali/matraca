@@ -129,6 +129,17 @@ button:disabled { cursor: not-allowed; opacity: .48; }
 .review-usage small { color: var(--faint); font-size: var(--font-caption); letter-spacing: .08em; }
 .review-usage strong,.review-usage b { font-size: var(--font-control); font-weight: 600; }
 .review-usage > p { grid-column: 1/-1; margin: 2px 0 0; color: var(--faint); font-size: var(--font-caption); }
+.review-account { margin-top: 10px; overflow: hidden; border: 1px solid color-mix(in srgb,var(--violet) 28%,var(--line)); border-radius: 16px; background: linear-gradient(135deg,color-mix(in srgb,var(--violet) 8%,var(--surface)),var(--surface)); }
+.review-account header,.review-account footer { display: flex; align-items: center; justify-content: space-between; gap: 18px; padding: 19px 23px; }
+.review-account header p,.review-account footer p { margin: 4px 0 0; color: var(--muted); font-size: var(--font-body); }
+.review-account small { color: var(--faint); font-size: var(--font-caption); letter-spacing: .09em; }
+.review-account strong { display: block; margin-top: 5px; font-size: 14px; }
+.review-account button { padding: 10px 13px; border: 1px solid var(--line); border-radius: 9px; background: var(--surface-strong); color: var(--muted); font-size: var(--font-control); white-space: nowrap; }
+.review-account button.primary { border-color: transparent; background: #6e56dc; color: white; }
+.review-account-grid { display: grid; grid-template-columns: repeat(5,1fr); border-block: 1px solid var(--line); }
+.review-account-grid span { min-height: 70px; display: grid; align-content: center; gap: 7px; padding: 13px 18px; border-right: 1px solid var(--line); }
+.review-account-grid span:last-child { border-right: 0; }
+.review-account-grid b { font-size: 16px; }
 .file-control .field { min-width: 0; }
 .speech-stat strong { color: var(--muted); }
 .speech-stat strong.active { color: var(--green); }
@@ -208,6 +219,9 @@ button:disabled { cursor: not-allowed; opacity: .48; }
   .file-control .field { flex: 1; width: 100%; }
   .setting.compact { flex-wrap: wrap; }
   .review-usage { grid-template-columns: 1fr 1fr; }
+  .review-account header,.review-account footer { align-items: flex-start; flex-direction: column; }
+  .review-account-grid { grid-template-columns: 1fr 1fr; }
+  .review-account-grid span { border-bottom: 1px solid var(--line); }
 }
 
 @media (prefers-reduced-motion: no-preference) {

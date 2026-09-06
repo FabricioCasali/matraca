@@ -15,11 +15,13 @@ public sealed class WebUiContractTests
         Assert.Contains("soundPreview = true", windows);
         Assert.Contains("historyClear = true", windows);
         Assert.Contains("reviewUsage = entry.ReviewUsage", windows);
+        Assert.Contains("\"deepseek.balance.get\"", windows);
         Assert.Contains("platform = \"macos\"", macos);
         Assert.Contains("filePick = false", macos);
         Assert.Contains("soundPreview = false", macos);
         Assert.Contains("historyClear = true", macos);
         Assert.Contains("reviewUsage = entry.ReviewUsage", macos);
+        Assert.Contains("\"deepseek.balance.get\"", macos);
     }
 
     [Fact]
@@ -36,6 +38,8 @@ public sealed class WebUiContractTests
         Assert.Contains("request(\"sound.preview\"", script);
         Assert.Contains("request(\"history.clear\")", script);
         Assert.Contains("data-history-total-tokens", html);
+        Assert.Contains("data-deepseek-balance-refresh", html);
+        Assert.Contains("request(\"deepseek.balance.get\")", script);
         Assert.Contains("confirm(\"Limpar todo o histórico local?", script);
     }
 

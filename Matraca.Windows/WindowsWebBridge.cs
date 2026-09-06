@@ -89,6 +89,8 @@ internal sealed class WindowsWebBridge : IDisposable
                 "history.clear" => ClearHistory(parameters),
                 "history.copy" => CopyHistory(parameters),
                 "history.repaste" => await RepasteHistoryAsync(parameters),
+                "ai.usage.get" => BuildAiUsage(),
+                "deepseek.balance.get" => await GetDeepSeekBalanceAsync(),
                 "file.pick" => await PickFileAsync(parameters),
                 "sound.preview" => await PreviewSoundAsync(parameters),
                 "hotkey.capture.start" => await CaptureHotkeyAsync(),
@@ -165,6 +167,7 @@ internal sealed class WindowsWebBridge : IDisposable
         },
         config = BuildConfig(),
         history = BuildHistory(),
+        aiUsage = BuildAiUsage(),
         state = BuildState(),
         permissions = BuildPermissions(),
         devices = _app.ListAudioDevices(),
@@ -225,6 +228,43 @@ internal sealed class WindowsWebBridge : IDisposable
             },
         }).ToArray(),
     };
+
+    private object BuildAiUsage() => new
+    {
+        providers = _app.AiUsageSnapshot()
+            .GroupBy(item => item.Provider)
+            .OrderBy(group => group.Key)
+            .Select(group => new
+            {
+                provider = group.Key,
+                requests = group.Sum(item => item.Requests),
+                promptTokens = group.Sum(item => item.PromptTokens),
+                promptCacheHitTokens = group.Sum(item => item.PromptCacheHitTokens),
+                promptCacheMissTokens = group.Sum(item => item.PromptCacheMissTokens),
+                completionTokens = group.Sum(item => item.CompletionTokens),
+                reasoningTokens = group.Sum(item => item.ReasoningTokens),
+                totalTokens = group.Sum(item => item.TotalTokens),
+            })
+            .ToArray(),
+    };
+
+    private async Task<object> GetDeepSeekBalanceAsync()
+    {
+        DeepSeekBalance result = await DeepSeekBalanceClient
+            .GetCurrentAsync(_app.CurrentConfig.PostProcessApiKey)
+            .ConfigureAwait(false);
+        return new
+        {
+            isAvailable = result.IsAvailable,
+            balances = result.Balances.Select(balance => new
+            {
+                currency = balance.Currency,
+                totalBalance = balance.TotalBalance,
+                grantedBalance = balance.GrantedBalance,
+                toppedUpBalance = balance.ToppedUpBalance,
+            }).ToArray(),
+        };
+    }
 
     private object DeleteHistory(JsonElement parameters)
     {
