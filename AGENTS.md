@@ -43,4 +43,4 @@ Ao mudar o design intencionalmente, atualize especificacao, tokens, mocks afetad
 
 Estado executavel continua em `docs/BOARD.md` da raiz. O quadro importado em `design/docs/BOARD.md` e referencia de adocao, nao um segundo backlog operacional.
 
-Nao sobrescreva mudancas de outros agentes. Nao inclua `.lh/`, `.nodeterm/`, dados locais ou segredos em commits. Preserve estudos historicos em `design/mt-005/`. Push somente mediante pedido explicito do usuario.
+Nao sobrescreva mudancas de outros agentes. Nao inclua `.lh/`, `.nodeterm/`, dados locais ou segredos em commits. Os estudos antigos de `design/mt-005/` foram removidos por pedido do usuario; consulte o historico Git se necessario. Push somente mediante pedido explicito do usuario.

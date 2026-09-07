@@ -24,7 +24,7 @@ As instrucoes para agentes estao no `AGENTS.md` da raiz do repositorio.
 | Frame e animacao | [Gravacao](matraca-gravacao.html) |
 | Marca | [Identidade](matraca-identidade.html) |
 
-As entradas pequenas carregam `matraca-experiencia.html` por iframe. Preserve a estrutura da pasta. Os HTMLs podem ser servidos por um servidor estatico local; nao dependem do OpenDesign para renderizar. Os estudos anteriores em `mt-005/` permanecem como historico, nao substituem a especificacao atual.
+As entradas pequenas carregam `matraca-experiencia.html` por iframe. Preserve a estrutura da pasta. Os HTMLs podem ser servidos por um servidor estatico local; nao dependem do OpenDesign para renderizar. Os estudos desatualizados de `mt-005/` foram removidos; continuam recuperaveis pelo historico Git.
 
 ## Validacao
 
