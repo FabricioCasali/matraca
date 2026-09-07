@@ -1,0 +1,7 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="128" height="128"><title>Matraca 03A - m que fala</title><style>
+    .writing-stroke{stroke-dasharray:100 100;animation:draw 2400ms cubic-bezier(.35,0,.25,1) infinite}
+    .letter-ink{animation:fade 2400ms linear infinite}
+    @keyframes draw{0%,8%{stroke-dashoffset:100}68%,100%{stroke-dashoffset:0}}
+    @keyframes fade{0%,84%{opacity:1}94%,100%{opacity:0}}
+    @media(prefers-reduced-motion:reduce){*{animation:none!important}.writing-stroke{stroke-dashoffset:0}.letter-ink{opacity:1}}
+   </style><defs><mask id="matraca-03a-loading-light-mask" maskUnits="userSpaceOnUse" x="0" y="0" width="64" height="64"><path class="writing-stroke" d="M11.5 49V27C11.5 11 32 11 32 27V43V27C32 11 52.5 11 52.5 27V58" pathLength="100" fill="none" stroke="white" stroke-width="17" stroke-linecap="round" stroke-linejoin="round"/></mask></defs><path class="letter-ink" fill="rgb(14,18,23)" fill-rule="evenodd" d="M6 48V27C6 17 12 11 21 11C26 11 30 13 32 17C35 13 39 11 44 11C53 11 58 17 58 27V47L47 57V28C47 24 46 22 42 22C38 22 37 24 37 28V43H27V28C27 24 25 22 22 22C18 22 17 24 17 28V48Z" mask="url(#matraca-03a-loading-light-mask)"/></svg>

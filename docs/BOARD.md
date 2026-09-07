@@ -11,6 +11,26 @@ O desenho da frente 2.0 está em [`PLANO-2.0.md`](PLANO-2.0.md).
 
 ## 🔄 Fazendo
 
+- **MT-037** **Entregar a versao 2.0.0 na main e no GitHub Releases** — conferir
+  instalador, testes e README; publicar main/tag e confirmar artefato remoto.
+  Aceite nativo informado pelo usuario para MT-033/034/035; esses fixes estao
+  concluidos. Landing page fora desta entrega; MT-036 permanece pausado.
+  · `[distribuicao]` · M · importante
+
+- **MT-032** **Adotar Design System 1.0.1** — UI, tokens, aparencia persistida, microfone,
+  consumo e HUD integrados; marca 03A de `design/assets/brand/` incluida nos assets Web
+  dos dois hosts. CMP-001 a CMP-010, FND-001/002/003, BRD-001, MOT-001 e A11Y-001;
+  contratos em `design/docs/`. Parar live drena tambem os frames finais da captura,
+  sem descartar texto. Restam provas reais de audio/entrega, foco/cliques, monitores,
+  Dock/DPI, leitor de tela e animacoes no Windows/macOS. Nomes de microfone ambiguos
+  atualmente impedem captura em vez de associar ajuste ao dispositivo errado; falta
+  resolver identidades duplicadas pelas APIs nativas. ICO/ICNS e troca dos icones
+  nativos de bandeja seguem no empacotamento MT-007. Verificacao Web em
+  `tests/web/ui.test.cjs`, `tests/web/browser.cjs` e `tests/hud-ds101-exclusive.test.cjs`;
+  navegador usa bridge exclusiva de teste, nao comprova o host. Tokens gerados por
+  `node Matraca.Web/export-design.cjs` e conferidos com `--check`.
+  Complementa MT-005, MT-006 e MT-031, sem encerrar suas provas pendentes.
+  · `[design-system]` · G · importante
 - **MT-004** **Fase 2 — o Mac dita** — fatias 1–7 verdes. Endurecimento implementa
   histórico/pós-processamento, clipboard com restauração integral, feedback sonoro,
   instância única, sleep/wake, troca de microfone e shutdown drenando entregas aceitas.
@@ -110,4 +130,14 @@ _(nada a fazer)_
 
 ## ⏸️ Pausado
 
-_(nada pausado)_
+- **MT-036** **Retirar credenciais de IA do JSON em texto claro** — bloqueado por
+  decisao de dependencia e migracao. `Config.SaveRaw` serializa `RawConfig` completo
+  no temporario e no JSON final; `ConfigSnapshot` protege somente o snapshot Web.
+  Revisao e saldo consomem chave literal/configurada ou variavel de ambiente, sem
+  resolver `op://`. Padrao do ambiente exige 1Password e referencia validada, mas
+  falta definir se o produto distribuido exigira 1Password/CLI ou usara um lancador
+  do ambiente, como autenticar sem interromper ditado e como migrar chaves existentes
+  com confirmacao de funcionamento antes de remover o legado. Nao basta ocultar
+  campos ou gravar `op://` literal: isso quebra autenticacao. Nenhuma configuracao
+  pessoal/segredo lido, referencia inventada, credencial alterada ou exposicao
+  externa investigada. · `[seguranca]` · M · importante

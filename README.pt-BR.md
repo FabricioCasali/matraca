@@ -14,21 +14,22 @@ O áudio permanece na memória da máquina e nunca é enviado ou gravado em disc
 
 | Canal | Plataforma | Estado |
 |---|---|---|
-| [v1.1.0](https://github.com/FabricioCasali/matraca/releases/tag/v1.1.0) | Windows x64 | Release pública mais recente, com a interface nativa anterior. |
-| `main` / 2.0 | Windows x64 e macOS Apple Silicon | Em desenvolvimento. A arquitetura compartilhada está funcionando, mas ainda faltam validações físicas e o empacotamento final. |
+| [Última release](https://github.com/FabricioCasali/matraca/releases/latest) | Windows x64 | Instalador self-contained publicado pelo GitHub Actions. |
+| `main` / 2.0.0 | Windows x64 e macOS Apple Silicon | Interface compartilhada com Design System 1.0.1. Distribuição macOS e outras provas nativas continuam pendentes. |
 
 Para instalar a versão pública no Windows, baixe
-[`matraca-setup-1.1.0.exe`](https://github.com/FabricioCasali/matraca/releases/download/v1.1.0/matraca-setup-1.1.0.exe).
-O instalador atual não possui assinatura digital. O Windows pode exibir um aviso antes de
-executá-lo.
+[o instalador da última release](https://github.com/FabricioCasali/matraca/releases/latest).
+Confira o estado da assinatura nas notas da release. Instaladores sem assinatura podem gerar
+um aviso do Windows.
 
-As seções abaixo descrevem o código atual da `main`, que será a versão 2.0. Não há `.dmg` nem
+As seções abaixo descrevem a linha de código 2.0.0. Não há `.dmg` nem
 release pública para macOS ainda.
 
 ## O que existe na 2.0
 
 - Whisper local com Vulkan no Windows e Metal no macOS, com fallback para CPU.
-- Uma interface compartilhada para Windows e Mac, com tema claro e escuro.
+- Interface compartilhada para Windows e Mac: cinco famílias de cor, modos claro/escuro/sistema e aparência persistida.
+- Barra de título fixa na rolagem; duplo clique maximiza/restaura no Windows sem iniciar arraste. Aparência fica somente em Configurações / Aparência.
 - Quatro modos de ditado: `toggle`, `hold`, `live` e `push`.
 - HUD de gravação, medidor de microfone e limiar visual para detecção de voz.
 - Entrega Unicode direta, sem alterar o clipboard, ou colagem com restauração do conteúdo anterior.
@@ -93,11 +94,28 @@ plataforma atual. Os mesmos nomes de tecla e campos de configuração servem nos
 | `startSound` / `stopSound` | vazio | Arquivos de som locais opcionais. |
 | `silenceMs` | `450` | Pausa que encerra uma frase nos modos contínuos. |
 | `phraseMaxSeconds` | `6` | Após esse tempo de fala contínua, uma pausa curta já fecha a frase. |
-| `vadThreshold` | `0.012` | Limiar geral da detecção de voz. |
+| `vadThreshold` | `0.012` | Campo legado; a captura contínua usa o ajuste do microfone real descrito abaixo. |
 | `micSensitivity` | `{}` | Limiares por nome de microfone. A tela de áudio permite ajustá-los sobre o medidor ao vivo. |
 | `vocabulary` | `[]` | Termos enviados como contexto inicial ao Whisper. |
 | `gpu` | `auto` | `auto`, `gpu` ou `cpu`. O alias legado `vulkan` ainda funciona no Windows. |
 | `idleUnloadMinutes` | `5` | Libera o modelo após esse período ocioso. `0` mantém o modelo carregado. |
+
+`vadThreshold` permanece na configuração legada, sem ajuste genérico na interface.
+Ditado contínuo e monitor usam a entrada `micSensitivity` do dispositivo real, ou `0.012`
+quando ela não existe. Nomes duplicados e ambíguos de microfone atualmente bloqueiam a captura
+em vez de aplicar o ajuste de outro dispositivo.
+
+### Aparência
+
+Configurações / Aparência é o único lugar para alterar estas preferências, com aplicação imediata.
+
+| Campo | Padrão | Valores |
+|---|---|---|
+| `themeMode` | `system` | `light`, `dark`, `system` |
+| `palette` | `olive` | `olive`, `ochre`, `terracotta`, `plum`, `teal` |
+
+Interface e HUD usam os SVGs da marca 03A aprovada e respeitam movimento reduzido.
+A substituição dos ícones nativos de bandeja/instalador continua pendente.
 
 ### Entrega e armazenamento
 
@@ -137,6 +155,9 @@ Para respostas da DeepSeek, o histórico registra tokens da chamada e custo esti
 consulta de saldo chama `https://api.deepseek.com/user/balance` apenas quando o usuário aperta o
 botão correspondente e reutiliza o resultado por 30 segundos.
 
+Tokens/custos desconhecidos não viram zero. Cobertura parcial aparece como subtotal conhecido;
+registros legados não recebem a versão atual da tabela. Apagar ditados não apaga consumo.
+
 ## Privacidade e rede
 
 - O áudio existe somente em memória durante captura e transcrição.
@@ -150,15 +171,29 @@ As chaves de API informadas na interface são gravadas no `appsettings.json` loc
 armazená-las no arquivo, use as variáveis de ambiente descritas acima. Consulte a
 [política completa](CODE_SIGNING_POLICY.md#privacy-policy).
 
+Armazenamento criptografado de credenciais / integração com 1Password **não está implementado**
+(MT-036). O aplicativo não resolve referências `op://`.
+
 ## Compilar e testar
 
-Requer o SDK do .NET 8. A solução inteira deve compilar mesmo quando o comando roda fora do
+Requer o SDK do .NET 8 e Node.js 18 ou superior (CI usa Node 22).
+A solução inteira deve compilar mesmo quando o comando roda fora do
 Windows:
 
 ```bash
 dotnet build Matraca.sln -c Release -p:EnableWindowsTargeting=true
 dotnet test Matraca.sln -c Release
+node design/tests/matraca-design-system.test.cjs
+node design/tests/matraca-prototype.test.cjs
+node design/tests/matraca-brand.test.cjs
+node Matraca.Web/export-design.cjs --check
+node --test tests/web/ui.test.cjs tests/hud-ds101-exclusive.test.cjs
 ```
+
+Para os testes de navegador, disponibilize `playwright` via `NODE_PATH` ou instalação local,
+tenha Microsoft Edge instalado e execute `node tests/web/browser.cjs`. A bridge é simulada e
+isolada: prova layout e interações, não áudio, entrega ou acessibilidade nativos. Compilar a
+solução no Windows não executa o shim nativo macOS nem comprova o pacote Mac.
 
 ### Windows
 
@@ -166,13 +201,23 @@ Para gerar o instalador self-contained x64, instale também o
 [Inno Setup 6](https://jrsoftware.org/isinfo.php):
 
 ```powershell
-.\installer\build-installer.ps1 -Version 0.0.0
-# saída: installer\output\matraca-setup-0.0.0.exe
+.\installer\build-installer.ps1
+# usa a versão do projeto Windows; saída: installer\output\matraca-setup-2.0.0.exe
+# versão explícita de CI: .\installer\build-installer.ps1 -Version 0.0.0
 ```
 
 O instalador pode criar um atalho de inicialização e, opcionalmente, instalar a variante
 `uiAccess` para ditar em janelas elevadas. Essa opção cria e confia um certificado local para
 assinar o executável instalado.
+
+### Publicar uma versão
+
+Depois dos testes e do push autorizado para `main`, crie a tag `v<versão>` no commit desejado
+e envie somente essa tag, por exemplo `git push origin v2.0.0`. O workflow `build` verifica o
+código, publica as duas variantes de manifest Windows, gera o instalador Inno Setup, assina
+quando configurado e cria a release no GitHub. Push normal na `main` gera artefato de CI, não
+release pública. Confirme o run do Actions e o instalador anexado antes de anunciar publicação.
+Não existe atualização automática nem instalação local nessa etapa; publicar não reinicia o app.
 
 ### macOS
 

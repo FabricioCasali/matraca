@@ -78,7 +78,7 @@ Referências atuais de adaptação: 760 px para reorganização principal; compo
 
 ## BRD-001 — Marca e ícones
 
-A família do monograma “m” é a direção mantida por ora. [O estudo de identidade](../matraca-identidade.html) conserva o original e 03A/03B/03C; o default técnico do arquivo é 03A, **não uma prova da seleção que estava aberta no navegador quando houve a aprovação**. No empacotamento, identificar explicitamente o SVG escolhido antes de substituir todas as marcas. Não reabrir conceitos de balão ou aspas por iniciativa do implementador.
+A variante explicitamente confirmada pelo usuário é **03A, “m que fala” (`monogram-speech`)**. Os [SVGs exportados](../assets/brand/README.md) são a referência para empacotamento. O estudo conserva as outras variantes apenas para histórico. A terminação diagonal pertence à marca; a remoção da “perninha” dizia respeito somente ao prolongamento extra da animação de escuta. Não reabrir conceitos ou trocar a variante por iniciativa do implementador.
 
 Ícones de função são vetoriais, de linguagem uniforme. Botão apenas com ícone exige nome acessível. Bandeja/barra de menus deve ter versão monocromática e indicação de estado além da cor. Pacote ICO/ICNS e nome tipográfico final continuam pendentes; exports SVG dos estudos não são esse pacote.
 
@@ -103,6 +103,8 @@ Usar select para escolhas finitas; controles de tema mantêm modo e família ind
 ### CMP-004 — Painel e navegação
 
 `.panel` agrupa uma tarefa relacionada. Navegação principal usa estado atual identificável; subseções de configuração não substituem a navegação de página. Menus fecham com Escape e clique fora; ao fechar, o foco volta ao acionador quando ainda existir. Nenhum menu deve ficar inacessível fora da área útil em janelas pequenas.
+
+No aplicativo, a barra de titulo permanece fora da area rolavel, com controles de janela acessiveis sem sobrepor o conteudo. Duplo clique alterna maximizar/restaurar no Windows; arraste exige movimento, sem consumir os cliques. Modo e familia de cor ficam somente em Configuracoes/Aparencia (MT-033/034/035), nao na barra superior. Os tokens 1.0.1 de cor, geometria e movimento permanecem inalterados.
 
 ### CMP-005 — Estado e aviso
 
@@ -181,7 +183,7 @@ Os arquivos de entrada, salvo o estudo de identidade, dependem de `matraca-exper
 
 | Lacuna | Tratamento antes de declarar conformidade |
 | --- | --- |
-| Marca provisória no app, monogramas no estudo | Identificar SVG selecionado e propagar; gerar pacote nativo posteriormente. |
+| Marca provisória no app | Propagar os SVGs 03A confirmados; gerar pacote ICO/ICNS posteriormente. |
 | Tokens/literais repetidos nos HTMLs | Adotar fonte compartilhada no refactor e verificar valores; não tratar duplicação como padrão. |
 | Configuração mock independente da execução mock | Integrar ao estado real; modos e atalho completos não estão executados pelo protótipo. |
 | Microfone e espectro sintéticos | Conectar métricas e identidade real do dispositivo; implementar persistência por microfone. |

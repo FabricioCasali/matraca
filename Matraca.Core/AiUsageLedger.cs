@@ -22,7 +22,10 @@ public sealed class AiUsageLedger
 
     public List<AiUsageBucket> Snapshot()
     {
-        lock (_gate) return new List<AiUsageBucket>(_items);
+        lock (_gate) return _items.Select(item => item with
+        {
+            PricingVersions = item.PricingVersions.ToArray(),
+        }).ToList();
     }
 
     public bool Add(TextReviewUsage usage)
@@ -41,13 +44,24 @@ public sealed class AiUsageLedger
                 usage.Provider,
                 usage.Model,
                 (previous?.Requests ?? 0) + 1,
-                (previous?.PromptTokens ?? 0) + usage.PromptTokens,
-                (previous?.PromptCacheHitTokens ?? 0) + usage.PromptCacheHitTokens,
-                (previous?.PromptCacheMissTokens ?? 0) + usage.PromptCacheMissTokens,
-                (previous?.CompletionTokens ?? 0) + usage.CompletionTokens,
-                (previous?.ReasoningTokens ?? 0) + usage.ReasoningTokens,
-                (previous?.TotalTokens ?? 0) + usage.TotalTokens,
-                (previous?.EstimatedCostUsd ?? 0) + (usage.EstimatedCostUsd ?? 0));
+                (previous == null ? 0 : previous.PromptTokens) + usage.PromptTokens,
+                (previous == null ? 0 : previous.PromptCacheHitTokens) + usage.PromptCacheHitTokens,
+                (previous == null ? 0 : previous.PromptCacheMissTokens) + usage.PromptCacheMissTokens,
+                (previous == null ? 0 : previous.CompletionTokens) + usage.CompletionTokens,
+                (previous == null ? 0 : previous.ReasoningTokens) + usage.ReasoningTokens,
+                (previous == null ? 0 : previous.TotalTokens) + usage.TotalTokens,
+                // A partial cost is a known subtotal, never proof of full coverage.
+                previous?.EstimatedCostUsd == null && usage.EstimatedCostUsd == null
+                    ? null : (previous?.EstimatedCostUsd ?? 0) + (usage.EstimatedCostUsd ?? 0),
+                (previous == null ? 0 : previous.PricedRequests) + (usage.EstimatedCostUsd.HasValue ? 1 : 0),
+                (previous == null ? 0 : previous.UnpricedRequests) + (usage.EstimatedCostUsd.HasValue ? 0 : 1))
+            {
+                PricingVersions = (previous?.PricingVersions ?? [])
+                    .Concat(usage.PricingVersion is { Length: > 0 } version ? [version] : [])
+                    .Distinct(StringComparer.Ordinal)
+                    .OrderBy(version => version, StringComparer.Ordinal)
+                    .ToArray(),
+            };
             if (index >= 0) _items[index] = updated;
             else _items.Add(updated);
             if (Save()) return true;
@@ -63,7 +77,10 @@ public sealed class AiUsageLedger
         {
             if (!File.Exists(_path)) return;
             var loaded = JsonSerializer.Deserialize<List<AiUsageBucket>>(File.ReadAllText(_path));
-            if (loaded != null) _items.AddRange(loaded);
+            if (loaded != null) _items.AddRange(loaded.Select(item => item with
+            {
+                PricingVersions = item.PricingVersions ?? [],
+            }));
         }
         catch (Exception exception)
         {

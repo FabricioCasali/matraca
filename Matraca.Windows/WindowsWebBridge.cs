@@ -33,6 +33,7 @@ internal sealed class WindowsWebBridge : IDisposable
         _app = app ?? throw new ArgumentNullException(nameof(app));
         _microphone = new WindowsMicrophoneMonitor(shell);
         _microphone.Frame += OnMicrophoneFrame;
+        _microphone.Error += OnMicrophoneError;
         _app.StateChanged += OnStateChanged;
         _app.ConfigChanged += OnConfigChanged;
         _app.DeliveryCompleted += OnDeliveryCompleted;
@@ -226,7 +227,7 @@ internal sealed class WindowsWebBridge : IDisposable
                 reasoningTokens = entry.ReviewUsage.ReasoningTokens,
                 totalTokens = entry.ReviewUsage.TotalTokens,
                 estimatedCostUsd = entry.ReviewUsage.EstimatedCostUsd,
-                pricingVersion = AiCostEstimator.DeepSeekPricingVersion,
+                pricingVersion = entry.ReviewUsage.PricingVersion,
             },
         }).ToArray(),
     };
@@ -236,18 +237,25 @@ internal sealed class WindowsWebBridge : IDisposable
         providers = _app.AiUsageSnapshot()
             .GroupBy(item => item.Provider)
             .OrderBy(group => group.Key)
-            .Select(group => new
+            .Select(group =>
             {
-                provider = group.Key,
-                requests = group.Sum(item => item.Requests),
-                promptTokens = group.Sum(item => item.PromptTokens),
-                promptCacheHitTokens = group.Sum(item => item.PromptCacheHitTokens),
-                promptCacheMissTokens = group.Sum(item => item.PromptCacheMissTokens),
-                completionTokens = group.Sum(item => item.CompletionTokens),
-                reasoningTokens = group.Sum(item => item.ReasoningTokens),
-                totalTokens = group.Sum(item => item.TotalTokens),
-                estimatedCostUsd = group.Sum(item => item.EstimatedCostUsd),
-                pricingVersion = AiCostEstimator.DeepSeekPricingVersion,
+                AiUsageSummary summary = AiUsageSummary.Create(group);
+                return new
+                {
+                    provider = group.Key,
+                    requests = summary.Requests,
+                    promptTokens = summary.PromptTokens,
+                    promptCacheHitTokens = summary.PromptCacheHitTokens,
+                    promptCacheMissTokens = summary.PromptCacheMissTokens,
+                    completionTokens = summary.CompletionTokens,
+                    reasoningTokens = summary.ReasoningTokens,
+                    totalTokens = summary.TotalTokens,
+                    estimatedCostUsd = summary.EstimatedCostUsd,
+                    pricedRequests = summary.PricedRequests,
+                    unpricedRequests = summary.UnpricedRequests,
+                    coverageKnown = summary.CoverageKnown,
+                    pricingVersions = summary.PricingVersions,
+                };
             })
             .ToArray(),
     };
@@ -526,28 +534,50 @@ internal sealed class WindowsWebBridge : IDisposable
                     await _app.EndMicrophoneMonitorAsync().ConfigureAwait(false);
                 return new { started = false, currentDevice = device, threshold = CurrentThreshold };
             }
-            _monitoredDevice = device;
+            _monitoredDevice = "";
             Array.Clear(_smoothedBands);
             _peak = 0;
-            try { await _microphone.StartAsync(device).ConfigureAwait(false); }
-            catch
-            {
-                if (Interlocked.Exchange(ref _microphoneSuspendedController, 0) != 0)
-                    await _app.EndMicrophoneMonitorAsync().ConfigureAwait(false);
-                throw;
-            }
+            await _microphone.StartAsync(device, generation: generation).ConfigureAwait(false);
             if (generation != Volatile.Read(ref _microphoneGeneration))
             {
                 await _microphone.StopAsync().ConfigureAwait(false);
                 return new { started = false, currentDevice = device, threshold = CurrentThreshold };
             }
+            _monitoredDevice = _microphone.CurrentDevice
+                ?? throw new InvalidOperationException("O microfone nao informou sua identidade real.");
+            if (!_app.CurrentConfig.MicSensitivity.ContainsKey(_monitoredDevice))
+            {
+                var sensitivity = new Dictionary<string, float>(_app.CurrentConfig.MicSensitivity,
+                    StringComparer.OrdinalIgnoreCase) { [_monitoredDevice] = 0.012f };
+                await _app.ApplyAndSaveConfigPatchAsync(JsonSerializer.Serialize(new { micSensitivity = sensitivity }))
+                    .ConfigureAwait(false);
+            }
+            if (generation != Volatile.Read(ref _microphoneGeneration))
+            {
+                await _microphone.StopAsync().ConfigureAwait(false);
+                _monitoredDevice = "";
+                return new { started = false, currentDevice = "", threshold = 0.012f };
+            }
             return new
             {
                 started = true,
                 devices = _microphone.ListDevices(),
-                currentDevice = device,
+                currentDevice = _monitoredDevice,
                 threshold = CurrentThreshold,
             };
+        }
+        catch (Exception exception)
+        {
+            try { await _microphone.StopAsync().ConfigureAwait(false); }
+            catch (Exception cleanup) { Logger.Error("Falha ao limpar monitor", cleanup); }
+            finally
+            {
+                _monitoredDevice = "";
+                Emit("mic.error", new { message = exception.Message });
+                if (Interlocked.Exchange(ref _microphoneSuspendedController, 0) != 0)
+                    await _app.EndMicrophoneMonitorAsync().ConfigureAwait(false);
+            }
+            throw;
         }
         finally { _microphoneGate.Release(); }
     }
@@ -561,6 +591,7 @@ internal sealed class WindowsWebBridge : IDisposable
             try { await _microphone.StopAsync().ConfigureAwait(false); }
             finally
             {
+                _monitoredDevice = "";
                 if (Interlocked.Exchange(ref _microphoneSuspendedController, 0) != 0)
                     await _app.EndMicrophoneMonitorAsync().ConfigureAwait(false);
             }
@@ -605,10 +636,30 @@ internal sealed class WindowsWebBridge : IDisposable
             ?? throw new InvalidOperationException("O item do histórico não existe mais.");
     }
 
-    private float CurrentThreshold => _app.CurrentConfig.VadThresholdFor(_monitoredDevice);
+    private float CurrentThreshold => DictationController.MicrophoneThreshold(_app.CurrentConfig, _microphone.CurrentDevice);
+
+    private async void OnMicrophoneError(int generation, string message)
+    {
+        await _microphoneGate.WaitAsync().ConfigureAwait(false);
+        try
+        {
+            if (generation != Volatile.Read(ref _microphoneGeneration)) return;
+            try { await _microphone.StopAsync().ConfigureAwait(false); }
+            finally
+            {
+                _monitoredDevice = "";
+                Emit("mic.error", new { message });
+                if (Interlocked.Exchange(ref _microphoneSuspendedController, 0) != 0)
+                    await _app.EndMicrophoneMonitorAsync().ConfigureAwait(false);
+            }
+        }
+        catch (Exception exception) { Logger.Error("Falha ao parar monitor", exception); }
+        finally { _microphoneGate.Release(); }
+    }
 
     private void OnMicrophoneFrame(float rms, float peak, float[] bands)
     {
+        if (string.IsNullOrEmpty(_monitoredDevice)) return;
         for (int index = 0; index < _smoothedBands.Length; index++)
             _smoothedBands[index] = Math.Max(bands[index], _smoothedBands[index] * 0.82f);
         _peak = Math.Max(peak, _peak * 0.94f);
@@ -652,29 +703,13 @@ internal sealed class WindowsWebBridge : IDisposable
             text,
             at = DateTime.Now,
             history = BuildHistory(),
+            delivered = result == TextDeliveryResult.Delivered,
+            deliveryResult = result.ToString(),
+            streaming,
         });
 
     private static object BuildPublicConfig(RawConfig raw)
-    {
-        JsonElement serialized = JsonSerializer.SerializeToElement(raw, JsonOptions);
-        var result = new Dictionary<string, object?>();
-        foreach (JsonProperty property in serialized.EnumerateObject())
-        {
-            if (property.Name is nameof(RawConfig.postProcessApiKey)
-                or nameof(RawConfig.postProcessOpenAiApiKey)
-                or nameof(RawConfig.postProcessDeepSeekApiKey)) continue;
-            result[property.Name] = property.Value.Clone();
-        }
-        string provider = Config.NormalizePostProcessProvider(raw.postProcessProvider);
-        result["postProcessProvider"] = provider;
-        result["postProcessApiKeyConfigured"] = !string.IsNullOrWhiteSpace(provider switch
-        {
-            "openai-compatible" => raw.postProcessOpenAiApiKey,
-            "deepseek" => raw.postProcessDeepSeekApiKey,
-            _ => raw.postProcessApiKey,
-        });
-        return result;
-    }
+        => ConfigSnapshot.Create(raw);
 
     private static void RequireExactProperties(JsonElement parameters, params string[] names)
     {
@@ -707,6 +742,7 @@ internal sealed class WindowsWebBridge : IDisposable
         _app.DeliveryCompleted -= OnDeliveryCompleted;
         _app.ReleaseWebTarget();
         _microphone.Frame -= OnMicrophoneFrame;
+        _microphone.Error -= OnMicrophoneError;
         _microphone.Dispose();
         MessageProduced = null;
         CloseWindowRequested = null;

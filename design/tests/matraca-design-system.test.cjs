@@ -7,6 +7,8 @@ const read=name=>fs.readFileSync(path.join(root,name),'utf8');
 const tokens=JSON.parse(read('docs/design-system-tokens.json'));
 const spec=read('docs/design-system.md');
 const files=[
+ 'tools/export-brand-svg.cjs','assets/brand/README.md',
+ ...Object.keys(require('../tools/export-brand-svg.cjs').buildAssets()),
  'README.md','.gitattributes',
  'docs/design-system.md','docs/design-system-tokens.json','docs/design-system-changelog.md','docs/BOARD.md',
  'docs/configuracoes-inventario.md','docs/consumo-revisao.md','docs/movimento-e-gravacao.md','docs/estudos-de-marca.md',

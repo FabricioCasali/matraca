@@ -108,6 +108,50 @@ public sealed class OpenAiCompatibleTextReviewerTests
         Assert.Equal(30, usage.CompletionTokens);
         Assert.Equal(10, usage.ReasoningTokens);
         Assert.Equal(150, usage.TotalTokens);
+        Assert.NotNull(usage.EstimatedCostUsd);
+        Assert.Equal(AiCostEstimator.DeepSeekPricingVersion, usage.PricingVersion);
+    }
+
+    [Theory]
+    [InlineData("{}")]
+    [InlineData("{\"prompt_tokens\":null,\"completion_tokens\":\"0\"}")]
+    [InlineData("{\"prompt_tokens\":-1}")]
+    public async Task MissingOrInvalidUsageTokensRemainUnknown(string usageJson)
+    {
+        using var http = new HttpClient(new StubHttpMessageHandler((_, _) =>
+            JsonResponse("{\"usage\":" + usageJson + ",\"choices\":[{\"message\":{\"content\":\"Reviewed.\"}}]}")));
+        using var reviewer = new OpenAiCompatibleTextReviewer(http,
+            new Uri(OpenAiCompatibleTextReviewer.DeepSeekEndpoint), "test", "deepseek-v4-flash",
+            "Review.", provider: "deepseek");
+        var result = await reviewer.ReviewWithUsageAsync("raw", CancellationToken.None);
+        Assert.Equal("Reviewed.", result.Text);
+        var usage = Assert.IsType<TextReviewUsage>(result.Usage);
+        Assert.Null(usage.PromptTokens);
+        Assert.Null(usage.CompletionTokens);
+        Assert.Null(usage.ReasoningTokens);
+        Assert.Null(usage.TotalTokens);
+        Assert.Null(usage.EstimatedCostUsd);
+        Assert.Null(usage.PricingVersion);
+    }
+
+    [Fact]
+    public async Task PartialUsageKeepsReportedZeroWithoutInventingOtherCountersOrPrice()
+    {
+        using var http = new HttpClient(new StubHttpMessageHandler((_, _) => JsonResponse("""
+            {"usage":{"prompt_tokens":0,"completion_tokens":0},"choices":[]}
+            """)));
+        using var reviewer = new OpenAiCompatibleTextReviewer(http,
+            new Uri(OpenAiCompatibleTextReviewer.DeepSeekEndpoint), "test", "deepseek-v4-flash",
+            "Review.", provider: "deepseek");
+        var result = await reviewer.ReviewWithUsageAsync("raw", CancellationToken.None);
+        var usage = Assert.IsType<TextReviewUsage>(result.Usage);
+        Assert.Equal(0, usage.PromptTokens);
+        Assert.Equal(0, usage.CompletionTokens);
+        Assert.Null(usage.PromptCacheHitTokens);
+        Assert.Null(usage.PromptCacheMissTokens);
+        Assert.Null(usage.TotalTokens);
+        Assert.Null(usage.EstimatedCostUsd);
+        Assert.Null(usage.PricingVersion);
     }
 
     [Theory]

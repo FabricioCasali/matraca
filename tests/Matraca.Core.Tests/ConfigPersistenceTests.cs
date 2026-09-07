@@ -6,6 +6,52 @@ namespace Matraca.Core.Tests;
 public sealed class ConfigPersistenceTests
 {
     [Fact]
+    public void AppearanceRoundTripsWithoutChangingExistingSettingsOrExposingCredentials()
+    {
+        var root = NewTemporaryRoot();
+        try
+        {
+            var paths = AppPaths.ForMac(root);
+            var raw = new RawConfig
+            {
+                hotkey = "Ctrl+Alt+D", mode = "hold", themeMode = "dark", palette = "teal",
+                focusBorderColor = "#123456", postProcessModel = "local-model",
+                postProcessProvider = "openai-compatible",
+                postProcessApiKey = "test-anthropic", postProcessOpenAiApiKey = "test-openai",
+                postProcessDeepSeekApiKey = "test-deepseek",
+                micSensitivity = new() { ["Studio Mic"] = 0.03f },
+            };
+            Config.SaveRaw(paths, raw);
+            var loaded = Config.LoadRaw(paths, "missing.json");
+            Assert.Equal(JsonSerializer.Serialize(raw), JsonSerializer.Serialize(loaded));
+            var config = Config.Load(paths, "missing.json");
+            Assert.Equal("dark", config.ThemeMode);
+            Assert.Equal("teal", config.Palette);
+            var snapshot = ConfigSnapshot.Create(loaded);
+            using var json = JsonDocument.Parse(JsonSerializer.Serialize(snapshot));
+            Assert.Equal("dark", json.RootElement.GetProperty("themeMode").GetString());
+            Assert.Equal("teal", json.RootElement.GetProperty("palette").GetString());
+            Assert.True(json.RootElement.GetProperty("postProcessApiKeyConfigured").GetBoolean());
+            Assert.DoesNotContain("test-", json.RootElement.GetRawText());
+            Assert.Equal("#123456", json.RootElement.GetProperty("focusBorderColor").GetString());
+        }
+        finally { Directory.Delete(root, recursive: true); }
+    }
+
+    [Fact]
+    public void LegacyConfigKeepsOptionalFieldsAbsentButSnapshotHasAppearanceDefaults()
+    {
+        var raw = JsonSerializer.Deserialize<RawConfig>("""{"mode":"push","history":false}""")!;
+        var snapshot = ConfigSnapshot.Create(raw);
+        Assert.Null(raw.themeMode);
+        Assert.Null(raw.palette);
+        Assert.Equal("system", snapshot["themeMode"]);
+        Assert.Equal("olive", snapshot["palette"]);
+        Assert.Equal("push", Config.FromRaw(raw).Mode);
+        Assert.False(Config.FromRaw(raw).History);
+    }
+
+    [Fact]
     public void CurrentPackagedJsonLoadsAsAuthoritativeFirstRunConfiguration()
     {
         var root = NewTemporaryRoot();

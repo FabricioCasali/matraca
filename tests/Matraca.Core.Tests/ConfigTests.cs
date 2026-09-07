@@ -4,6 +4,57 @@ namespace Matraca.Core.Tests;
 
 public sealed class ConfigTests
 {
+    [Theory]
+    [InlineData(null, "system")]
+    [InlineData("", "system")]
+    [InlineData("invalid", "system")]
+    [InlineData(" LIGHT ", "light")]
+    [InlineData("dark", "dark")]
+    [InlineData("system", "system")]
+    public void ThemeModeIsIndependentOfPalette(string? value, string expected)
+    {
+        var config = Config.FromRaw(new RawConfig { themeMode = value, palette = "plum" });
+        Assert.Equal(expected, config.ThemeMode);
+        Assert.Equal("plum", config.Palette);
+        Assert.Equal(expected, config.WithGpu("cpu").ThemeMode);
+        Assert.Equal("plum", config.WithGpu("cpu").Palette);
+    }
+
+    [Theory]
+    [InlineData(null, "olive")]
+    [InlineData("", "olive")]
+    [InlineData("invalid", "olive")]
+    [InlineData("olive", "olive")]
+    [InlineData("ochre", "ochre")]
+    [InlineData("terracotta", "terracotta")]
+    [InlineData("plum", "plum")]
+    [InlineData(" TEAL ", "teal")]
+    public void PaletteAcceptsOnlyFiveCanonicalFamilies(string? value, string expected)
+    {
+        var config = Config.FromRaw(new RawConfig { themeMode = "dark", palette = value });
+        Assert.Equal(expected, config.Palette);
+        Assert.Equal("dark", config.ThemeMode);
+    }
+
+    [Theory]
+    [InlineData("anthropic", "claude-opus-5")]
+    [InlineData("openai-compatible", "")]
+    [InlineData("openai", "")]
+    [InlineData("deepseek", "")]
+    [InlineData("unknown", "")]
+    public void OnlyAnthropicKeepsItsExistingDefaultModel(string provider, string expected)
+    {
+        foreach (string? model in new string?[] { null, "", "  " })
+            Assert.Equal(expected, Config.FromRaw(new RawConfig
+            {
+                postProcessProvider = provider, postProcessModel = model,
+            }).PostProcessModel);
+        Assert.Equal("custom-model", Config.FromRaw(new RawConfig
+        {
+            postProcessProvider = provider, postProcessModel = " custom-model ",
+        }).PostProcessModel);
+    }
+
     [Fact]
     public void EmptyRawUsesSafeFallbacksAlignedWithPackagedBehavior()
     {

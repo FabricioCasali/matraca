@@ -56,6 +56,11 @@ public sealed class WindowsNativeShellContractTests
         Assert.Contains("WsThickFrame", native);
         Assert.Contains("WmNcLButtonDown", native);
         Assert.Contains("HtCaption", native);
+        Assert.Contains("WindowsNativeMethods.GetCursorPos(out WindowsPoint point)", window);
+        Assert.Contains("(point.X & 0xFFFF) | ((point.Y & 0xFFFF) << 16)", window);
+        Assert.Contains("WindowsNativeMethods.IsZoomed(_window.Handle)", window);
+        Assert.Contains("? WindowsNativeMethods.SwRestore", window);
+        Assert.Contains(": WindowsNativeMethods.SwMaximize", window);
     }
 
     [Fact]

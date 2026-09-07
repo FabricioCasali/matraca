@@ -16,6 +16,8 @@ public sealed class Config
         DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull,
     };
 
+    public string ThemeMode { get; init; } = "system";
+    public string Palette { get; init; } = "olive";
     public string ModelPath { get; init; } = "";
     public string Language { get; init; } = "pt";
     public bool DiscoverMode { get; init; }
@@ -69,6 +71,8 @@ public sealed class Config
 
     public Config WithGpu(string gpu) => new()
     {
+        ThemeMode = ThemeMode,
+        Palette = Palette,
         ModelPath = ModelPath,
         Language = Language,
         DiscoverMode = DiscoverMode,
@@ -201,6 +205,8 @@ public sealed class Config
 
         return new Config
         {
+            ThemeMode = NormalizeThemeMode(raw.themeMode),
+            Palette = NormalizePalette(raw.palette),
             ModelPath = ResolveConfiguredPath(raw.modelPath, paths),
             Language = string.IsNullOrWhiteSpace(raw.language) ? "pt" : raw.language.Trim(),
             DiscoverMode = discover,
@@ -229,7 +235,7 @@ public sealed class Config
             PostProcessProvider = postProcessProvider,
             PostProcessEndpoint = (raw.postProcessEndpoint ?? "").Trim(),
             PostProcessModel = string.IsNullOrWhiteSpace(raw.postProcessModel)
-                ? postProcessProvider == "deepseek" ? "" : "claude-opus-5"
+                ? postProcessProvider == "anthropic" ? "claude-opus-5" : ""
                 : raw.postProcessModel.Trim(),
             PostProcessApiKey = ((postProcessProvider switch
             {
@@ -272,6 +278,19 @@ public sealed class Config
             result[key] = Math.Clamp(value, 0.001f, 0.5f);
         }
         return result;
+    }
+
+    public static string NormalizeThemeMode(string? value)
+    {
+        var mode = (value ?? "").Trim().ToLowerInvariant();
+        return mode is "light" or "dark" or "system" ? mode : "system";
+    }
+
+    public static string NormalizePalette(string? value)
+    {
+        var palette = (value ?? "").Trim().ToLowerInvariant();
+        return palette is "olive" or "ochre" or "terracotta" or "plum" or "teal"
+            ? palette : "olive";
     }
 
     private static string NormalizeMode(string? value)

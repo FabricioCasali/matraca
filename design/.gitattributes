@@ -4,3 +4,6 @@
 /docs/*.md text eol=lf
 /docs/*.json text eol=lf
 /tests/*.cjs text eol=lf
+/tools/*.cjs text eol=lf
+/assets/brand/*.svg text eol=lf
+/assets/brand/*.md text eol=lf

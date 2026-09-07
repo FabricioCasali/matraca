@@ -49,6 +49,12 @@
       <CopyToPublishDirectory>PreserveNewest</CopyToPublishDirectory>
       <TargetPath>Web/%(RecursiveDir)%(Filename)%(Extension)</TargetPath>
     </Content>
+    <Content Include="../design/assets/brand/*.svg">
+      <Link>Web/assets/brand/%(Filename)%(Extension)</Link>
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+      <CopyToPublishDirectory>PreserveNewest</CopyToPublishDirectory>
+      <TargetPath>Web/assets/brand/%(Filename)%(Extension)</TargetPath>
+    </Content>
   </ItemGroup>
 
 </Project>

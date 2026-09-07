@@ -1,15 +1,18 @@
 <!doctype html>
-<html lang="pt-BR">
+<html lang="pt-BR" data-theme="light" data-palette="olive">
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta http-equiv="Content-Security-Policy" content="default-src 'self'; connect-src 'none'; frame-src 'none'; object-src 'none'; media-src 'none'; form-action 'none'; base-uri 'none'; img-src 'self' data:; font-src 'self'; style-src 'self'; script-src 'self'">
   <title>Matraca</title>
+  <link rel="stylesheet" href="design-tokens.css">
   <link rel="stylesheet" href="styles.css">
   <script src="bridge.js" defer></script>
+  <script src="ui-model.js" defer></script>
   <script src="app.js" defer></script>
 </head>
 <body>
+  <p class="field-error" data-announcer role="alert" aria-atomic="true"></p>
   <div class="ambient ambient-one"></div>
   <div class="ambient ambient-two"></div>
 
@@ -18,7 +21,6 @@
       <div></div>
       <div class="titlebar-name">Matraca</div>
       <div class="titlebar-actions">
-        <button class="theme-button" type="button" data-theme-toggle aria-label="Alternar tema">◐</button>
         <div class="window-controls" aria-label="Controles da janela">
           <button type="button" data-window-minimize aria-label="Minimizar">−</button>
           <button type="button" data-window-maximize aria-label="Maximizar ou restaurar">□</button>
@@ -29,13 +31,13 @@
 
     <div class="app-layout">
       <aside class="sidebar">
-        <div class="logo">m<span>.</span></div>
+        <div class="logo"><img data-brand src="assets/brand/matraca-03a-symbol-light.svg" width="48" height="48" alt="Matraca"></div>
         <nav aria-label="Navegação principal">
-          <button class="active" type="button" data-route="home"><span>◉</span>Agora</button>
-          <button type="button" data-route="microphone"><span>≋</span>Microfone</button>
-          <button type="button" data-route="history"><span>⌁</span>Histórico</button>
-          <button type="button" data-route="settings"><span>⌘</span>Parâmetros</button>
-          <button type="button" data-route="onboarding"><span>◎</span>Primeiro uso</button>
+          <button class="active" type="button" data-route="home"><span aria-hidden="true"><svg class="icon" viewBox="0 0 24 24"><path d="M3 11 12 3l9 8v10h-6v-7H9v7H3Z"/></svg></span>Ditado</button>
+          <button type="button" data-route="microphone"><span aria-hidden="true"><svg class="icon" viewBox="0 0 24 24"><rect x="9" y="2" width="6" height="13" rx="3"/><path d="M5 10v2a7 7 0 0 0 14 0v-2M12 19v3M8 22h8"/></svg></span>Microfone</button>
+          <button type="button" data-route="history"><span aria-hidden="true"><svg class="icon" viewBox="0 0 24 24"><path d="M3 4v5h5M3 9a9 9 0 1 1 0 7M12 7v5l3 2"/></svg></span>Histórico</button>
+          <button type="button" data-route="settings"><span aria-hidden="true"><svg class="icon" viewBox="0 0 24 24"><path d="M4 7h4m4 0h8M4 17h10m4 0h2"/><circle cx="10" cy="7" r="2"/><circle cx="16" cy="17" r="2"/></svg></span>Configurações</button>
+          <button type="button" data-route="onboarding"><span aria-hidden="true"><svg class="icon" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M10 8l5 4-5 4"/></svg></span>Primeiro uso</button>
         </nav>
         <div class="privacy"><i></i><span>Áudio processado<br><b>somente aqui</b></span></div>
       </aside>
@@ -43,46 +45,46 @@
       <main class="pages">
         <section class="page active" data-page="home">
           <div class="page-heading">
-            <div><small>MATRACA LOCAL</small><h1 data-home-heading>Sua voz está pronta.</h1></div>
-            <div class="hotkey"><span>ATALHO</span><kbd data-current-hotkey>F15</kbd></div>
+            <div><small>MATRACA LOCAL</small><h1 data-home-heading>Conectando ao Matraca</h1></div>
+            <div class="hotkey"><span>ATALHO</span><kbd data-current-hotkey>—</kbd></div>
           </div>
 
           <section class="voice-card">
-            <div class="voice-copy"><span class="status-pill ready" data-runtime-state><i></i> PRONTO</span><h2>Fale. O resto<br>acontece aqui.</h2><p data-model-summary>Modelo local<br>acelerado por Metal.</p></div>
-            <button class="voice-orbit" data-dictation-toggle type="button" aria-label="Iniciar gravação" aria-pressed="false"><i class="ring ring-one"></i><i class="ring ring-two"></i><i class="ring ring-three"></i><span class="voice-core"><span></span><span></span><span></span><span></span><span></span></span></button>
-            <div class="level"><small>NÍVEL</small><strong>-18<em>dB</em></strong><div><i></i><i></i><i></i><i></i><i></i><i></i></div></div>
+            <div class="voice-copy"><span class="status-pill" data-runtime-state><i></i> CONECTANDO</span><h2>Fale. Siga com seu dia.</h2><p data-model-summary>Consultando o reconhecimento local.</p><p data-dictation-help>Use seu atalho na janela em que deseja escrever.</p></div>
+            <button class="voice-orbit" data-dictation-toggle type="button" aria-label="Iniciar gravação" aria-pressed="false" disabled><img data-brand data-brand-state src="assets/brand/matraca-03a-symbol-light.svg" width="112" height="112" alt=""><span data-dictation-label>Iniciar ditado</span></button>
           </section>
 
           <div class="card-row">
-            <section class="glass-card target-card"><small>DESTINO</small><div><span class="app-icon">&gt;_</span><p><strong>node-terminal</strong><em>Janela fixada</em></p><b>Conectado</b></div></section>
+            <section class="glass-card target-card"><small>ENTREGA</small><p data-target-summary>Use o atalho no aplicativo de destino. O painel não confirma a janela de entrega.</p></section>
             <section class="glass-card"><small>FLUXO</small><div class="segments" data-home-mode><button data-mode="toggle" type="button">Toggle</button><button data-mode="hold" type="button">Hold</button><button data-mode="live" class="active" type="button">Live</button><button data-mode="push" type="button">Push</button></div><p class="supporting">Modo aplicado na próxima sessão.</p></section>
           </div>
 
           <section class="last-phrase"><span class="quote">“</span><div><small data-last-phrase-time>SEM DITADOS</small><p data-last-phrase>O histórico local aparecerá aqui.</p></div><details class="last-phrase-menu" data-last-phrase-menu><summary aria-label="Ações da última frase">•••</summary><div><button data-last-phrase-copy type="button">Copiar</button><button data-last-phrase-repaste type="button">Recolar</button><button class="danger" data-last-phrase-delete type="button">Excluir</button></div></details></section>
 
-          <section class="runtime-preview">
-            <div><small>ESTADOS DO HUD</small><h2>O trabalho aparece.<br>O foco não muda.</h2></div>
-            <div class="runtime-states">
-              <article class="runtime-state listening"><span class="state-icon bars"><i></i><i></i><i></i><i></i></span><div><strong>Ouvindo você</strong><small>00:08 · live</small></div></article>
-              <article class="runtime-state thinking"><span class="state-icon spinner"></span><div><strong>Pensando</strong><small>Whisper local · Metal</small></div></article>
-              <article class="runtime-state writing"><span class="state-icon arrow">↗</span><div><strong>Escrevendo</strong><small>node-terminal</small></div></article>
-              <article class="runtime-state done"><span class="state-icon check">✓</span><div><strong>Texto entregue</strong><small>142 caracteres</small></div></article>
-            </div>
-          </section>
+          <section class="panel"><h2>Ouvir, transcrever e inserir</h2><p>O reconhecimento acontece neste computador. No modo contínuo, as pausas confirmam trechos; não é uma transcrição palavra a palavra.</p><button class="btn" data-route="microphone" type="button">Conferir meu microfone</button><button class="btn" data-route="history" type="button">Ver histórico</button></section>
         </section>
 
         <section class="page" data-page="microphone">
-          <div class="page-heading"><div><small>CALIBRAÇÃO AO VIVO</small><h1>Microfone</h1></div><div class="device"><i></i> <span data-device-label>Microfone padrão</span></div></div>
+          <div class="page-heading"><div><small>AJUSTE POR DISPOSITIVO</small><h1>Microfone</h1></div></div>
+          <div data-microphone-slot="page">
+          <section class="panel microphone-panel" data-microphone-panel>
+          <label>Dispositivo de entrada<select class="select wide" data-config-field="inputDevice" data-device-select><option value="">Padrão do sistema</option></select></label>
+          <p>Ajuste próprio de <strong data-device-label>entrada ainda não identificada</strong>. O teste não inicia um ditado nem insere texto.</p>
           <section class="calibration-card">
             <div class="calibration-copy"><span class="status-pill" data-microphone-state><i></i> AGUARDANDO</span><h2>Fale como você<br>fala normalmente.</h2><p>A área verde mostra exatamente quando o Matraca considera que existe voz.</p></div>
-            <div class="spectrum"><div class="spectrum-head"><span>ESPECTRO · 48 BANDAS</span><span>30 FPS</span></div><div class="spectrum-bars" data-spectrum></div><div class="spectrum-scale"><span>80 Hz</span><span>500</span><span>2k</span><span>8k</span></div></div>
+            <div class="spectrum"><div class="spectrum-head"><span>ESPECTRO · 48 BANDAS</span><span>Sinal medido</span></div><div class="spectrum-bars" data-spectrum aria-hidden="true"></div><div class="spectrum-scale"><span>Graves</span><span>Agudos</span></div></div>
           </section>
-          <section class="threshold-card"><div class="threshold-head"><div><small>SENSIBILIDADE</small><strong data-vad-explanation>Aguardando o microfone.</strong></div><div><small>LIMIAR</small><b data-threshold-value>0.012</b></div></div><div class="threshold"><span class="noise">RUÍDO</span><span class="speech">VOZ</span><i data-live-level></i><em data-threshold-mark><b></b></em><input data-threshold-input type="range" min="0.001" max="0.5" step="0.001" value="0.012" aria-label="Limiar de voz"></div><div class="threshold-scale"><span>mais sensível</span><span>arraste a marca</span><span>ignora mais ruído</span></div></section>
-          <div class="stat-row"><article><small>NÍVEL AGORA</small><strong data-current-level>— dB</strong></article><article><small>PICO</small><strong data-peak-level>— dB</strong></article><article><small>ATUALIZAÇÃO</small><strong>30 fps</strong></article><article class="speech-stat"><small>DECISÃO DO VAD</small><strong data-vad-state><i></i> aguardando</strong></article></div>
+          <section class="threshold-card"><div class="threshold-head"><div><small>SENSIBILIDADE</small><strong data-vad-explanation>Inicie o teste para identificar a entrada e seu ajuste.</strong></div><div><small>LIMIAR</small><b data-threshold-value>—</b></div></div><div class="threshold"><span class="noise">RUÍDO</span><span class="speech">VOZ</span><i data-live-level></i><em data-threshold-mark><b></b></em><input data-threshold-input type="range" min="0.001" max="0.5" step="0.001" disabled aria-label="Sensibilidade deste microfone" aria-describedby="sensitivity-help"></div><div class="threshold-scale"><span>Capta voz mais baixa</span><span>arraste a marca</span><span>Ignora mais ruído</span></div><p id="sensitivity-help">Mova para a esquerda se palavras baixas sumirem; para a direita se o ruído entrar junto. O ajuste é salvo apenas para a entrada identificada.</p></section>
+          <div class="stat-row"><article><small>NÍVEL AGORA</small><strong data-current-level>— dB</strong></article><article><small>PICO</small><strong data-peak-level>— dB</strong></article><article class="speech-stat"><small>DETECÇÃO DE VOZ</small><strong data-vad-state>aguardando</strong></article></div>
+          <div class="detail-actions"><button class="btn primary" data-microphone-start type="button">Testar microfone</button><button class="btn" data-microphone-stop type="button" disabled>Encerrar teste</button><button class="btn" data-microphone-reset type="button" disabled>Redefinir só este microfone</button></div>
+          </section></div>
+          <section class="panel"><h2>Um bom começo</h2><p>Escolha a entrada certa, fale naturalmente e ajuste só se precisar. Sem sinal recebido, o espectro permanece vazio.</p></section>
         </section>
 
         <section class="page" data-page="history">
-          <div class="page-heading"><div><small>SEUS DITADOS</small><h1>Histórico</h1></div><div class="history-tools"><label class="search"><span>⌕</span><input type="search" data-history-search placeholder="Buscar no histórico"></label><button class="clear-history" data-history-clear data-capability="historyClear" type="button" hidden>Limpar tudo</button></div></div>
+          <div class="page-heading"><div><small>SEUS DITADOS</small><h1>Histórico e consumo</h1></div><div class="history-tools"><label class="search"><span>⌕</span><input type="search" data-history-search placeholder="Buscar no histórico" aria-label="Buscar nos textos"></label><select data-history-provider aria-label="Filtrar textos e consumo por provedor"><option value="all">Todos os provedores</option></select><button class="clear-history" data-history-clear data-capability="historyClear" type="button" hidden>Limpar tudo</button></div></div>
+          <section class="panel usage-summary" data-usage-summary></section>
+          <p>A busca filtra apenas textos. Apagar ditados não reduz o consumo acumulado. Chamadas sem dados de uso podem ter custo remoto não registrado.</p>
           <div class="history-shell">
             <div class="history-list" data-history-list><div class="day">CARREGANDO</div></div>
             <section class="history-detail" data-history-detail><div class="detail-meta"><span data-history-time>SELECIONE UM DITADO</span></div><blockquote data-history-text>O histórico local aparecerá aqui.</blockquote><div class="detail-info"><span><small>MODO</small><b data-history-mode>—</b></span><span><small>IDIOMA</small><b data-history-language>—</b></span><span><small>CARACTERES</small><b data-history-length>0</b></span></div><div class="review-usage" data-history-review-usage hidden><div><small>REVISÃO</small><strong data-history-review-model>—</strong></div><span><small>ENTRADA</small><b data-history-prompt-tokens>0</b></span><span><small>EM CACHE</small><b data-history-cache-tokens>0</b></span><span><small>SAÍDA</small><b data-history-completion-tokens>0</b></span><span><small>RACIOCÍNIO</small><b data-history-reasoning-tokens>0</b></span><span><small>TOTAL</small><b data-history-total-tokens>0</b></span><span><small>CUSTO EST.</small><b data-history-estimated-cost>—</b></span><p>Raciocínio já incluído na saída; custo conforme a faixa UTC da chamada.</p></div><div class="detail-actions"><button class="primary" data-history-repaste type="button">Recolar no destino</button><button data-history-copy type="button">Copiar</button><button class="danger" data-history-delete type="button">Apagar</button></div><p class="local-note"><i></i> Este texto está guardado apenas neste computador.</p></section>
@@ -90,18 +92,19 @@
         </section>
 
         <section class="page" data-page="settings">
-          <div class="page-heading"><div><small>PARÂMETROS</small><h1>Tecla e modo</h1></div><span class="saved" data-save-state><i></i> Tudo salvo</span></div>
-          <div class="tabs" data-settings-tabs><button class="active" data-settings-tab="key" type="button">Tecla</button><button data-settings-tab="model" type="button">Modelo</button><button data-settings-tab="audio" type="button">Áudio</button><button data-settings-tab="delivery" type="button">Entrega</button><button data-settings-tab="review" type="button">Revisão</button></div>
+          <div class="page-heading"><div><small>PARÂMETROS</small><h1>Configurações</h1></div><span class="saved" data-save-state role="status">Aguardando configuração</span></div>
+          <nav class="tabs config-navigation" data-settings-tabs aria-label="Seções de configurações"><button class="active" data-settings-tab="key" type="button">Ditado e atalhos</button><button data-settings-tab="model" type="button">Reconhecimento</button><button data-settings-tab="audio" type="button">Áudio</button><button data-settings-tab="delivery" type="button">Entrega</button><button data-settings-tab="review" type="button">Revisão por IA</button><button data-settings-tab="history" type="button">Histórico</button><button data-settings-tab="appearance" type="button">Aparência</button></nav>
 
           <div class="settings-panel active" data-settings-panel="key">
             <section class="setting featured"><div><span class="setting-icon">⌨</span><div><strong>Tecla de ditado</strong><p data-hotkey-help>Use uma tecla dedicada ou uma combinação.</p></div></div><div class="key-control"><kbd data-config-hotkey>F15</kbd><button type="button" data-hotkey-capture="hotkey" data-hotkey-help-target="[data-hotkey-help]">Capturar nova</button></div></section>
             <section class="setting"><div><span class="setting-icon">◌</span><div><strong>Modo de ditado</strong><p>Define se pressionar inicia, alterna ou mantém a captura.</p></div></div><div class="mode-options" data-config-mode><button data-value="toggle" type="button">Toggle</button><button data-value="hold" type="button">Hold</button><button data-value="live" class="active" type="button">Live</button><button data-value="push" type="button">Push</button></div></section>
-            <section class="setting compact"><div><span class="setting-icon">文</span><div><strong>Idioma</strong><p>Limita o reconhecimento ao idioma escolhido.</p></div></div><select class="select" data-config-field="language"><option value="pt">Português</option><option value="en">English</option><option value="es">Español</option><option value="auto">Detectar</option></select></section>
+            <section class="setting compact"><div><span class="setting-icon">文</span><div><strong>Idioma</strong><p>Código livre do idioma; auto detecta automaticamente.</p></div></div><input class="field" data-config-field="language" list="language-options" type="text"><datalist id="language-options"><option value="pt">Português</option><option value="en">English</option><option value="es">Español</option><option value="auto">Detectar</option></datalist></section>
             <section class="setting compact"><div><span class="setting-icon">↵</span><div><strong>Enter automático</strong><p>Envia o texto logo após a entrega; desligado permite revisar.</p></div></div><button class="toggle" data-config-auto-enter type="button" aria-label="Enter automático desligado"><i></i></button></section>
             <section class="setting"><div><span class="setting-icon">⌖</span><div><strong>Tecla para fixar destino</strong><p data-pin-hotkey-help>Opcional: mantém as próximas entregas na mesma janela.</p></div></div><div class="key-control"><kbd data-config-pin-hotkey>Nenhuma</kbd><button type="button" data-hotkey-capture="pinHotkey" data-hotkey-help-target="[data-pin-hotkey-help]">Capturar</button><button class="secondary" type="button" data-clear-config="pinHotkey">Limpar</button></div></section>
           </div>
 
           <div class="settings-panel" data-settings-panel="model">
+            <div data-model-slot="settings"></div>
             <section class="setting featured"><div><span class="setting-icon">◈</span><div><strong>Arquivo do modelo</strong><p>O Whisper carrega este modelo local; nenhum áudio é enviado.</p></div></div><div class="file-control"><input class="field wide" data-config-field="modelPath" type="text" placeholder="models/ggml-large-v3-turbo.bin"><button data-file-pick="modelPath" data-file-kind="model" data-capability="filePick" type="button" hidden>Procurar</button></div></section>
             <section class="setting compact"><div><span class="setting-icon">⚡</span><div><strong>Aceleração</strong><p>A troca GPU/CPU é a única configuração que exige reinício.</p></div></div><select class="select" data-config-field="gpu"><option value="auto">Automática</option><option value="gpu">GPU</option><option value="cpu">CPU</option></select></section>
             <section class="setting compact"><div><span class="setting-icon">◷</span><div><strong>Descarregar quando ocioso</strong><p>Libera a memória do modelo após este período; zero mantém carregado.</p></div></div><label class="number-control"><input data-config-field="idleUnloadMinutes" type="number" min="0" max="240" step="1"><span>min</span></label></section>
@@ -109,7 +112,7 @@
           </div>
 
           <div class="settings-panel" data-settings-panel="audio">
-            <section class="setting featured"><div><span class="setting-icon">≋</span><div><strong>Dispositivo de entrada</strong><p>A calibração e os próximos ditados usam este microfone.</p></div></div><select class="select wide" data-config-field="inputDevice" data-device-select><option value="">Padrão do sistema</option></select></section>
+            <div data-microphone-slot="settings"></div>
             <section class="setting compact"><div><span class="setting-icon">◫</span><div><strong>Pausa encerra a frase</strong><p>Silêncio contínuo acima deste valor fecha uma frase no modo live.</p></div></div><label class="number-control"><input data-config-field="silenceMs" type="number" min="200" max="5000" step="50"><span>ms</span></label></section>
             <section class="setting compact"><div><span class="setting-icon">⌛</span><div><strong>Limite da frase</strong><p>Força um corte para manter baixa a latência de transcrição.</p></div></div><label class="number-control"><input data-config-field="phraseMaxSeconds" type="number" min="2" max="20" step="1"><span>s</span></label></section>
             <section class="setting compact"><div><span class="setting-icon">♪</span><div><strong>Sons de início e fim</strong><p>Confirma pelo ouvido quando o Matraca começa ou para de captar.</p></div></div><button class="toggle" data-config-toggle="beep" type="button"><i></i></button></section>
@@ -120,8 +123,6 @@
 
           <div class="settings-panel" data-settings-panel="delivery">
             <section class="setting compact"><div><span class="setting-icon">↗</span><div><strong>Método de entrega</strong><p>Unicode escreve diretamente; clipboard cobre aplicativos incompatíveis.</p></div></div><select class="select" data-config-field="pasteMethod"><option value="unicode">Unicode</option><option value="clipboard">Clipboard</option></select></section>
-            <section class="setting compact"><div><span class="setting-icon">⌁</span><div><strong>Histórico local</strong><p>Guarda somente texto neste computador para copiar ou recolar depois.</p></div></div><button class="toggle" data-config-toggle="history" type="button"><i></i></button></section>
-            <section class="setting compact"><div><span class="setting-icon">#</span><div><strong>Itens no histórico</strong><p>Ao ultrapassar o limite, os ditados mais antigos são descartados.</p></div></div><label class="number-control"><input data-config-field="historyMaxItems" type="number" min="1" max="5000" step="1"><span>itens</span></label></section>
             <section class="setting compact"><div><span class="setting-icon">▣</span><div><strong>Moldura do destino</strong><p>Mostra onde o texto será entregue sem ativar a janela.</p></div></div><button class="toggle" data-config-toggle="focusBorder" type="button"><i></i></button></section>
             <section class="setting compact"><div><span class="setting-icon">⌖</span><div><strong>Entrega no destino fixado</strong><p>Com foco é compatível; sem foco só é usado quando o aplicativo suporta.</p></div></div><select class="select" data-config-field="pinDelivery"><option value="focus">Com foco restaurado</option><option value="nofocus">Sem foco</option></select></section>
             <section class="setting compact"><div><span class="setting-icon">▤</span><div><strong>Espessura da moldura</strong><p data-config-effect="focusBorderThickness">4 pixels ao redor do destino.</p></div></div><input class="slider" data-config-field="focusBorderThickness" type="range" min="1" max="40" step="1"></section>
@@ -130,6 +131,7 @@
           </div>
 
           <div class="settings-panel" data-settings-panel="review">
+            <section class="panel"><h2>Uma revisão, se você quiser.</h2><p>Reconhecimento local e revisão externa são etapas diferentes. Só o texto é enviado ao provedor. Falhas e tempo limite preservam a transcrição original.</p><p>Trocar o provedor desliga a revisão, redefine modelo e raciocínio e remove a credencial anterior. A troca pede confirmação.</p></section>
             <section class="setting compact"><div><span class="setting-icon">✦</span><div><strong>Pós-processamento</strong><p data-post-process-state>Desligado; nenhuma chamada de rede será feita.</p></div></div><button class="toggle" data-config-toggle="postProcess" type="button"><i></i></button></section>
             <section class="setting compact"><div><span class="setting-icon">◎</span><div><strong>Provedor</strong><p data-review-provider-effect>Apenas o texto transcrito é enviado.</p></div></div><select class="select" data-config-field="postProcessProvider"><option value="anthropic">Claude · Anthropic</option><option value="deepseek">DeepSeek</option><option value="openai-compatible">OpenAI-compatible</option></select></section>
             <section class="review-account" data-deepseek hidden><header><div><small>CONSUMO DO MATRACA</small><strong>DeepSeek desde a ativação do contador</strong><p>Contagem local exata; custo pela tabela oficial de <span data-ai-pricing-version>—</span>.</p></div><button data-ai-usage-refresh type="button">Atualizar</button></header><div class="review-account-grid"><span><small>CHAMADAS</small><b data-ai-requests>0</b></span><span><small>ENTRADA</small><b data-ai-prompt-tokens>0</b></span><span><small>EM CACHE</small><b data-ai-cache-tokens>0</b></span><span><small>SAÍDA</small><b data-ai-completion-tokens>0</b></span><span><small>TOTAL</small><b data-ai-total-tokens>0</b></span><span><small>CUSTO EST.</small><b data-ai-estimated-cost>US$ 0</b></span></div><footer><div role="status" aria-live="polite"><small>SALDO OFICIAL</small><strong data-deepseek-balance>Não consultado</strong><p data-deepseek-balance-detail>A consulta só acontece quando você pedir.</p></div><button class="primary" data-deepseek-balance-refresh type="button" aria-busy="false">Consultar saldo</button></footer></section>
@@ -141,17 +143,25 @@
             <section class="setting"><div><span class="setting-icon">“</span><div><strong>Instrução de revisão</strong><p>Orienta pontuação, correções e estilo sem alterar o conteúdo.</p></div></div><textarea class="field wide" data-config-field="postProcessPrompt" rows="3"></textarea></section>
             <section class="setting compact"><div><span class="setting-icon">◷</span><div><strong>Tempo limite</strong><p>Após este tempo, o texto original é entregue automaticamente.</p></div></div><label class="number-control"><input data-config-field="postProcessTimeoutMs" type="number" min="1000" max="60000" step="500"><span>ms</span></label></section>
           </div>
+          <div class="settings-panel" data-settings-panel="history">
+            <section class="setting compact"><div><div><strong>Histórico local</strong><p>Guarda somente texto neste computador para copiar ou recolar depois.</p></div></div><button class="toggle" data-config-toggle="history" type="button"><i></i></button></section>
+            <section class="setting compact"><div><div><strong>Itens no histórico</strong><p>Ao ultrapassar o limite, os ditados mais antigos são descartados.</p></div></div><label class="number-control"><input data-config-field="historyMaxItems" type="number" min="1" max="5000" step="1"><span>itens</span></label></section>
+            <p>Apagar textos não apaga o acumulado de consumo da revisão.</p><button class="btn" data-route="history" type="button">Abrir histórico</button>
+          </div>
+          <div class="settings-panel" data-settings-panel="appearance">
+            <section class="panel appearance-options"><h2>Um Matraca do seu jeito.</h2><label>Modo de exibição<select class="select" data-config-field="themeMode"><option value="light">Claro</option><option value="dark">Escuro</option><option value="system">Acompanhar o sistema</option></select></label><label>Família de cor<select class="select" data-config-field="palette"><option value="olive">Oliva / Lima elétrico</option><option value="ochre">Açafrão / Amarelo solar</option><option value="terracotta">Terracota / Coral vivo</option><option value="plum">Amora / Orquídea</option><option value="teal">Jade / Menta</option></select></label><p>Aplicação imediata, sem interromper o teste de microfone ou a captura de atalho. A família permanece ao mudar de modo. Movimento reduzido acompanha o sistema.</p></section>
+          </div>
         </section>
 
         <section class="page onboarding-page" data-page="onboarding">
-          <header class="onboarding-heading"><div class="logo">m<span>.</span></div><small>CONFIGURAÇÃO INICIAL · 3 DE 3</small><h1>Quase pronto para<br>ouvir você.</h1><p>O áudio nunca sai deste computador. Precisamos apenas preparar o modelo, o atalho e as permissões locais.</p></header>
-          <div class="step-progress"><i class="complete"></i><i class="complete"></i><i class="active"></i></div>
-          <div class="setup-grid">
-            <section class="setup-card" data-model-setup><span class="setup-icon" data-model-icon>↓</span><div><small>PASSO 1</small><h2>Modelo local</h2><p data-onboarding-model>Verificando modelo configurado</p><progress data-model-progress max="1" value="0" hidden></progress></div><div class="setup-actions"><select data-model-choice aria-label="Modelo Whisper"></select><button data-model-download type="button">Baixar</button></div></section>
-            <section class="setup-card complete"><span class="setup-icon" data-onboarding-hotkey>F15</span><div><small>PASSO 2</small><h2>Tecla de ditado</h2><p data-onboarding-hotkey-help>Pressione quando quiser falar.</p></div><div class="setup-actions"><button data-hotkey-capture="hotkey" data-hotkey-help-target="[data-onboarding-hotkey-help]" type="button">Capturar</button></div></section>
+          <header class="onboarding-heading"><div class="logo"><img data-brand src="assets/brand/matraca-03a-symbol-light.svg" width="64" height="64" alt="Matraca"></div><small>SEU PRIMEIRO DITADO</small><h1>Menos teclado.<br>Mais você.</h1><p>Prepare o reconhecimento, confira permissões e experimente uma frase em outro aplicativo. Nenhum áudio sai deste computador.</p></header>
+          <div class="setup-grid onboarding-layout">
+            <div data-model-slot="onboarding"><section class="setup-card panel" data-model-setup><span class="setup-icon" data-model-icon>↓</span><div><small>RECONHECIMENTO</small><h2>Modelo local</h2><p data-onboarding-model>Verificando caminho configurado</p><progress data-model-progress max="1" aria-label="Download do modelo" hidden></progress></div><div class="setup-actions"><select data-model-choice aria-label="Modelo Whisper"></select><button data-model-download type="button">Baixar</button><button data-model-cancel type="button" hidden>Cancelar download</button></div></section></div>
+            <section class="setup-card"><span class="setup-icon" data-onboarding-hotkey>—</span><div><small>ATALHO</small><h2>Tecla de ditado</h2><p data-onboarding-hotkey-help>Configure a tecla usada para falar no aplicativo de destino.</p></div><div class="setup-actions"><button data-hotkey-capture="hotkey" data-hotkey-help-target="[data-onboarding-hotkey-help]" type="button">Capturar</button></div></section>
             <section class="setup-card permissions"><span class="setup-icon">◎</span><div><small>PASSO 3</small><h2>Permissões do sistema</h2><p>O Matraca precisa ouvir o microfone e escrever onde está seu cursor.</p></div><div class="permission-list"><button data-open-permission="microphone" type="button"><i>?</i><strong>Microfone</strong><em data-microphone-permission>Verificar nos Ajustes</em></button><button data-open-permission="accessibility" type="button"><i class="pending">→</i><strong>Acessibilidade</strong><em data-accessibility-permission>Abrir Ajustes</em></button></div></section>
           </div>
-          <footer class="onboarding-footer"><p><i></i> Sem conta, sem telemetria, sem áudio na rede.</p><button type="button">Começar a usar <span>→</span></button></footer>
+          <section class="panel"><h2>Experimente uma frase real</h2><p>Abra um editor de texto, coloque o cursor, use o atalho conforme o modo escolhido e fale. Confira se o texto apareceu no destino.</p><p data-onboarding-test role="status">Nenhuma entrega real confirmada nesta sessão.</p><button class="btn" data-route="microphone" type="button">Conferir microfone</button><button class="btn" data-permissions-refresh type="button">Verificar permissões novamente</button></section>
+          <footer class="onboarding-footer"><p><i></i> Sem conta, sem telemetria, sem áudio na rede.</p><button type="button">Ir para o ditado <span>→</span></button></footer>
         </section>
       </main>
     </div>

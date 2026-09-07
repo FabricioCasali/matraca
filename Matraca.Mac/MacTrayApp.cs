@@ -89,6 +89,19 @@ internal sealed class MacTrayApp : IDisposable
     internal bool CanOpenWebWindow => !_controller.IsSessionActive && !_controller.IsBusy;
     internal RawConfig LoadRawConfig() => MacConfig.LoadRaw();
     internal IReadOnlyList<string> ListAudioDevices() => _audio.ListDevices();
+    internal bool TryGetHudTargetBounds(out CGRect bounds)
+    {
+        TargetToken? pinned = _controller.PinnedTarget;
+        if (pinned != null && _targets.TryAcquireLease(pinned, out MacTargetLease? lease))
+        {
+            using (lease)
+            {
+                if (MacWindowVisibility.TryGetOnScreenBounds(lease, out CGRect quartzBounds)
+                    && MacScreenCoordinates.TryQuartzToAppKit(quartzBounds, out bounds)) return true;
+            }
+        }
+        return TryGetActiveTargetBounds(out bounds);
+    }
     internal bool TryGetActiveTargetBounds(out CGRect bounds)
     {
         bounds = default;

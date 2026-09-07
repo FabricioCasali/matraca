@@ -20,6 +20,10 @@ internal sealed class WindowsHudWindow : IDisposable
     private bool _ready;
     private bool _dictationActive;
     private bool _deliveryJustCompleted;
+    private bool _deliveryError;
+    private readonly WindowsConfigWatcher _appearanceWatcher;
+    private string _themeMode = "system";
+    private string _palette = "olive";
     private bool _visible;
     private bool _hasPendingPublication;
     private string _pendingState = "ready";
@@ -73,10 +77,29 @@ internal sealed class WindowsHudWindow : IDisposable
         }
 
         _host.MessageReceived += OnMessageReceived;
+        _appearanceWatcher = new WindowsConfigWatcher();
+        _appearanceWatcher.Changed += OnAppearanceChanged;
+        RefreshAppearance();
         StartInitialization();
     }
 
     public nint Handle => _window.Handle;
+
+    private void OnAppearanceChanged(Config config) => Dispatch(RefreshAppearance);
+
+    private void RefreshAppearance()
+    {
+        RawConfig raw = WindowsConfig.LoadRaw();
+        _themeMode = raw.themeMode ?? "system";
+        _palette = raw.palette ?? "olive";
+        if (_ready)
+            _host.PostJson(JsonSerializer.Serialize(new
+            {
+                version = 1,
+                type = "hud.appearance",
+                payload = new { themeMode = _themeMode, palette = _palette },
+            }));
+    }
 
     public void SetTargetWindow(nint targetWindow)
         => Dispatch(() => _targetWindow = targetWindow);
@@ -94,8 +117,10 @@ internal sealed class WindowsHudWindow : IDisposable
         Dispatch(() =>
         {
             _mode = mode;
+            _deliveryJustCompleted = false;
             Interlocked.Increment(ref _hideGeneration);
-            Publish("writing", "Escrevendo", streaming ? "live" : mode);
+            if (_deliveryError) return;
+            Publish("writing", streaming && _dictationActive ? "Ouvindo · inserindo trecho" : "Inserindo texto", mode);
         });
     }
 
@@ -171,8 +196,9 @@ internal sealed class WindowsHudWindow : IDisposable
         }
 
         _ready = true;
+        RefreshAppearance();
         if (_hasPendingPublication)
-            Publish(_pendingState, _pendingTitle, _pendingDetail);
+            Publish(_pendingState, _pendingTitle, _pendingDetail, invalidateTimers: false);
     }
 
     private void ApplyShellState(ShellState state, string text, string mode)
@@ -181,7 +207,7 @@ internal sealed class WindowsHudWindow : IDisposable
         if (state == ShellState.Idle)
         {
             _dictationActive = false;
-            _hasPendingPublication = false;
+            if (_deliveryError) return;
             if (_deliveryJustCompleted)
             {
                 _deliveryJustCompleted = false;
@@ -194,6 +220,9 @@ internal sealed class WindowsHudWindow : IDisposable
             return;
         }
 
+        if (state == ShellState.Busy) _dictationActive = false;
+        if (_deliveryError && !(state == ShellState.Recording && !_dictationActive)) return;
+        _deliveryError = false;
         Interlocked.Increment(ref _hideGeneration);
         if (state == ShellState.Recording) _dictationActive = true;
         bool writing = state == ShellState.Busy
@@ -218,19 +247,23 @@ internal sealed class WindowsHudWindow : IDisposable
     private void ApplyDeliveryResult(string text, TextDeliveryResult result, bool streaming)
     {
         bool delivered = result == TextDeliveryResult.Delivered;
-        _deliveryJustCompleted = !streaming;
+        Interlocked.Increment(ref _hideGeneration);
+        _deliveryError = !delivered;
+        _deliveryJustCompleted = !streaming || !_dictationActive;
         Publish(
             delivered ? "done" : "error",
-            delivered ? "Texto entregue" : "Entrega falhou",
+            delivered ? (streaming && _dictationActive ? "Trecho entregue · ainda ouvindo" : "Texto entregue") : "Entrega falhou · confira o histórico",
             text);
+        if (!delivered) return;
         if (streaming && _dictationActive)
             ReturnToListeningLater();
         else
             HideLater();
     }
 
-    private void Publish(string state, string title, string detail)
+    private void Publish(string state, string title, string detail, bool invalidateTimers = true)
     {
+        if (invalidateTimers) Interlocked.Increment(ref _hideGeneration);
         _pendingState = state;
         _pendingTitle = title;
         _pendingDetail = detail;
@@ -242,7 +275,7 @@ internal sealed class WindowsHudWindow : IDisposable
         {
             version = 1,
             type = "hud.state",
-            payload = new { state, title, detail },
+            payload = new { state, title, detail, generation = _hideGeneration },
         }));
     }
 
@@ -335,6 +368,7 @@ internal sealed class WindowsHudWindow : IDisposable
                 ApplyDpiBounds(window, lParam);
                 return nint.Zero;
             case WindowsNativeMethods.WmClose:
+                _deliveryError = false;
                 Interlocked.Increment(ref _hideGeneration);
                 Hide();
                 return nint.Zero;
@@ -354,9 +388,24 @@ internal sealed class WindowsHudWindow : IDisposable
     {
         _hasPendingPublication = false;
         if (!_visible) return;
-        _visible = false;
-        _host.SetVisible(false);
-        WindowsNativeMethods.ShowWindow(_window.Handle, WindowsNativeMethods.SwHide);
+        int generation = Interlocked.Increment(ref _hideGeneration);
+        _host.PostJson(JsonSerializer.Serialize(new
+        {
+            version = 1,
+            type = "hud.state",
+            payload = new { state = "ready", title = "Matraca", detail = "", generation },
+        }));
+        _ = Task.Delay(140).ContinueWith(
+            _ => Dispatch(() =>
+            {
+                if (generation != Volatile.Read(ref _hideGeneration)) return;
+                _visible = false;
+                _host.SetVisible(false);
+                WindowsNativeMethods.ShowWindow(_window.Handle, WindowsNativeMethods.SwHide);
+            }),
+            CancellationToken.None,
+            TaskContinuationOptions.ExecuteSynchronously,
+            TaskScheduler.Default);
     }
 
     private void HideLater()
@@ -407,6 +456,8 @@ internal sealed class WindowsHudWindow : IDisposable
     {
         if (Interlocked.Exchange(ref _disposed, 1) != 0) return;
         Interlocked.Increment(ref _hideGeneration);
+        _appearanceWatcher.Changed -= OnAppearanceChanged;
+        _appearanceWatcher.Dispose();
         _host.MessageReceived -= OnMessageReceived;
         _host.Dispose();
         _window.Dispose();

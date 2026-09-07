@@ -53,7 +53,8 @@ public sealed class WebUiContractTests
         Assert.Contains("const maximum = .5;", script);
         Assert.Contains("const speech = Number(frame.rms) > Number(frame.threshold);", script);
         Assert.Contains("levelPosition(frame.rms)", script);
-        Assert.Contains("levelPosition(frame.threshold)", script);
+        Assert.Contains("setThreshold(frame.threshold)", script);
+        Assert.Contains("levelPosition(value)", script);
     }
 
     [Fact]
@@ -77,11 +78,15 @@ public sealed class WebUiContractTests
         string css = ReadProjectFile("Matraca.Web", "wwwroot", "styles.css");
         string hud = ReadProjectFile("Matraca.Web", "wwwroot", "hud.css");
 
-        Assert.Contains("--font-caption: 11px", css);
-        Assert.Contains("--font-body: 13px", css);
-        Assert.Contains(".select option", css);
-        Assert.Contains("background: var(--control-bg)", css);
-        Assert.Contains(".state-copy span { color:#b4b4c7;font-size:12px }", hud);
+        string tokens = ReadProjectFile("Matraca.Web", "wwwroot", "design-tokens.css");
+        Assert.Contains("--type-caption: 12px", tokens);
+        Assert.Contains("--type-body: 15px", tokens);
+        Assert.Contains("select option", css);
+        Assert.Contains("background: var(--surface)", css);
+        Assert.Contains("color:var(--hud-muted);font-size:12px", hud);
+        Assert.Contains("-webkit-line-clamp:2", hud);
+        foreach (string platform in new[] { "Matraca.Windows", "Matraca.Mac" })
+            Assert.Contains("../design/assets/brand/*.svg", ReadProjectFile(platform, $"{platform}.csproj"));
     }
 
     [Fact]

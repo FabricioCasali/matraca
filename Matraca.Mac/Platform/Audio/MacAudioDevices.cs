@@ -5,6 +5,15 @@ namespace Matraca.Mac.Platform.Audio;
 
 internal static class MacAudioDevices
 {
+    public static MacAudioDevice DefaultInput()
+    {
+        var address = new AudioObjectPropertyAddress(0x64496E20, // 'dIn '
+            CoreAudio.ScopeGlobal, CoreAudio.ElementMain);
+        uint id = ReadUInt32(CoreAudio.SystemObject, address, "microfone padrao");
+        return ReadInputDevice(id)
+            ?? throw new InvalidOperationException("Nao foi possivel resolver o microfone padrao do macOS.");
+    }
+
     public static IReadOnlyList<MacAudioDevice> List()
     {
         if (!OperatingSystem.IsMacOS()) return Array.Empty<MacAudioDevice>();

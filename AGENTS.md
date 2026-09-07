@@ -24,7 +24,7 @@ A fonte versionada do design fica em `design/`. Comece por `design/README.md`.
 - Frame e moldura nativos nao recebem foco nem cliques. Preserve entrega continua e invalide timers antigos.
 - Respeite movimento reduzido, navegacao por teclado e contrastes do sistema.
 - Mocks possuem fixtures e simulacoes: nao portar essas rotinas para producao nem armazenar credenciais no navegador.
-- O estudo de marca contem variantes; confirme o SVG de referencia no empacotamento, nao trate o default de um seletor como nova aprovacao.
+- A variante de marca confirmada e a 03A, `monogram-speech`. Use os SVGs de `design/assets/brand/`; outras variantes do estudo sao apenas historicas. Nao confunda a terminacao diagonal da marca com o prolongamento extra que foi removido da animacao.
 - Preserve a arquitetura atual. Mudanca de framework exige necessidade concreta e aprovacao.
 
 ## Verificacao e versionamento

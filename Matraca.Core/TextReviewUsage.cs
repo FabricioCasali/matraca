@@ -6,10 +6,11 @@ public sealed record TextReviewUsage(
     string Provider,
     string Model,
     string RequestId,
-    int PromptTokens,
-    int PromptCacheHitTokens,
-    int PromptCacheMissTokens,
-    int CompletionTokens,
-    int ReasoningTokens,
-    int TotalTokens,
-    decimal? EstimatedCostUsd = null);
+    int? PromptTokens,
+    int? PromptCacheHitTokens,
+    int? PromptCacheMissTokens,
+    int? CompletionTokens,
+    int? ReasoningTokens,
+    int? TotalTokens,
+    decimal? EstimatedCostUsd = null,
+    string? PricingVersion = null);

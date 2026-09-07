@@ -2,6 +2,8 @@ namespace Matraca.Core;
 
 public sealed class RawConfig
 {
+    public string? themeMode { get; set; }
+    public string? palette { get; set; }
     public string? modelPath { get; set; }
     public string? language { get; set; }
     public string? hotkey { get; set; }

@@ -127,42 +127,31 @@ public sealed class OpenAiCompatibleTextReviewer : IDisposable
                 : "";
 
         DateTime at = DateTime.Now;
-        int promptTokens = ReadInt32(usage, "prompt_tokens");
-        int promptCacheHitTokens = ReadInt32(usage, "prompt_cache_hit_tokens");
-        int promptCacheMissTokens = ReadInt32(usage, "prompt_cache_miss_tokens");
-        int completionTokens = ReadInt32(usage, "completion_tokens");
-        return new TextReviewUsage(
+        return AiCostEstimator.Estimate(new TextReviewUsage(
             Guid.NewGuid(),
             at,
             _provider,
             model,
             requestId,
-            promptTokens,
-            promptCacheHitTokens,
-            promptCacheMissTokens,
-            completionTokens,
+            ReadInt32(usage, "prompt_tokens"),
+            ReadInt32(usage, "prompt_cache_hit_tokens"),
+            ReadInt32(usage, "prompt_cache_miss_tokens"),
+            ReadInt32(usage, "completion_tokens"),
             ReadNestedInt32(usage, "completion_tokens_details", "reasoning_tokens"),
-            ReadInt32(usage, "total_tokens"),
-            AiCostEstimator.EstimateUsd(
-                _provider,
-                model,
-                at,
-                promptTokens,
-                promptCacheHitTokens,
-                promptCacheMissTokens,
-                completionTokens));
+            ReadInt32(usage, "total_tokens")));
     }
 
-    private static int ReadInt32(JsonElement parent, string property)
+    private static int? ReadInt32(JsonElement parent, string property)
         => parent.TryGetProperty(property, out JsonElement value)
             && value.ValueKind == JsonValueKind.Number
             && value.TryGetInt32(out int number)
+            && number >= 0
                 ? number
-                : 0;
+                : null;
 
-    private static int ReadNestedInt32(JsonElement parent, string group, string property)
+    private static int? ReadNestedInt32(JsonElement parent, string group, string property)
         => parent.TryGetProperty(group, out JsonElement nested)
             && nested.ValueKind == JsonValueKind.Object
                 ? ReadInt32(nested, property)
-                : 0;
+                : null;
 }

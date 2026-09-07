@@ -8,6 +8,8 @@ public interface IAudioCapture : IDisposable
     event Action<ReadOnlyMemory<float>>? FrameCaptured;
 
     bool IsCapturing { get; }
+    /// <summary>Unique real device name, resolved before the first frame; null when unavailable.</summary>
+    string? CurrentDevice { get; }
     IReadOnlyList<string> ListDevices();
     /// <summary>Completes after capture is active; platform startup must not block a vital app thread.</summary>
     Task StartAsync(string? deviceName, TimeSpan initialMute, CancellationToken cancellationToken = default);

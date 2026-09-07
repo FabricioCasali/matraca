@@ -44,6 +44,9 @@
     <None Include="../../Matraca.Web/wwwroot/styles.css"
           Link="styles.css"
           CopyToOutputDirectory="PreserveNewest" />
+    <None Include="../../Matraca.Web/wwwroot/design-tokens.css"
+          Link="design-tokens.css"
+          CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
 
 </Project>

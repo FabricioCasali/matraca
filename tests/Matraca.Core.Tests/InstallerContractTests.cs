@@ -19,6 +19,26 @@ public sealed class InstallerContractTests
         Assert.DoesNotContain("-p:ApplicationManifest=", uiAccess);
     }
 
+    [Fact]
+    public void InstallerDefaultsToProjectVersionAndKeepsExplicitVersionOverride()
+    {
+        string installer = ReadProjectFile("installer", "build-installer.ps1");
+        Assert.Contains("[string]$Version", installer);
+        Assert.Contains("if ([string]::IsNullOrWhiteSpace($Version))", installer);
+        Assert.Contains("dotnet msbuild $csproj -getProperty:Version -nologo", installer);
+        Assert.Contains("-p:Version=$Version", installer);
+        Assert.Contains("/DMyAppVersion=$Version", installer);
+        Assert.DoesNotContain("$Version = '1.0.0'", installer);
+    }
+
+    [Fact]
+    public void ReleaseStopsAfterFailedTestsBeforeBuilding()
+    {
+        string workflow = ReadProjectFile(".github", "workflows", "release.yml").Replace("\r\n", "\n");
+        Assert.Contains("dotnet test Matraca.sln -c Release\n          if ($LASTEXITCODE) { exit $LASTEXITCODE }", workflow);
+        Assert.Contains("dotnet build Matraca.sln -c Release\n          if ($LASTEXITCODE) { exit $LASTEXITCODE }", workflow);
+    }
+
     private static string ReadProjectFile(params string[] parts)
     {
         DirectoryInfo? directory = new(AppContext.BaseDirectory);

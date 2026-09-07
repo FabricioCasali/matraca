@@ -1,0 +1,8 @@
+<svg  xmlns="http://www.w3.org/2000/svg" viewBox="-14 -6 84 76" width="168" height="152"><title>Matraca 03A - m que fala</title><style>
+    .listening-trace,.listening-line{stroke-dasharray:100 100;animation:draw 1400ms linear infinite}
+    .listening-line{fill:none;stroke:rgb(237,239,240);stroke-width:11;stroke-linecap:round;stroke-linejoin:round}
+    .listening-ink{animation:fade 1400ms linear infinite}
+    @keyframes draw{0%{stroke-dashoffset:100}74%,100%{stroke-dashoffset:0}}
+    @keyframes fade{0%,90%{opacity:1}100%{opacity:0}}
+    @media(prefers-reduced-motion:reduce){*{animation:none!important}.listening-trace{stroke-dashoffset:0}.listening-line{display:none}.listening-ink{opacity:1}}
+   </style><defs><mask id="matraca-03a-listening-dark-mask" maskUnits="userSpaceOnUse" x="0" y="0" width="64" height="64"><path class="listening-trace" d="M-8 49 H11.5V27C11.5 11 32 11 32 27V43V27C32 11 52.5 11 52.5 27V58" pathLength="100" fill="none" stroke="white" stroke-width="17" stroke-linecap="round" stroke-linejoin="round" stroke-dasharray="100 100"/></mask></defs><g class="listening-ink"><path fill="rgb(237,239,240)" fill-rule="evenodd" d="M6 48V27C6 17 12 11 21 11C26 11 30 13 32 17C35 13 39 11 44 11C53 11 58 17 58 27V47L47 57V28C47 24 46 22 42 22C38 22 37 24 37 28V43H27V28C27 24 25 22 22 22C18 22 17 24 17 28V48Z" mask="url(#matraca-03a-listening-dark-mask)"/><path class="listening-line" d="M-8 49 H11.5V27C11.5 11 32 11 32 27V43V27C32 11 52.5 11 52.5 27V58" pathLength="100"/></g></svg>

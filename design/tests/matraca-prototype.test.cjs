@@ -12,6 +12,8 @@ new vm.Script(code);
 assert.ok(!/scrollIntoView\s*\(/.test(code));
 assert.ok(!/https?:\/\//.test(html.replace('http://www.w3.org/2000/svg', '')));
 assert.ok(!/\{\{|\[REPLACE\]|lorem ipsum/i.test(html));
+assert.ok(!html.includes('data-od-id="appearance-menu"'), 'MT-035: appearance is not a titlebar action');
+assert.ok(html.includes("['appearance','Aparência']"), 'Appearance remains a settings section');
 const timers = new Map();
 const elements = new Map();
 const preferences = new Map();
@@ -99,6 +101,7 @@ for(const [label,fg,bg] of pairs){const values=[luminance(...fg),luminance(...bg
 assert.ok(html.includes('--action-bg: oklch(56% 0.18 255)'));
 assert.ok(html.includes('background:var(--action-bg)'));
 console.log(`PASS: ${pairs.length} OKLCH foreground/background pairs meet 4.5:1 (sRGB conversion).`);
+press('nav-settings'); press('section-appearance'); markup();
 for(const [id,hue] of [['olive',125],['ochre',85],['terracotta',35],['plum',325],['teal',175]]) {
   for(const theme of ['light','dark']) {
     const view=run('state.view'),step=run('state.step');

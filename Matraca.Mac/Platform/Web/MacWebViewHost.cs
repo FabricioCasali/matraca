@@ -179,7 +179,13 @@ internal sealed class MacWebViewHost : IDisposable
         using (JsonDocument.Parse(json)) { }
 
         string jsonStringLiteral = JsonSerializer.Serialize(json);
-        string script = $"globalThis.matraca?.onMessage({jsonStringLiteral});";
+        EvaluateScript($"globalThis.matraca?.onMessage({jsonStringLiteral});");
+    }
+
+    internal void EvaluateScript(string script)
+    {
+        VerifyUsable();
+        ArgumentException.ThrowIfNullOrWhiteSpace(script);
         ObjC.SendVoid(
             _webView,
             ObjCSelectors.EvaluateJavaScriptCompletionHandler,
@@ -328,9 +334,9 @@ internal sealed class MacWebViewHost : IDisposable
     {
         IntPtr screens = ObjC.Send(ObjCClasses.NSScreen, ObjCSelectors.Screens);
         nuint count = screens == IntPtr.Zero ? 0 : ObjC.SendNUInt(screens, ObjCSelectors.Count);
-        CGRect screen = count > 0
-            ? ObjC.SendRect(ObjC.SendNUInt(screens, ObjCSelectors.ObjectAtIndex, 0), ObjCSelectors.Frame)
-            : new CGRect(0, 0, width, height);
+        IntPtr selectedScreen = count > 0
+            ? ObjC.SendNUInt(screens, ObjCSelectors.ObjectAtIndex, 0)
+            : IntPtr.Zero;
         if (target is CGRect targetFrame)
         {
             double centerX = targetFrame.Origin.X + targetFrame.Size.Width / 2;
@@ -345,14 +351,18 @@ internal sealed class MacWebViewHost : IDisposable
                     && centerY >= candidate.Origin.Y
                     && centerY <= candidate.Origin.Y + candidate.Size.Height)
                 {
-                    screen = candidate;
+                    selectedScreen = ObjC.SendNUInt(screens, ObjCSelectors.ObjectAtIndex, index);
                     break;
                 }
             }
         }
+        // visibleFrame is in AppKit coordinates and excludes the Dock and menu bar.
+        CGRect screen = selectedScreen != IntPtr.Zero
+            ? ObjC.SendRect(selectedScreen, ObjC.sel_registerName("visibleFrame"))
+            : new CGRect(0, 0, width, height);
         return new CGRect(
             screen.Origin.X + Math.Max(0, (screen.Size.Width - width) / 2),
-            screen.Origin.Y + 34,
+            screen.Origin.Y + Math.Max(0, Math.Min(34, screen.Size.Height - height)),
             width,
             height);
     }

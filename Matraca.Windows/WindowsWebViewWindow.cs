@@ -202,12 +202,13 @@ internal sealed class WindowsWebViewWindow : IDisposable
     private void BeginDrag()
         => Dispatch(() =>
         {
+            if (!WindowsNativeMethods.GetCursorPos(out WindowsPoint point)) return;
             WindowsNativeMethods.ReleaseCapture();
             WindowsNativeMethods.SendMessageW(
                 _window.Handle,
                 WindowsNativeMethods.WmNcLButtonDown,
                 WindowsNativeMethods.HtCaption,
-                nint.Zero);
+                (nint)((point.X & 0xFFFF) | ((point.Y & 0xFFFF) << 16)));
         });
 
     private void OnMessageReceived(string json)

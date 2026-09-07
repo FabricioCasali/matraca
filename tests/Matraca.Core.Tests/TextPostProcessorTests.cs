@@ -4,6 +4,35 @@ namespace Matraca.Core.Tests;
 
 public sealed class TextPostProcessorTests
 {
+    [Theory]
+    [InlineData(null)]
+    [InlineData("")]
+    [InlineData("   ")]
+    public void CompatibleProviderCannotPrepareWithoutExplicitModel(string? model)
+    {
+        var config = Config.FromRaw(new RawConfig
+        {
+            postProcess = true, postProcessProvider = "openai-compatible",
+            postProcessEndpoint = "http://localhost:11434/v1/chat/completions",
+            postProcessModel = model,
+        });
+        Assert.Equal("", config.PostProcessModel);
+        Assert.Null(TextPostProcessor.TryCreate(config));
+    }
+
+    [Theory]
+    [InlineData("anthropic")]
+    [InlineData("deepseek")]
+    [InlineData("openai-compatible")]
+    public void DirectConfigCannotPrepareWithWhitespaceModel(string provider)
+    {
+        Assert.Null(TextPostProcessor.TryCreate(new Config
+        {
+            PostProcess = true, PostProcessProvider = provider, PostProcessModel = "  ",
+            PostProcessApiKey = "test-key", PostProcessReasoning = "low",
+        }));
+    }
+
     [Fact]
     public void OpenAiCompatibleAllowsLocalEndpointWithoutApiKey()
     {

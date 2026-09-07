@@ -41,6 +41,7 @@ internal sealed class MacAudioCapture : IAudioCapture
         => _bufferSamples = bufferSamples;
 
     public bool IsCapturing => Volatile.Read(ref _capturing) != 0;
+    public string? CurrentDevice { get; private set; }
 
     public IReadOnlyList<string> ListDevices() => MacAudioDevices.List()
         .Select(device => device.Name)
@@ -133,6 +134,7 @@ internal sealed class MacAudioCapture : IAudioCapture
 
     private void PrepareSession(TimeSpan initialMute)
     {
+        CurrentDevice = null;
         _captured.Clear();
         _probedSamples = 0;
         _callbackStatus = 0;
@@ -156,7 +158,7 @@ internal sealed class MacAudioCapture : IAudioCapture
         Frameworks.EnsureLoaded();
 
         string wantedDevice = (deviceName ?? string.Empty).Trim();
-        MacAudioDevice? selectedDevice = ResolveDevice(wantedDevice);
+        MacAudioDevice selectedDevice = ResolveDevice(wantedDevice) ?? MacAudioDevices.DefaultInput();
 
         AudioStreamBasicDescription format =
             AudioStreamBasicDescription.Pcm16Mono(IAudioCapture.RequiredSampleRate);
@@ -171,8 +173,16 @@ internal sealed class MacAudioCapture : IAudioCapture
         ThrowIfNativeFailed("AudioQueueNewInput", status);
 
         lock (_nativeGate) _queue = queue;
-        if (selectedDevice != null)
-            SelectDevice(queue, selectedDevice);
+        if (!SelectDevice(queue, selectedDevice))
+        {
+            selectedDevice = MacAudioDevices.DefaultInput();
+            if (!SelectDevice(queue, selectedDevice))
+                throw new InvalidOperationException("O microfone padrao ficou indisponivel.");
+        }
+        if (MacAudioDevices.List().Count(device => string.Equals(device.Name,
+            selectedDevice.Name, StringComparison.OrdinalIgnoreCase)) != 1)
+            throw new InvalidOperationException("O microfone nao possui nome unico; nao e seguro associar seu ajuste.");
+        CurrentDevice = selectedDevice.Name;
         for (int index = 0; index < BufferCount; index++)
         {
             status = AudioToolbox.AudioQueueAllocateBuffer(queue, BufferBytes, out AudioQueueBuffer* buffer);
@@ -221,7 +231,7 @@ internal sealed class MacAudioCapture : IAudioCapture
         return selected;
     }
 
-    private static unsafe void SelectDevice(IntPtr queue, MacAudioDevice device)
+    private static unsafe bool SelectDevice(IntPtr queue, MacAudioDevice device)
     {
         IntPtr uid = IntPtr.Zero;
         try
@@ -239,16 +249,18 @@ internal sealed class MacAudioCapture : IAudioCapture
                 Logger.Warn(
                     $"Microfone '{device.Name}' ficou indisponivel durante a selecao " +
                     $"({AudioToolbox.DescribeStatus(status)}); usando o padrao do macOS.");
-                return;
+                return false;
             }
 
             Logger.Info($"Captura de audio usando o microfone configurado '{device.Name}'.");
+            return true;
         }
         catch (Exception exception)
         {
             Logger.Warn(
                 $"Falha ao selecionar o microfone '{device.Name}': {exception.Message}; " +
                 "usando o padrao do macOS.");
+            return false;
         }
         finally
         {

@@ -331,10 +331,6 @@ public sealed class DictationController : IDisposable
                     try { session.Segments.Add(segment); }
                     catch (InvalidOperationException) { }
                 };
-                session.Detector.Start(
-                    snapshot.EffectiveVadThreshold,
-                    snapshot.SilenceMs,
-                    snapshot.PhraseMaxSeconds);
                 session.Consumer = Task.Run(() => ConsumeSegmentsAsync(session));
                 _audio.FrameCaptured += OnAudioFrame;
             }
@@ -348,7 +344,7 @@ public sealed class DictationController : IDisposable
             _models.Touch();
             SetRecording(snapshot);
             Logger.Info(streaming
-                ? $"Live (VAD) iniciado. silenceMs={snapshot.SilenceMs} threshold={snapshot.EffectiveVadThreshold} phraseMax={snapshot.PhraseMaxSeconds}s"
+                ? $"Live (VAD) iniciado. silenceMs={snapshot.SilenceMs} threshold={MicrophoneThreshold(snapshot, _audio.CurrentDevice)} phraseMax={snapshot.PhraseMaxSeconds}s"
                 : "Gravando...");
         }
         catch (OperationCanceledException) when (session.Cancellation.IsCancellationRequested)
@@ -370,7 +366,14 @@ public sealed class DictationController : IDisposable
     {
         var session = _session;
         if (session?.Streaming != true || session.Detector == null) return;
-        try { session.Detector.Feed(frame.Span); }
+        try
+        {
+            // Capture resolves its real device before publishing frames, including startup frames.
+            if (!session.Detector.IsRunning)
+                session.Detector.Start(MicrophoneThreshold(session.Config, _audio.CurrentDevice),
+                    session.Config.SilenceMs, session.Config.PhraseMaxSeconds);
+            session.Detector.Feed(frame.Span);
+        }
         catch (Exception exception) { Logger.Error("Falha no detector de voz", exception); }
     }
 
@@ -440,9 +443,9 @@ public sealed class DictationController : IDisposable
 
     private async Task StopStreamingSessionAsync(DictationSession session)
     {
-        _audio.FrameCaptured -= OnAudioFrame;
         try { await _audio.StopAsync().ConfigureAwait(false); }
         catch (Exception exception) { Logger.Error("Erro ao parar live", exception); }
+        finally { _audio.FrameCaptured -= OnAudioFrame; }
 
         try { session.Detector?.Stop(); }
         catch (Exception exception) { Logger.Error("Erro ao finalizar VAD", exception); }
@@ -1151,9 +1154,17 @@ public sealed class DictationController : IDisposable
             || first.PostProcessProvider != second.PostProcessProvider
             || first.PostProcessEndpoint != second.PostProcessEndpoint
             || first.PostProcessModel != second.PostProcessModel
+            || first.PostProcessReasoning != second.PostProcessReasoning
             || first.PostProcessApiKey != second.PostProcessApiKey
             || first.PostProcessPrompt != second.PostProcessPrompt
             || first.PostProcessTimeoutMs != second.PostProcessTimeoutMs;
+
+    public static float MicrophoneThreshold(Config config, string? realDevice)
+        => !string.IsNullOrWhiteSpace(realDevice)
+            && config.MicSensitivity.TryGetValue(realDevice, out float value)
+            && float.IsFinite(value) && value > 0
+                ? Math.Clamp(value, 0.001f, 0.5f)
+                : 0.012f;
 
     private async Task ShutdownCoreAsync(CancellationToken cancellationToken)
     {

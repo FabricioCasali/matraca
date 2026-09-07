@@ -9,6 +9,9 @@ internal sealed class FakeAudioCapture : IAudioCapture
     public event Action<ReadOnlyMemory<float>>? FrameCaptured;
 
     public bool IsCapturing { get; private set; }
+    public string? CurrentDevice { get; set; }
+    public float? StartupFrameValue { get; set; }
+    public Action? DrainFramesOnStop { get; set; }
     public int StartCount { get; private set; }
     public int StopCount { get; private set; }
     public string? LastDevice { get; private set; }
@@ -30,12 +33,14 @@ internal sealed class FakeAudioCapture : IAudioCapture
         LastDevice = deviceName;
         StartedDevices.Add(deviceName);
         LastInitialMute = initialMute;
+        if (StartupFrameValue is float value) Emit(value, 10);
         return Task.CompletedTask;
     }
 
     public Task<float[]> StopAsync(CancellationToken cancellationToken = default)
     {
         cancellationToken.ThrowIfCancellationRequested();
+        DrainFramesOnStop?.Invoke();
         IsCapturing = false;
         StopCount++;
         return Task.FromResult(_samples.ToArray());

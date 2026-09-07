@@ -1,5 +1,18 @@
 # Histórico de versões do Matraca Design System
 
+## Nao lancado — Barra de titulo MT-033/034/035
+
+- CMP-004 explicita barra fora da rolagem e duplo clique separado do arraste no Windows.
+- Acesso a Aparencia somente em Configuracoes, conforme pedido; mock e testes reconciliados.
+- Tokens 1.0.1 preservados: nenhuma nova cor, medida visual ou animacao.
+
+## Não lançado — Assets da marca 03A
+
+- Confirmação explícita da variante 03A, “m que fala”.
+- Exportação de 24 SVGs: símbolos, dez ícones de tema, estados de bandeja e animações aprovadas.
+- Gerador reproduzível, conferência de arquivos e inclusão dos assets no manifesto.
+- Sem alteração da aplicação nativa; commit e push não executados por esta exportação.
+
 ## 1.0.1 — Adoção no repositório
 
 - Destino oficial definido como `design/` no repositório do Matraca, sem mudança nas regras visuais.

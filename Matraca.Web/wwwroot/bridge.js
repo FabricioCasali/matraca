@@ -45,10 +45,19 @@
   function request(method, params = {}) {
     const id = `web-${Date.now()}-${++sequence}`;
     const message = { version, id, type: "request", method, params };
-    if (!nativePost(message)) {
-      return Promise.resolve({ mock: true, method, params });
-    }
-    return new Promise((resolve, reject) => pending.set(id, { resolve, reject }));
+    // Register before posting: an embedded host can answer synchronously.
+    // Downloads and global shortcut capture deliberately have no UI deadline.
+    return new Promise((resolve, reject) => {
+      pending.set(id, { resolve, reject });
+      try {
+        if (!nativePost(message)) throw Object.assign(
+          new Error("A interface precisa do aplicativo Matraca. Host nativo indisponível."),
+          { code: "host_unavailable" });
+      } catch (error) {
+        pending.delete(id);
+        reject(error);
+      }
+    });
   }
 
   function notify(type, payload = {}) {

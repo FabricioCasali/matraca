@@ -7,12 +7,18 @@
 #>
 [CmdletBinding()]
 param(
-    [string]$Version = '1.0.0'
+    [string]$Version
 )
 
 $ErrorActionPreference = 'Stop'
 $proj = Split-Path $PSScriptRoot -Parent
 $csproj = Join-Path $proj 'Matraca.Windows\Matraca.Windows.csproj'
+
+if ([string]::IsNullOrWhiteSpace($Version)) {
+    $Version = & dotnet msbuild $csproj -getProperty:Version -nologo
+    if ($LASTEXITCODE -ne 0) { throw 'Nao foi possivel obter a versao do projeto Windows.' }
+    $Version = $Version.Trim()
+}
 
 foreach ($variant in @(
     @{ Manifest = 'app.manifest';          Out = 'standard' },

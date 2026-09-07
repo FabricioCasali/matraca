@@ -6,19 +6,149 @@
   "note": "Integrity snapshot in the Matraca repository. Git history and external backup are separate. Screenshots are excluded derivatives.",
   "files": [
     {
+      "path": "tools/export-brand-svg.cjs",
+      "bytes": 5100,
+      "sha256": "76f33e7826fc56523a23e242ed37573ab770c8961cb814dd8ee1cea87c347d38"
+    },
+    {
+      "path": "assets/brand/README.md",
+      "bytes": 2134,
+      "sha256": "bd101fb13d038ab015874cca990a2711d526c3c62c92338474065e4dcacd9c33"
+    },
+    {
+      "path": "assets/brand/matraca-03a-symbol-light.svg",
+      "bytes": 358,
+      "sha256": "22dc7a9720aa11c1d0c866816e1f911c7d4a5cfecbfd61a11847d30305f7c54b"
+    },
+    {
+      "path": "assets/brand/matraca-03a-tray-recording-light.svg",
+      "bytes": 466,
+      "sha256": "b11d73404078b44f91c82282358347b984303bf7a18fb4e52a6cc95ef5e57e64"
+    },
+    {
+      "path": "assets/brand/matraca-03a-tray-busy-light.svg",
+      "bytes": 473,
+      "sha256": "444055f6670c69d86c1d84cc7abc1e10e267711234e817e87dca46c0627551a9"
+    },
+    {
+      "path": "assets/brand/matraca-03a-tray-error-light.svg",
+      "bytes": 555,
+      "sha256": "82f8fa8b94e147890d07ec11bae9da073a5904b0a21d6136ebbbfb572f9f0434"
+    },
+    {
+      "path": "assets/brand/matraca-03a-app-olive-light.svg",
+      "bytes": 470,
+      "sha256": "5ce414e7dbff45a62c2b37a65c6f853ad25f3f371bd0ab0533a1ba9934270144"
+    },
+    {
+      "path": "assets/brand/matraca-03a-app-ochre-light.svg",
+      "bytes": 470,
+      "sha256": "2aff023d88220719cceed9aa424326f85aa6272ce63a64b07912d3c9ee1e2c80"
+    },
+    {
+      "path": "assets/brand/matraca-03a-app-terracotta-light.svg",
+      "bytes": 471,
+      "sha256": "4566c7d55dcbe6fda33853573d60a24a823b003e645239f04bece206e989b081"
+    },
+    {
+      "path": "assets/brand/matraca-03a-app-plum-light.svg",
+      "bytes": 472,
+      "sha256": "18bd42259b8c85a9213c954151c0218d4008f5b6a0afcfb5bce281b3c3291301"
+    },
+    {
+      "path": "assets/brand/matraca-03a-app-teal-light.svg",
+      "bytes": 470,
+      "sha256": "0c142bf313409693c527789d8e52473f8dda825662803300887c4736f21a52c7"
+    },
+    {
+      "path": "assets/brand/matraca-03a-listening-light.svg",
+      "bytes": 1502,
+      "sha256": "a7027500f57cede4bf71fad06fbcc0d9f202be8766808ed2b1098672f09797df"
+    },
+    {
+      "path": "assets/brand/matraca-03a-loading-light.svg",
+      "bytes": 1196,
+      "sha256": "963f8a4a0ab2951fc02112ab907c6fc206e151ac84949cd3aa6d520713d30c9a"
+    },
+    {
+      "path": "assets/brand/matraca-03a-done-light.svg",
+      "bytes": 1044,
+      "sha256": "9372c21dd556ba92930673cfc3f4a44408b3b5f903267c5274067ab2e4f2b0aa"
+    },
+    {
+      "path": "assets/brand/matraca-03a-symbol-dark.svg",
+      "bytes": 361,
+      "sha256": "9a23c285600f5157a800d714ec1bbc9dc5bfe7e3206672b663648fdf3e556064"
+    },
+    {
+      "path": "assets/brand/matraca-03a-tray-recording-dark.svg",
+      "bytes": 469,
+      "sha256": "3f7296c12f35ead6d158c3aa5501171ef4aeaf6660b57c74a43db132c0a2434b"
+    },
+    {
+      "path": "assets/brand/matraca-03a-tray-busy-dark.svg",
+      "bytes": 476,
+      "sha256": "c658c3342206fbaed6c5d4a33d28b15a8f4949ab1b1511699e95a3ab9decdca1"
+    },
+    {
+      "path": "assets/brand/matraca-03a-tray-error-dark.svg",
+      "bytes": 555,
+      "sha256": "a67cf01b11d2ba6c8838dfd9133e5d5c21981d56857a4618ffadfbae04aea25f"
+    },
+    {
+      "path": "assets/brand/matraca-03a-app-olive-dark.svg",
+      "bytes": 469,
+      "sha256": "c6afeb68e4d07981ff338117d2d0b938a98d9280c8a139e9d601db80e1f4a9e2"
+    },
+    {
+      "path": "assets/brand/matraca-03a-app-ochre-dark.svg",
+      "bytes": 469,
+      "sha256": "cf9e1d69050bf04d7de2cb7686ee5dd6a7e89bf9b0a6af4b585c38bf8f62614f"
+    },
+    {
+      "path": "assets/brand/matraca-03a-app-terracotta-dark.svg",
+      "bytes": 470,
+      "sha256": "244f4229158b850ba5a2a1f648ead726e774e18bd32411a7d64d6c84029a67cc"
+    },
+    {
+      "path": "assets/brand/matraca-03a-app-plum-dark.svg",
+      "bytes": 470,
+      "sha256": "36d15f9c27d20a4276b5467652a55fba48f683643d0bb5f6f723c7cf2229c1f4"
+    },
+    {
+      "path": "assets/brand/matraca-03a-app-teal-dark.svg",
+      "bytes": 468,
+      "sha256": "caa05d005f640ff8c1b2469dbec39f30dbf0662d873a26e4497f0e74f5d5ebf2"
+    },
+    {
+      "path": "assets/brand/matraca-03a-listening-dark.svg",
+      "bytes": 1506,
+      "sha256": "45afeefc83deda08f16cf8ecd7c9128503af15d100d06d73acb1cbd767688f87"
+    },
+    {
+      "path": "assets/brand/matraca-03a-loading-dark.svg",
+      "bytes": 1197,
+      "sha256": "e94a28781f01633944d57f5d3571174490bde6b37bcae44e4bf2397bdd655c81"
+    },
+    {
+      "path": "assets/brand/matraca-03a-done-dark.svg",
+      "bytes": 1045,
+      "sha256": "009a85890de608fdfd1abb3cde94519ae817bb2424628c03d1bafd1707be5094"
+    },
+    {
       "path": "README.md",
-      "bytes": 2640,
-      "sha256": "bb3ac32f0b2bff76cd41e5152c935604868be5f97d765cf470fd87e1e4bff52e"
+      "bytes": 2800,
+      "sha256": "8113482895aecb059cc8f5e38f477c9376ea5a52bf0a88a0a8932cf5c93bfade"
     },
     {
       "path": ".gitattributes",
-      "bytes": 152,
-      "sha256": "576814d14b34e49c446ba7c74a96421996bd01203ed16f8590ffbe7a270c812c"
+      "bytes": 240,
+      "sha256": "b32f75ba1b1392b837b99499828edb90b2025f96a095fcb4108d1e27f8ff36db"
     },
     {
       "path": "docs/design-system.md",
-      "bytes": 19430,
-      "sha256": "127f190e0e14c81eefd9be300ff05418fa1d8bac583ab6e1526d28ea4362a54b"
+      "bytes": 19824,
+      "sha256": "22a887948092a897284cc32d58d3c75442ea18609a5cf964bbf75d5d6c8f7fe7"
     },
     {
       "path": "docs/design-system-tokens.json",
@@ -27,8 +157,8 @@
     },
     {
       "path": "docs/design-system-changelog.md",
-      "bytes": 1454,
-      "sha256": "24e2967161349ccd0fa365908a7e33b9737237ce4217df8c872e31576216803b"
+      "bytes": 2150,
+      "sha256": "8f6dea1c05a410efd957c79aca33bf21a5c97edd71758bc093df36adcc3f1af7"
     },
     {
       "path": "docs/BOARD.md",
@@ -57,8 +187,8 @@
     },
     {
       "path": "matraca-experiencia.html",
-      "bytes": 129665,
-      "sha256": "bad1763ef0369717fb90af35229c7f5c326b3b003ff446718d0c364e30e004b5"
+      "bytes": 129381,
+      "sha256": "466463006632b2d1839c7493705009a809d9537f45a2d1bdea3bb87972e1a68f"
     },
     {
       "path": "matraca-identidade.html",
@@ -97,8 +227,8 @@
     },
     {
       "path": "tests/matraca-prototype.test.cjs",
-      "bytes": 24931,
-      "sha256": "75ef92b134c64af2b6b833ec22c0dc0e257c8be550ef38fd5c9315c370e05400"
+      "bytes": 25197,
+      "sha256": "bea3eea438ef944c5a212c5f635e8814bd7e46195a28a4fde3125bd5c1e849be"
     },
     {
       "path": "tests/matraca-brand.test.cjs",
@@ -107,8 +237,8 @@
     },
     {
       "path": "tests/matraca-design-system.test.cjs",
-      "bytes": 4572,
-      "sha256": "6ff1890a0c381d61d9c0b4f71bed93a1db04fda5001fb8210b129ccf1743e77b"
+      "bytes": 4701,
+      "sha256": "ac1a515915d5b4200359909238b081e82b9e12250f669d388fdb25dbc5eb4707"
     }
   ]
 }

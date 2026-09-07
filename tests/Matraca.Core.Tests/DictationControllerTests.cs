@@ -7,6 +7,80 @@ namespace Matraca.Core.Tests;
 public sealed class DictationControllerTests
 {
     [Theory]
+    [InlineData("requested", "real", 0.03f, false)]
+    [InlineData("requested", "real", 0.005f, true)]
+    [InlineData("", "real", 0.03f, false)]
+    [InlineData("requested", null, 0.03f, true)]
+    [InlineData("requested", "unknown", 0.03f, true)]
+    public async Task LiveUsesActualCaptureDeviceNotRequestedOrLegacyThreshold(
+        string requested, string? actual, float threshold, bool delivers)
+    {
+        var config = new Config
+        {
+            ModelPath = "fake-model", Mode = "live", Beep = false, InputDevice = requested,
+            VadThreshold = 0.5f,
+            MicSensitivity = new(StringComparer.OrdinalIgnoreCase)
+            {
+                ["requested"] = 0.5f, ["real"] = threshold,
+            },
+        };
+        var setup = CreateController(config, ["spoken"]);
+        setup.Audio.CurrentDevice = actual;
+        setup.Controller.Start();
+        await setup.Controller.HandleDictationKeyAsync(true);
+        setup.Audio.Emit(0.02f, 10);
+        await setup.Controller.HandleDictationKeyAsync(false);
+        await setup.Controller.HandleDictationKeyAsync(true);
+        Assert.Equal(delivers ? 1 : 0, setup.Sink.Requests.Count);
+        await setup.Controller.ShutdownAsync();
+    }
+
+    [Fact]
+    public async Task ReasoningChangeAloneRecreatesReviewer()
+    {
+        var created = new List<string>();
+        Config ConfigWithReasoning(string reasoning) => new()
+        {
+            ModelPath = "fake-model", Mode = "toggle", Beep = false,
+            PostProcessReasoning = reasoning,
+        };
+        var setup = CreateController(ConfigWithReasoning("off"), [], postProcessorFactory: config =>
+        {
+            created.Add(config.PostProcessReasoning);
+            return null;
+        });
+        await setup.Controller.ApplyConfigAsync(ConfigWithReasoning("high"));
+        Assert.Equal(new[] { "off", "high" }, created);
+        await setup.Controller.ApplyConfigAsync(ConfigWithReasoning("high"));
+        Assert.Equal(2, created.Count);
+        await setup.Controller.ShutdownAsync();
+    }
+
+    [Fact]
+    public async Task RealMicrophoneAdjustmentIsRestoredAndIncludesStartupFrames()
+    {
+        var config = new Config
+        {
+            ModelPath = "fake-model", Mode = "live", Beep = false,
+            MicSensitivity = new(StringComparer.OrdinalIgnoreCase) { ["quiet"] = 0.03f, ["sensitive"] = 0.005f },
+        };
+        var setup = CreateController(config, ["first", "second"]);
+        setup.Audio.StartupFrameValue = 0.02f;
+        setup.Controller.Start();
+        foreach (string device in new[] { "quiet", "sensitive", "quiet" })
+        {
+            setup.Audio.CurrentDevice = device;
+            await setup.Controller.HandleDictationKeyAsync(true);
+            await setup.Controller.HandleDictationKeyAsync(false);
+            await setup.Controller.HandleDictationKeyAsync(true);
+            await setup.Controller.HandleDictationKeyAsync(false);
+        }
+        Assert.Single(setup.Sink.Requests);
+        Assert.Equal(0.03f, config.MicSensitivity["quiet"]);
+        await setup.Controller.ShutdownAsync();
+    }
+
+    [Theory]
     [InlineData("toggle", false)]
     [InlineData("hold", false)]
     [InlineData("live", true)]
@@ -293,6 +367,19 @@ public sealed class DictationControllerTests
 
         Assert.Empty(sink.Requests);
         await controller.ShutdownAsync();
+    }
+
+    [Fact]
+    public async Task StoppingLiveStillConsumesFramesDrainedByCapture()
+    {
+        var setup = CreateController(NewConfig("live"), ["last captured phrase"]);
+        setup.Controller.Start();
+        await setup.Controller.HandleDictationKeyAsync(true);
+        setup.Audio.DrainFramesOnStop = () => setup.Audio.Emit(0.2f, 10);
+        await setup.Controller.HandleDictationKeyAsync(false);
+        await setup.Controller.HandleDictationKeyAsync(true);
+        Assert.Equal("last captured phrase ", Assert.Single(setup.Sink.Requests).Text);
+        await setup.Controller.ShutdownAsync();
     }
 
     [Fact]

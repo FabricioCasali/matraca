@@ -1,7 +1,7 @@
 # CI/CD do Matraca:
 #  - push/PR: compila e gera o instalador como artefato do run (validacao)
 #  - tag v* (ex.: v1.0.0): gera o instalador, manda assinar no SignPath e publica o Release
-# Como lancar uma versao:  git tag v1.2.3 && git push --tags
+# Como lancar uma versao:  git tag v1.2.3 && git push origin v1.2.3
 #
 # Assinatura: enquanto o projeto nao for aprovado no SignPath Foundation, basta nao definir os
 # secrets/vars abaixo — o passo de assinatura e' pulado e o release sai sem assinar, como antes.
@@ -27,7 +27,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Definir versao (tag v1.2.3 -> 1.2.3; senao 0.0.0-ci)
+      - name: Definir versao (tag v1.2.3 -> 1.2.3; senao 0.0.0)
         id: ver
         shell: pwsh
         run: |
@@ -40,11 +40,31 @@ jobs:
         with:
           dotnet-version: 8.0.x
 
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Validar design e interface compartilhada
+        shell: pwsh
+        run: |
+          node design/tests/matraca-design-system.test.cjs
+          if ($LASTEXITCODE) { exit $LASTEXITCODE }
+          node design/tests/matraca-prototype.test.cjs
+          if ($LASTEXITCODE) { exit $LASTEXITCODE }
+          node design/tests/matraca-brand.test.cjs
+          if ($LASTEXITCODE) { exit $LASTEXITCODE }
+          node Matraca.Web/export-design.cjs --check
+          if ($LASTEXITCODE) { exit $LASTEXITCODE }
+          node --test tests/web/ui.test.cjs tests/hud-ds101-exclusive.test.cjs
+          if ($LASTEXITCODE) { exit $LASTEXITCODE }
+
       - name: Testar Core e compilar solution
         shell: pwsh
         run: |
           dotnet test Matraca.sln -c Release
+          if ($LASTEXITCODE) { exit $LASTEXITCODE }
           dotnet build Matraca.sln -c Release
+          if ($LASTEXITCODE) { exit $LASTEXITCODE }
 
       - name: Gerar instalador
         shell: pwsh
@@ -102,9 +122,10 @@ jobs:
           body: |
             ## Code signing policy
 
-            Free code signing provided by [SignPath.io](https://signpath.io), certificate by
-            [SignPath Foundation](https://signpath.org).
+            Signing status: ${{ steps.signpath.outputs.ready == 'true' && 'Signed through SignPath after approval.' || 'Unsigned installer: SignPath is not configured. Windows may show a security warning.' }}
 
-            Built by GitHub Actions from the tagged commit; every release requires manual approval
-            before signing. Team roles, build process and privacy policy:
+            Built by GitHub Actions from the tagged commit. When configured, free code signing is
+            provided by [SignPath.io](https://signpath.io), with a certificate from
+            [SignPath Foundation](https://signpath.org), and requires manual approval.
+            Team roles, build process and privacy policy:
             [CODE_SIGNING_POLICY.md](https://github.com/FabricioCasali/matraca/blob/main/CODE_SIGNING_POLICY.md).

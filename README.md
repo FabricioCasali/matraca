@@ -14,20 +14,21 @@ Audio stays in memory on your computer. It is never uploaded or written to disk.
 
 | Channel | Platform | Status |
 |---|---|---|
-| [v1.1.0](https://github.com/FabricioCasali/matraca/releases/tag/v1.1.0) | Windows x64 | Latest public release, with the previous native UI. |
-| `main` / 2.0 | Windows x64 and Apple Silicon macOS | In development. The shared architecture works, but final packaging and physical checks are still pending. |
+| [Latest release](https://github.com/FabricioCasali/matraca/releases/latest) | Windows x64 | Self-contained installer published by GitHub Actions. |
+| `main` / 2.0.0 | Windows x64 and Apple Silicon macOS | Shared interface with Design System 1.0.1. macOS distribution and further native checks remain pending. |
 
 To install the public Windows release, download
-[`matraca-setup-1.1.0.exe`](https://github.com/FabricioCasali/matraca/releases/download/v1.1.0/matraca-setup-1.1.0.exe).
-The current installer is not digitally signed, so Windows may show a warning before running it.
+[the installer from the latest release](https://github.com/FabricioCasali/matraca/releases/latest).
+Check the release notes for signing status. Unsigned installers may trigger a Windows warning.
 
-The sections below describe the current `main` branch, which will become version 2.0. There is no
+The sections below describe the 2.0.0 code line. There is no
 public macOS release or `.dmg` yet.
 
 ## What is in 2.0
 
 - Local Whisper transcription using Vulkan on Windows and Metal on macOS, with a CPU fallback.
-- One shared interface for Windows and Mac, with light and dark themes.
+- One shared interface for Windows and Mac: five color families, light/dark/system modes, and persisted appearance preferences.
+- A fixed title bar while scrolling; Windows double-click maximizes/restores without starting a drag. Appearance controls live only in Settings / Appearance.
 - Four dictation modes: `toggle`, `hold`, `live`, and `push`.
 - A recording HUD, microphone meter, and a visible voice detection threshold.
 - Direct Unicode delivery without changing the clipboard, or paste with clipboard restoration.
@@ -92,11 +93,28 @@ Both platforms use the same field names and canonical hotkey names.
 | `startSound` / `stopSound` | empty | Optional local sound files. |
 | `silenceMs` | `450` | Pause that closes a phrase in continuous modes. |
 | `phraseMaxSeconds` | `6` | After this much continuous speech, a short pause closes the phrase. |
-| `vadThreshold` | `0.012` | General voice detection threshold. |
+| `vadThreshold` | `0.012` | Legacy field; current continuous capture uses the resolved microphone's setting described below. |
 | `micSensitivity` | `{}` | Thresholds by microphone name. The audio screen adjusts them against the live meter. |
 | `vocabulary` | `[]` | Terms passed to Whisper as initial context. |
 | `gpu` | `auto` | `auto`, `gpu`, or `cpu`. The legacy `vulkan` alias still works on Windows. |
 | `idleUnloadMinutes` | `5` | Unloads the model after this idle period. `0` keeps it loaded. |
+
+`vadThreshold` is retained for legacy configuration, not exposed as a generic adjustment.
+Continuous dictation and the microphone monitor use the resolved device's `micSensitivity`
+entry, or `0.012` if absent. Ambiguous duplicate device names currently block capture rather
+than applying another microphone's settings.
+
+### Appearance
+
+Settings / Appearance is the single place to change these preferences; changes apply immediately.
+
+| Field | Default | Values |
+|---|---|---|
+| `themeMode` | `system` | `light`, `dark`, `system` |
+| `palette` | `olive` | `olive`, `ochre`, `terracotta`, `plum`, `teal` |
+
+The interface and recording HUD use the approved 03A SVG brand and respect reduced motion.
+Native tray/installer icon replacement is still pending.
 
 ### Delivery and storage
 
@@ -135,6 +153,9 @@ For DeepSeek responses, history records the request token counts and estimated c
 stores only daily totals by provider and model, without dictation text. The balance button calls
 `https://api.deepseek.com/user/balance` only on user request and reuses the result for 30 seconds.
 
+Unknown tokens/costs are not treated as zero. Partial coverage is shown as a known subtotal;
+legacy records do not acquire today's pricing version. Deleting dictations does not erase usage.
+
 ## Privacy and network access
 
 - Audio exists only in memory during capture and transcription.
@@ -148,15 +169,29 @@ API keys entered in the interface are written to the local `appsettings.json`. U
 variables listed above if you do not want to store them in that file. See the full
 [privacy policy](CODE_SIGNING_POLICY.md#privacy-policy).
 
+Encrypted credential storage / 1Password integration is **not implemented** (MT-036).
+The app does not resolve `op://` references.
+
 ## Building and testing
 
-The repository requires the .NET 8 SDK. The complete solution must build even when the command runs
+The repository requires the .NET 8 SDK and Node.js 18 or later (CI uses Node 22).
+The complete solution must build even when the command runs
 outside Windows:
 
 ```bash
 dotnet build Matraca.sln -c Release -p:EnableWindowsTargeting=true
 dotnet test Matraca.sln -c Release
+node design/tests/matraca-design-system.test.cjs
+node design/tests/matraca-prototype.test.cjs
+node design/tests/matraca-brand.test.cjs
+node Matraca.Web/export-design.cjs --check
+node --test tests/web/ui.test.cjs tests/hud-ds101-exclusive.test.cjs
 ```
+
+Browser checks: make `playwright` available through `NODE_PATH` or a local installation, install
+Microsoft Edge, then run `node tests/web/browser.cjs`. The test uses an isolated fake bridge:
+it checks layout and interactions, not native audio, delivery, or accessibility. Cross-compilation
+on Windows does not execute the macOS native shim or prove a working Mac package.
 
 ### Windows
 
@@ -164,13 +199,23 @@ Install [Inno Setup 6](https://jrsoftware.org/isinfo.php) to produce the self-co
 installer:
 
 ```powershell
-.\installer\build-installer.ps1 -Version 0.0.0
-# output: installer\output\matraca-setup-0.0.0.exe
+.\installer\build-installer.ps1
+# defaults to the Windows project version; output: installer\output\matraca-setup-2.0.0.exe
+# explicit CI version: .\installer\build-installer.ps1 -Version 0.0.0
 ```
 
 The installer can add a startup shortcut. It can also install the `uiAccess` variant for dictation
 into elevated windows. That option creates and trusts a local certificate used to sign the installed
 executable.
+
+### Release process
+
+After tests and an authorized push to `main`, tag the intended commit with `v<version>` and push
+that tag explicitly, for example `git push origin v2.0.0`. The `build` workflow runs checks,
+publishes both Windows manifest variants, builds the Inno Setup installer, optionally signs it,
+and creates the GitHub Release. A normal `main` push creates a CI artifact, not a public release.
+Confirm the Actions run and attached installer before reporting publication. There is no automatic
+update or local installation step; publishing does not restart an installed app.
 
 ### macOS
 

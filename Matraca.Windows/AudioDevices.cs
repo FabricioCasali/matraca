@@ -1,4 +1,5 @@
 using NAudio.Wave;
+using System.Runtime.InteropServices;
 
 namespace Matraca;
 
@@ -35,21 +36,26 @@ internal static class AudioDevices
     public static int Resolve(string? configuredName)
     {
         var wanted = (configuredName ?? "").Trim();
-        if (wanted.Length == 0) return DefaultDevice;
+        // Never derive native indices from ListNames: unreadable entries may be omitted.
+        for (int i = 0; i < WaveInEvent.DeviceCount; i++)
+            if (string.Equals(WaveInEvent.GetCapabilities(i).ProductName, wanted,
+                StringComparison.OrdinalIgnoreCase)) return i;
 
-        var names = ListNames();
-        for (int i = 0; i < names.Count; i++)
-            if (string.Equals(names[i], wanted, StringComparison.OrdinalIgnoreCase))
-                return i;
-
-        // O Windows corta o ProductName em 31 caracteres na API antiga do WaveIn, entao um
-        // nome longo salvo por outra via pode nao bater exatamente.
-        for (int i = 0; i < names.Count; i++)
-            if (wanted.StartsWith(names[i], StringComparison.OrdinalIgnoreCase) ||
-                names[i].StartsWith(wanted, StringComparison.OrdinalIgnoreCase))
-                return i;
-
-        Logger.Warn($"Microfone '{wanted}' nao encontrado; usando o padrao do Windows.");
-        return DefaultDevice;
+        uint result = waveInMessage(new IntPtr(DefaultDevice), 0x2015, out uint device, out _);
+        if (result != 0 || device >= WaveInEvent.DeviceCount)
+            throw new InvalidOperationException("Nao foi possivel resolver o microfone padrao do Windows.");
+        return checked((int)device);
     }
+
+    public static string RealName(int device)
+    {
+        string name = WaveInEvent.GetCapabilities(device).ProductName.Trim();
+        if (name.Length == 0 || ListNames().Count(candidate =>
+            string.Equals(candidate.Trim(), name, StringComparison.OrdinalIgnoreCase)) != 1)
+            throw new InvalidOperationException("O microfone nao possui nome unico; nao e seguro associar seu ajuste.");
+        return name;
+    }
+
+    [DllImport("winmm.dll")]
+    private static extern uint waveInMessage(IntPtr device, uint message, out uint preferredDevice, out uint flags);
 }

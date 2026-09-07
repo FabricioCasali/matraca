@@ -9,6 +9,7 @@ internal sealed class WindowsAudioCapture : IAudioCapture
     private static readonly TimeSpan SoundGuard = TimeSpan.FromMilliseconds(150);
 
     private readonly IShell _shell;
+    private readonly bool _bufferSamples;
     private WaveInEvent? _waveIn;
     private MemoryStream _buffer = new();
     private TaskCompletionSource<float[]>? _stopCompletion;
@@ -19,10 +20,12 @@ internal sealed class WindowsAudioCapture : IAudioCapture
     public event Action<ReadOnlyMemory<float>>? FrameCaptured;
 
     public bool IsCapturing => Volatile.Read(ref _capturing) != 0;
+    public string? CurrentDevice { get; private set; }
 
-    public WindowsAudioCapture(IShell shell)
+    public WindowsAudioCapture(IShell shell, bool bufferSamples = true)
     {
         _shell = shell;
+        _bufferSamples = bufferSamples;
     }
 
     public IReadOnlyList<string> ListDevices() => AudioDevices.ListNames();
@@ -34,6 +37,7 @@ internal sealed class WindowsAudioCapture : IAudioCapture
     {
         if (IsCapturing) throw new InvalidOperationException("A captura de audio ja esta ativa.");
         cancellationToken.ThrowIfCancellationRequested();
+        CurrentDevice = null;
 
         int muteMilliseconds = Math.Max(0, (int)initialMute.TotalMilliseconds);
         await Task.Run(() =>
@@ -46,9 +50,11 @@ internal sealed class WindowsAudioCapture : IAudioCapture
                 + muteMilliseconds
                 + MaximumExtraMuteMilliseconds;
 
+            int device = AudioDevices.Resolve(deviceName);
+            CurrentDevice = AudioDevices.RealName(device);
             var waveIn = new WaveInEvent
             {
-                DeviceNumber = AudioDevices.Resolve(deviceName),
+                DeviceNumber = device,
                 WaveFormat = new WaveFormat(IAudioCapture.RequiredSampleRate, 16, 1),
                 BufferMilliseconds = 30,
             };
@@ -58,8 +64,8 @@ internal sealed class WindowsAudioCapture : IAudioCapture
 
             try
             {
-                waveIn.StartRecording();
                 Volatile.Write(ref _capturing, 1);
+                waveIn.StartRecording();
             }
             catch
             {
@@ -67,6 +73,8 @@ internal sealed class WindowsAudioCapture : IAudioCapture
                 waveIn.RecordingStopped -= OnStopped;
                 waveIn.Dispose();
                 _waveIn = null;
+                Volatile.Write(ref _capturing, 0);
+                CurrentDevice = null;
                 throw;
             }
         }, cancellationToken);
@@ -99,7 +107,7 @@ internal sealed class WindowsAudioCapture : IAudioCapture
 
         if (count <= 0 || StillMuted()) return;
 
-        _buffer.Write(eventArgs.Buffer, offset, count);
+        if (_bufferSamples) _buffer.Write(eventArgs.Buffer, offset, count);
         var frame = new float[count / 2];
         for (int i = 0; i < frame.Length; i++)
             frame[i] = BitConverter.ToInt16(eventArgs.Buffer, offset + i * 2) / 32768f;
@@ -113,6 +121,7 @@ internal sealed class WindowsAudioCapture : IAudioCapture
     {
         Volatile.Write(ref _capturing, 0);
         var bytes = _buffer.ToArray();
+        _buffer.SetLength(0);
         var samples = new float[bytes.Length / 2];
         for (int i = 0; i < samples.Length; i++)
             samples[i] = BitConverter.ToInt16(bytes, i * 2) / 32768f;
@@ -129,6 +138,7 @@ internal sealed class WindowsAudioCapture : IAudioCapture
         if (eventArgs.Exception != null)
             Logger.Error("Erro ao gravar audio", eventArgs.Exception);
         _stopCompletion?.TrySetResult(samples);
+        _stopCompletion = null;
     }
 
     public void Dispose()

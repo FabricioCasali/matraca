@@ -1,8 +1,13 @@
-:root { color-scheme:dark;font-family:ui-sans-serif,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif }
-* { box-sizing:border-box } html,body { width:100%;height:100%;margin:0;background:transparent;overflow:hidden }
+:root { font-family:var(--font-body); color:var(--hud-fg) }
+* { box-sizing:border-box }
+html,body { width:100%;height:100%;margin:0;background:transparent;overflow:hidden;pointer-events:none }
 body { display:grid;place-items:center;padding:10px }
-.hud { width:100%;min-height:72px;border:1px solid rgba(255,255,255,.14);border-radius:18px;background:linear-gradient(130deg,rgba(25,25,50,.94),rgba(11,23,36,.94));box-shadow:0 16px 42px rgba(0,0,0,.3),inset 0 1px 0 rgba(255,255,255,.07);display:grid;grid-template-columns:48px 1fr auto;align-items:center;gap:14px;padding:11px 16px;backdrop-filter:blur(22px);color:#f5f3ff }
-.state-icon { width:44px;height:44px;border-radius:13px;background:rgba(255,255,255,.08);display:flex;align-items:center;justify-content:center;gap:3px }.state-icon i { width:3px;border-radius:3px;background:#ff746d }.state-icon i:nth-child(1){height:10px}.state-icon i:nth-child(2){height:24px}.state-icon i:nth-child(3){height:17px}.state-icon i:nth-child(4){height:8px}
-.state-copy { display:grid;gap:4px }.state-copy strong { font-size:15px;font-weight:620 }.state-copy span { color:#b4b4c7;font-size:12px }.state-tail { display:flex;align-items:center;gap:2px;height:30px }.state-tail i { width:3px;border-radius:3px;background:linear-gradient(#a483ff,#4dd6eb) }.state-tail i:nth-child(1){height:30%}.state-tail i:nth-child(2){height:75%}.state-tail i:nth-child(3){height:100%}.state-tail i:nth-child(4){height:62%}.state-tail i:nth-child(5){height:25%}
-.hud.state-thinking .state-icon { border:2px solid #514875;border-top-color:#a48aff;border-radius:50%;background:transparent }.hud.state-thinking .state-icon i { display:none }.hud.state-writing .state-icon::after { content:"↗";color:#55d4ec;font-size:20px }.hud.state-writing .state-icon i,.hud.state-writing .state-tail { display:none }.hud.state-done .state-icon::after { content:"✓";color:#59d69f;font-size:19px }.hud.state-done .state-icon i,.hud.state-done .state-tail { display:none }.hud.state-error .state-icon::after { content:"!";color:#ff7078;font-size:19px;font-weight:800 }.hud.state-error .state-icon i,.hud.state-error .state-tail { display:none }
-@media (prefers-reduced-motion:no-preference) { .state-listening .state-icon i { animation:level .8s ease-in-out infinite alternate }.state-listening .state-icon i:nth-child(2){animation-delay:.15s}.state-listening .state-icon i:nth-child(3){animation-delay:.3s}.state-thinking .state-icon { animation:spin 1.3s linear infinite } @keyframes level { to { transform:scaleY(.5);opacity:.65 } } @keyframes spin { to { transform:rotate(360deg) } } }
+.hud { width:100%;min-height:72px;border:1px solid var(--hud-muted);border-radius:var(--radius-card);background:var(--hud-bg);color:var(--hud-fg);display:grid;grid-template-columns:32px minmax(0,1fr);align-items:center;gap:var(--space-3);padding:8px 16px;opacity:0;transform:translateY(6px) scale(.985);transition:opacity var(--motion-enter) var(--ease-out),transform var(--motion-enter) var(--ease-out) }
+.hud.is-visible { opacity:1;transform:translateY(0) scale(1) }
+.hud.is-exiting { opacity:0;transform:translateY(4px);transition-duration:var(--motion-exit) }
+.state-icon { width:32px;height:32px;object-fit:contain }
+.state-copy { min-width:0;display:grid;gap:4px }
+.state-copy strong { font-size:14px;line-height:1.3;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis }
+.state-copy span { color:var(--hud-muted);font-size:12px;line-height:1.25;white-space:pre-wrap;overflow-wrap:anywhere;display:-webkit-box;-webkit-box-orient:vertical;-webkit-line-clamp:2;overflow:hidden;max-height:2.5em }
+@media (prefers-reduced-motion:reduce) { .hud,.hud.is-visible,.hud.is-exiting { transition:none;transform:none } .state-copy { animation:none!important } }
+@media (forced-colors:active) { .hud { background:Canvas;color:CanvasText;border-color:CanvasText } .state-copy span { color:CanvasText } }

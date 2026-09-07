@@ -34,6 +34,7 @@ internal sealed class MacWebBridge : IDisposable
     {
         _app = app;
         _microphone.Frame += OnMicrophoneFrame;
+        _microphone.Error += OnMicrophoneError;
         if (_app == null) return;
         _app.StateChanged += OnStateChanged;
         _app.ConfigChanged += OnConfigChanged;
@@ -164,6 +165,7 @@ internal sealed class MacWebBridge : IDisposable
         }
         CancelHotkeyCapture();
         _microphone.Frame -= OnMicrophoneFrame;
+        _microphone.Error -= OnMicrophoneError;
         _microphone.Dispose();
         MessageProduced = null;
         CloseWindowRequested = null;
@@ -243,7 +245,7 @@ internal sealed class MacWebBridge : IDisposable
                     reasoningTokens = entry.ReviewUsage.ReasoningTokens,
                     totalTokens = entry.ReviewUsage.TotalTokens,
                     estimatedCostUsd = entry.ReviewUsage.EstimatedCostUsd,
-                    pricingVersion = AiCostEstimator.DeepSeekPricingVersion,
+                    pricingVersion = entry.ReviewUsage.PricingVersion,
                 },
             })
             .ToArray(),
@@ -458,22 +460,48 @@ internal sealed class MacWebBridge : IDisposable
                 || Volatile.Read(ref _stopping) != 0)
                 return new { started = false, devices = Array.Empty<string>(), currentDevice = device, threshold = CurrentThreshold };
             await _microphone.StopAsync().ConfigureAwait(false);
-            _monitoredDevice = device;
+            _monitoredDevice = "";
             Array.Clear(_smoothedBands);
             _peak = 0;
-            await _microphone.StartAsync(device).ConfigureAwait(false);
+            await _microphone.StartAsync(device, generation: generation).ConfigureAwait(false);
             if (generation != Volatile.Read(ref _microphoneGeneration))
             {
                 await _microphone.StopAsync().ConfigureAwait(false);
                 return new { started = false, devices = Array.Empty<string>(), currentDevice = device, threshold = CurrentThreshold };
             }
+            _monitoredDevice = _microphone.CurrentDevice
+                ?? throw new InvalidOperationException("O microfone nao informou sua identidade real.");
+            if (_app != null && !_app.CurrentConfig.MicSensitivity.ContainsKey(_monitoredDevice))
+            {
+                var sensitivity = new Dictionary<string, float>(_app.CurrentConfig.MicSensitivity,
+                    StringComparer.OrdinalIgnoreCase) { [_monitoredDevice] = 0.012f };
+                await _app.ApplyAndSaveConfigPatchAsync(JsonSerializer.Serialize(new { micSensitivity = sensitivity }))
+                    .ConfigureAwait(false);
+            }
+            if (generation != Volatile.Read(ref _microphoneGeneration))
+            {
+                await _microphone.StopAsync().ConfigureAwait(false);
+                _monitoredDevice = "";
+                return new { started = false, devices = Array.Empty<string>(), currentDevice = "", threshold = 0.012f };
+            }
             return new
             {
                 started = true,
                 devices = _microphone.ListDevices(),
-                currentDevice = device,
+                currentDevice = _monitoredDevice,
                 threshold = CurrentThreshold,
             };
+        }
+        catch (Exception exception)
+        {
+            try { await _microphone.StopAsync().ConfigureAwait(false); }
+            catch (Exception cleanup) { Logger.Error("Falha ao limpar monitor", cleanup); }
+            finally
+            {
+                _monitoredDevice = "";
+                Emit("mic.error", new { message = exception.Message });
+            }
+            throw;
         }
         finally { _microphoneGate.Release(); }
     }
@@ -484,7 +512,8 @@ internal sealed class MacWebBridge : IDisposable
         await _microphoneGate.WaitAsync().ConfigureAwait(false);
         try
         {
-            await _microphone.StopAsync().ConfigureAwait(false);
+            try { await _microphone.StopAsync().ConfigureAwait(false); }
+            finally { _monitoredDevice = ""; }
             return new { stopped = true };
         }
         finally { _microphoneGate.Release(); }
@@ -527,18 +556,25 @@ internal sealed class MacWebBridge : IDisposable
         providers = (_app?.AiUsageSnapshot() ?? [])
             .GroupBy(item => item.Provider)
             .OrderBy(group => group.Key)
-            .Select(group => new
+            .Select(group =>
             {
-                provider = group.Key,
-                requests = group.Sum(item => item.Requests),
-                promptTokens = group.Sum(item => item.PromptTokens),
-                promptCacheHitTokens = group.Sum(item => item.PromptCacheHitTokens),
-                promptCacheMissTokens = group.Sum(item => item.PromptCacheMissTokens),
-                completionTokens = group.Sum(item => item.CompletionTokens),
-                reasoningTokens = group.Sum(item => item.ReasoningTokens),
-                totalTokens = group.Sum(item => item.TotalTokens),
-                estimatedCostUsd = group.Sum(item => item.EstimatedCostUsd),
-                pricingVersion = AiCostEstimator.DeepSeekPricingVersion,
+                AiUsageSummary summary = AiUsageSummary.Create(group);
+                return new
+                {
+                    provider = group.Key,
+                    requests = summary.Requests,
+                    promptTokens = summary.PromptTokens,
+                    promptCacheHitTokens = summary.PromptCacheHitTokens,
+                    promptCacheMissTokens = summary.PromptCacheMissTokens,
+                    completionTokens = summary.CompletionTokens,
+                    reasoningTokens = summary.ReasoningTokens,
+                    totalTokens = summary.TotalTokens,
+                    estimatedCostUsd = summary.EstimatedCostUsd,
+                    pricedRequests = summary.PricedRequests,
+                    unpricedRequests = summary.UnpricedRequests,
+                    coverageKnown = summary.CoverageKnown,
+                    pricingVersions = summary.PricingVersions,
+                };
             })
             .ToArray(),
     };
@@ -571,10 +607,28 @@ internal sealed class MacWebBridge : IDisposable
     }
 
     private float CurrentThreshold
-        => _app?.CurrentConfig.VadThresholdFor(_monitoredDevice) ?? 0.012f;
+        => _app == null ? 0.012f : DictationController.MicrophoneThreshold(_app.CurrentConfig, _microphone.CurrentDevice);
+
+    private async void OnMicrophoneError(int generation, string message)
+    {
+        await _microphoneGate.WaitAsync().ConfigureAwait(false);
+        try
+        {
+            if (generation != Volatile.Read(ref _microphoneGeneration)) return;
+            try { await _microphone.StopAsync().ConfigureAwait(false); }
+            finally
+            {
+                _monitoredDevice = "";
+                Emit("mic.error", new { message });
+            }
+        }
+        catch (Exception exception) { Logger.Error("Falha ao parar monitor", exception); }
+        finally { _microphoneGate.Release(); }
+    }
 
     private void OnMicrophoneFrame(float rms, float peak, float[] bands)
     {
+        if (string.IsNullOrEmpty(_monitoredDevice)) return;
         for (int index = 0; index < _smoothedBands.Length; index++)
             _smoothedBands[index] = Math.Max(bands[index], _smoothedBands[index] * 0.82f);
         _peak = Math.Max(peak, _peak * 0.94f);
@@ -619,29 +673,13 @@ internal sealed class MacWebBridge : IDisposable
             text,
             at = DateTime.Now,
             history = BuildHistory(),
+            delivered = result == TextDeliveryResult.Delivered,
+            deliveryResult = result.ToString(),
+            streaming,
         });
 
     private static object BuildPublicConfig(RawConfig raw)
-    {
-        JsonElement serialized = JsonSerializer.SerializeToElement(raw, ReadOptions);
-        var result = new Dictionary<string, object?>();
-        foreach (JsonProperty property in serialized.EnumerateObject())
-        {
-            if (property.Name is nameof(RawConfig.postProcessApiKey)
-                or nameof(RawConfig.postProcessOpenAiApiKey)
-                or nameof(RawConfig.postProcessDeepSeekApiKey)) continue;
-            result[property.Name] = property.Value.Clone();
-        }
-        string provider = Matraca.Core.Config.NormalizePostProcessProvider(raw.postProcessProvider);
-        result["postProcessProvider"] = provider;
-        result["postProcessApiKeyConfigured"] = !string.IsNullOrWhiteSpace(provider switch
-        {
-            "openai-compatible" => raw.postProcessOpenAiApiKey,
-            "deepseek" => raw.postProcessDeepSeekApiKey,
-            _ => raw.postProcessApiKey,
-        });
-        return result;
-    }
+        => ConfigSnapshot.Create(raw);
 
     private static void RequireExactProperties(JsonElement parameters, params string[] names)
     {

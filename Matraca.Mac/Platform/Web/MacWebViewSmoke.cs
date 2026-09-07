@@ -144,6 +144,7 @@ internal static class MacWebViewSmoke
                     deviceCount = dataPayload.GetProperty("deviceCount").GetInt32();
                     modelCount = dataPayload.GetProperty("modelCount").GetInt32();
                     modelsValid = dataPayload.GetProperty("modelsValid").GetBoolean();
+                    appHost.EvaluateScript("document.querySelector('[data-microphone-start]').click();");
                 }
                 else if (type.GetString() == "ui.micReady"
                     && root.TryGetProperty("payload", out JsonElement microphonePayload))
@@ -207,7 +208,7 @@ internal static class MacWebViewSmoke
                 && microphoneReady
                 && pageCount == 5
                 && spectrumBandCount == 48
-                && settingsTabCount == 5
+                && settingsTabCount == 7
                 && settingsControlCount >= 26
                 && deviceCount > 0
                 && modelCount == ModelDownloader.Catalog.Count()

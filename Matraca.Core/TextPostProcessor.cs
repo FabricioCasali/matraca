@@ -45,6 +45,12 @@ public sealed class TextPostProcessor : IDisposable
     {
         if (!config.PostProcess) return null;
 
+        if (string.IsNullOrWhiteSpace(config.PostProcessModel))
+        {
+            Logger.Warn("Pos-processamento aguarda a escolha de modelo; seguindo sem revisar o texto.");
+            return null;
+        }
+
         if (config.PostProcessProvider is "openai-compatible" or "deepseek")
             return TryCreateOpenAiCompatible(config);
         if (config.PostProcessProvider != "anthropic")
