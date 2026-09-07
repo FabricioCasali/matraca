@@ -11,12 +11,6 @@ O desenho da frente 2.0 está em [`PLANO-2.0.md`](PLANO-2.0.md).
 
 ## 🔄 Fazendo
 
-- **MT-037** **Entregar a versao 2.0.0 na main e no GitHub Releases** — conferir
-  instalador, testes e README; publicar main/tag e confirmar artefato remoto.
-  Aceite nativo informado pelo usuario para MT-033/034/035; esses fixes estao
-  concluidos. Landing page fora desta entrega; MT-036 permanece pausado.
-  · `[distribuicao]` · M · importante
-
 - **MT-032** **Adotar Design System 1.0.1** — UI, tokens, aparencia persistida, microfone,
   consumo e HUD integrados; marca 03A de `design/assets/brand/` incluida nos assets Web
   dos dois hosts. CMP-001 a CMP-010, FND-001/002/003, BRD-001, MOT-001 e A11Y-001;
