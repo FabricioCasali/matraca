@@ -1,0 +1,37 @@
+{
+  "version": "1.0.1",
+  "description": "Valores normativos consolidados dos temas aprovados; aplicacao dos mocks ainda parcial.",
+  "font": {
+    "--font-display": "-apple-system, BlinkMacSystemFont, 'SF Pro Display', system-ui, sans-serif",
+    "--font-body": "-apple-system, BlinkMacSystemFont, 'SF Pro Text', system-ui, sans-serif"
+  },
+  "geometry": {
+    "--space-1": "4px", "--space-2": "8px", "--space-3": "12px", "--space-4": "16px", "--space-6": "24px", "--space-8": "32px",
+    "--radius-control": "10px", "--radius-card": "14px", "--control-height": "46px", "--focus-width": "3px", "--focus-offset": "4px"
+  },
+  "typeScalePx": {"caption": 12, "body": 15, "subheading": 18, "section": 23, "metric": 24, "page": 30, "display": 38, "heroMax": 60},
+  "motion": {"--motion-fast": "120ms", "--motion-enter": "180ms", "--motion-state": "160ms", "--motion-exit": "140ms", "--ease-out": "cubic-bezier(.2,.8,.2,1)"},
+  "brandMotion": {"listeningCycleMs": 1400, "listeningStrokeUnits": 11, "loadingCycleMs": 2400, "completionMs": 1100, "pencilTip": false, "extraExitStroke": false},
+  "families": [
+    {"id": "olive", "hue": 125, "light": "Oliva", "dark": "Lima elétrico"},
+    {"id": "ochre", "hue": 85, "light": "Açafrão", "dark": "Amarelo solar"},
+    {"id": "terracotta", "hue": 35, "light": "Terracota", "dark": "Coral vivo"},
+    {"id": "plum", "hue": 325, "light": "Amora", "dark": "Orquídea"},
+    {"id": "teal", "hue": 175, "light": "Jade", "dark": "Menta"}
+  ],
+  "light": {
+    "--bg": "oklch(99% 0.002 240)", "--surface": "oklch(100% 0 0)", "--fg": "oklch(18% 0.012 250)",
+    "--muted": "oklch(54% 0.012 250)", "--subtle": "oklch(43% 0.012 250)", "--border": "oklch(92% 0.005 250)", "--control-border": "oklch(66% 0.012 250)", "--soft": "oklch(96.5% 0.004 250)",
+    "--accent": "oklch(48% 0.13 var(--palette-hue))", "--action-bg": "oklch(48% 0.13 var(--palette-hue))", "--accent-strong": "oklch(40% 0.11 var(--palette-hue))", "--on-accent": "oklch(100% 0 0)",
+    "--brand-wash": "oklch(97% 0.012 var(--palette-hue))", "--brand-soft": "oklch(98% 0.006 var(--palette-hue))", "--brand-line": "oklch(83% 0.035 var(--palette-hue))", "--brand-ink": "oklch(40% 0.10 var(--palette-hue))", "--voice-color": "oklch(48% 0.13 var(--palette-hue))",
+    "--success": "oklch(40% 0.105 155)", "--success-bg": "oklch(96% 0.02 155)", "--danger": "oklch(46% 0.17 25)", "--danger-bg": "oklch(97% 0.015 25)"
+  },
+  "dark": {
+    "--bg": "oklch(19% 0.008 250)", "--surface": "oklch(22% 0.008 250)", "--fg": "oklch(95% 0.003 250)",
+    "--muted": "oklch(73% 0.01 250)", "--subtle": "oklch(79% 0.008 250)", "--border": "oklch(32% 0.012 250)", "--control-border": "oklch(57% 0.01 250)", "--soft": "oklch(25% 0.01 250)",
+    "--accent": "oklch(82% 0.16 var(--palette-hue))", "--action-bg": "oklch(82% 0.16 var(--palette-hue))", "--accent-strong": "oklch(90% 0.12 var(--palette-hue))", "--on-accent": "oklch(18% 0.012 250)",
+    "--brand-wash": "var(--soft)", "--brand-soft": "var(--surface)", "--brand-line": "var(--border)", "--brand-ink": "oklch(82% 0.16 var(--palette-hue))", "--voice-color": "oklch(82% 0.16 var(--palette-hue))",
+    "--success": "oklch(80% 0.10 155)", "--success-bg": "oklch(26% 0.025 155)", "--danger": "oklch(80% 0.105 25)", "--danger-bg": "oklch(26% 0.025 25)"
+  },
+  "overlay": {"--hud-bg": "oklch(21% 0.013 250 / .96)", "--hud-fg": "oklch(98% 0.002 250)", "--hud-muted": "oklch(79% 0.008 250)", "--voice-on-dark": "oklch(82% 0.16 var(--palette-hue))"}
+}
