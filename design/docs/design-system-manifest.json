@@ -163,12 +163,12 @@
     {
       "path": "docs/BOARD.md",
       "bytes": 1497,
-      "sha256": "731e890ef6a1c5b3d0e4c6cc59d2fbf885052a6de33b85e8ec6d8c04bb855085"
+      "sha256": "0d8625a2ac6ba4ae40e80de09465f4b5d0aa49519f50aaddeccc6de474ade941"
     },
     {
       "path": "docs/configuracoes-inventario.md",
-      "bytes": 11024,
-      "sha256": "8fa67aca65e60e99345a830d1bb1620c89b12537306d7d4a4d0bed23033d6567"
+      "bytes": 11009,
+      "sha256": "d821b38697abef0f6afd70223ae73f4ded2a4c7a15aeaf09c54d38760abdfa7b"
     },
     {
       "path": "docs/consumo-revisao.md",
@@ -228,7 +228,7 @@
     {
       "path": "tests/matraca-prototype.test.cjs",
       "bytes": 26795,
-      "sha256": "1ade68098f914ba6bb40a9c2c4ccfb2464a7c1aa91ab76737b51f905f779912a"
+      "sha256": "d7c1effc2373adac6a8adc0d2471b1af1223a7b2efb57a0912e11575e1da5b5f"
     },
     {
       "path": "tests/matraca-brand.test.cjs",

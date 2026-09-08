@@ -6,7 +6,7 @@ Inventário por leitura de `C:\Desenv\particular\ditador`, sem ler configuraçõ
 
 Fontes principais:
 
-- `Matraca.Core/RawConfig.cs`, linhas 5–42: os 38 campos persistíveis.
+- `Matraca.Core/RawConfig.cs`: os 39 campos persistíveis.
 - `Matraca.Core/Config.cs`, linhas 177–305: defaults, normalização e limites.
 - `Matraca.Web/wwwroot/index.html`, linhas 94–151, e `app.js`: controles e dependências existentes.
 - `Matraca.Windows/WindowsWebBridge.cs` e `Matraca.Mac/Platform/Web/MacWebBridge.cs`: capacidades, modelos, permissões e mensagens.

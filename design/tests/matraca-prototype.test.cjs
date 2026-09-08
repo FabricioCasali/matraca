@@ -238,7 +238,7 @@ assert.equal(run('deviceThreshold()'),0.035,'Switch back restores saved device s
 press('mic-reset');assert.equal(run('deviceThreshold()'),0.012);
 events.change({target:{dataset:{control:'mic-device'},value:'headset'}});assert.equal(run('deviceThreshold()'),0.006,'Reset only affects active microphone');
 press('mic-start');press('section-review');drain();assert.equal(run('mic.status'),'idle');
-console.log('PASS: 38-field inventory with legacy threshold internal, 48-band spectrum, per-device independence/restoration/reset, provider validation and theme coverage.');
+console.log('PASS: 39-field inventory with legacy threshold internal, 48-band spectrum, per-device independence/restoration/reset, provider validation and theme coverage.');
 run("state.history=[];state.keepHistory=true;state.query='';config.postProcess=false;config.historyMaxItems=100;consumption.entries=[];consumption.provider='all'");
 assert.equal(run("estimateReviewCost('deepseek','deepseek-v4-flash','2026-09-06T02:00:00Z',1200,800,400,120)"),.0001728);
 assert.equal(run("estimateReviewCost('deepseek','deepseek-v4-flash','2026-09-07T01:00:00Z',1200,800,400,120)"),.0003456);
