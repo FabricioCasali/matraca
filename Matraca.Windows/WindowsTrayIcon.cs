@@ -11,6 +11,7 @@ internal sealed class WindowsTrayIcon : IDisposable
 
     private readonly WindowsIconSet _icons;
     private readonly Dictionary<uint, Action> _menuActions = new();
+    private readonly Dictionary<uint, string> _menuLabels = new();
     private readonly WindowsNativeWindow _window;
     private readonly nint _menu;
     private readonly uint _taskbarCreatedMessage;
@@ -122,6 +123,25 @@ internal sealed class WindowsTrayIcon : IDisposable
             throw new Win32Exception(Marshal.GetLastWin32Error(), "Falha ao adicionar um item ao menu da bandeja.");
 
         _menuActions.Add(commandId, action);
+        _menuLabels.Add(commandId, text);
+    }
+
+    public void UpdateMenuItem(uint commandId, string text)
+    {
+        VerifyNotDisposed();
+        _window.VerifyAccess();
+        ArgumentException.ThrowIfNullOrWhiteSpace(text);
+        if (!_menuLabels.ContainsKey(commandId))
+            throw new ArgumentOutOfRangeException(nameof(commandId));
+        if (_menuLabels[commandId] == text) return;
+        if (!WindowsNativeMethods.ModifyMenu(
+                _menu,
+                commandId,
+                WindowsNativeMethods.MfByCommand | WindowsNativeMethods.MfString,
+                commandId,
+                text))
+            throw new Win32Exception(Marshal.GetLastWin32Error(), "Falha ao atualizar o menu da bandeja.");
+        _menuLabels[commandId] = text;
     }
 
     public void AddMenuSeparator()
@@ -265,6 +285,7 @@ internal sealed class WindowsTrayIcon : IDisposable
         DeleteIcon();
         WindowsNativeMethods.DestroyMenu(_menu);
         _menuActions.Clear();
+        _menuLabels.Clear();
         Activated = null;
         AppearanceChanged = null;
         MenuOpening = null;

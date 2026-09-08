@@ -60,6 +60,7 @@ internal sealed class WindowsWebBridge : IDisposable
 
     public async Task<string?> HandleAsync(string json)
     {
+        string method = "";
         try
         {
             using JsonDocument document = JsonDocument.Parse(json);
@@ -76,7 +77,7 @@ internal sealed class WindowsWebBridge : IDisposable
                 return null;
 
             string id = idElement.GetString()!;
-            string method = methodElement.GetString()!;
+            method = methodElement.GetString()!;
             JsonElement parameters = root.TryGetProperty("params", out JsonElement value)
                 ? value
                 : default;
@@ -113,24 +114,24 @@ internal sealed class WindowsWebBridge : IDisposable
         }
         catch (NotSupportedException exception)
         {
-            return ErrorResponse(GetRequestId(json), "not_implemented", exception.Message);
+            return ErrorResponse(GetRequestId(json), "not_implemented", Messages.BridgeError(method, exception));
         }
         catch (JsonException exception)
         {
-            return ErrorResponse(GetRequestId(json), "invalid_request", exception.Message);
+            return ErrorResponse(GetRequestId(json), "invalid_request", Messages.BridgeError(method, exception));
         }
         catch (UnauthorizedAccessException exception)
         {
-            return ErrorResponse(GetRequestId(json), "permission_denied", exception.Message);
+            return ErrorResponse(GetRequestId(json), "permission_denied", Messages.BridgeError(method, exception));
         }
         catch (OperationCanceledException exception)
         {
-            return ErrorResponse(GetRequestId(json), "canceled", exception.Message);
+            return ErrorResponse(GetRequestId(json), "canceled", Messages.BridgeError(method, exception));
         }
         catch (Exception exception)
         {
             Logger.Error("Falha ao executar comando da interface WebView2", exception);
-            return ErrorResponse(GetRequestId(json), "native_error", exception.Message);
+            return ErrorResponse(GetRequestId(json), "native_error", Messages.BridgeError(method, exception));
         }
     }
 
@@ -178,9 +179,12 @@ internal sealed class WindowsWebBridge : IDisposable
     private object BuildConfig()
     {
         RawConfig raw = _app.LoadRawConfig();
+        Dictionary<string, object?> config = BuildPublicConfig(raw);
         return new
         {
-            config = BuildPublicConfig(raw),
+            config,
+            uiLanguage = config["uiLanguage"],
+            effectiveUiLanguage = config["effectiveUiLanguage"],
             runtime = new
             {
                 gpu = _app.RuntimeGpu,
@@ -200,9 +204,12 @@ internal sealed class WindowsWebBridge : IDisposable
 
         (RawConfig raw, bool restartRequired) = await _app.ApplyAndSaveConfigPatchAsync(
             patch.GetRawText());
+        Dictionary<string, object?> config = BuildPublicConfig(raw);
         return new
         {
-            config = BuildPublicConfig(raw),
+            config,
+            uiLanguage = config["uiLanguage"],
+            effectiveUiLanguage = config["effectiveUiLanguage"],
             restartRequired,
             postProcessActive = _app.PostProcessingActive,
         };
@@ -337,7 +344,7 @@ internal sealed class WindowsWebBridge : IDisposable
         TextDeliveryResult result = await _app.RepasteAsync(entry.Text, target).ConfigureAwait(false);
         if (result != TextDeliveryResult.Delivered)
         {
-            string message = $"Não foi possível recolar o texto: {result}.";
+            string message = Messages.BridgeError("history.repaste", new InvalidOperationException());
             _app.ShowWebError(message);
             throw new InvalidOperationException(message);
         }
@@ -573,7 +580,8 @@ internal sealed class WindowsWebBridge : IDisposable
             finally
             {
                 _monitoredDevice = "";
-                Emit("mic.error", new { message = exception.Message });
+                Logger.Error("Falha ao iniciar monitor de microfone", exception);
+                Emit("mic.error", new { message = Messages.BridgeError("mic.monitor.start", exception) });
                 if (Interlocked.Exchange(ref _microphoneSuspendedController, 0) != 0)
                     await _app.EndMicrophoneMonitorAsync().ConfigureAwait(false);
             }
@@ -648,7 +656,7 @@ internal sealed class WindowsWebBridge : IDisposable
             finally
             {
                 _monitoredDevice = "";
-                Emit("mic.error", new { message });
+                Emit("mic.error", new { message = Messages.BridgeError("mic.monitor.start", new InvalidOperationException(message)) });
                 if (Interlocked.Exchange(ref _microphoneSuspendedController, 0) != 0)
                     await _app.EndMicrophoneMonitorAsync().ConfigureAwait(false);
             }
@@ -688,9 +696,12 @@ internal sealed class WindowsWebBridge : IDisposable
     {
         try
         {
+            Dictionary<string, object?> publicConfig = BuildPublicConfig(_app.LoadRawConfig());
             Emit("config.changed", new
             {
-                config = BuildPublicConfig(_app.LoadRawConfig()),
+                config = publicConfig,
+                uiLanguage = publicConfig["uiLanguage"],
+                effectiveUiLanguage = publicConfig["effectiveUiLanguage"],
                 postProcessActive = _app.PostProcessingActive,
             });
         }
@@ -708,8 +719,13 @@ internal sealed class WindowsWebBridge : IDisposable
             streaming,
         });
 
-    private static object BuildPublicConfig(RawConfig raw)
-        => ConfigSnapshot.Create(raw);
+    private Dictionary<string, object?> BuildPublicConfig(RawConfig raw)
+    {
+        Dictionary<string, object?> result = ConfigSnapshot.Create(raw);
+        result["uiLanguage"] = _app.CurrentConfig.UiLanguage;
+        result["effectiveUiLanguage"] = _app.CurrentConfig.EffectiveUiLanguage;
+        return result;
+    }
 
     private static void RequireExactProperties(JsonElement parameters, params string[] names)
     {
@@ -755,9 +771,12 @@ internal sealed class WindowsWebBridge : IDisposable
     {
         ShellState.Recording => "listening",
         ShellState.Busy => "thinking",
+        ShellState.Writing => "writing",
         ShellState.Error => "error",
         _ => "ready",
     };
+
+    private WindowsUiMessages Messages => new(_app.CurrentConfig.EffectiveUiLanguage);
 
     private static string HistoryId(DictationHistoryEntry entry)
     {

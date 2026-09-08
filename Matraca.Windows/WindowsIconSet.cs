@@ -14,7 +14,7 @@ internal sealed class WindowsIconSet : IDisposable
         $"Icons/{state switch
         {
             ShellState.Recording => "recording",
-            ShellState.Busy => "busy",
+            ShellState.Busy or ShellState.Writing => "busy",
             ShellState.Error => "error",
             _ => "idle",
         }}-{theme}.ico", size);

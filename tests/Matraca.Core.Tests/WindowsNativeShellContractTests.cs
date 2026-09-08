@@ -34,10 +34,29 @@ public sealed class WindowsNativeShellContractTests
     public void NativeSoundSelectionPreservesMp3AndCompressedWaveSupport()
     {
         string picker = ReadProjectFile("Matraca.Windows", "WindowsFilePicker.cs");
+        string messages = ReadProjectFile("Matraca.Windows", "WindowsUiMessages.cs");
         string beeper = ReadProjectFile("Matraca.Windows", "Beeper.cs");
 
-        Assert.Contains("*.wav;*.mp3", picker);
+        Assert.Contains("FileSoundFilter", picker);
+        Assert.Contains("*.wav;*.mp3", messages);
         Assert.Contains("WaveFormatConversionStream.CreatePcmStream(reader)", beeper);
+    }
+
+    [Fact]
+    public void NativeSurfacesFollowTheEffectiveInterfaceLanguage()
+    {
+        string application = ReadProjectFile("Matraca.Windows", "WindowsApplication.cs");
+        string bridge = ReadProjectFile("Matraca.Windows", "WindowsWebBridge.cs");
+        string hud = ReadProjectFile("Matraca.Windows", "WindowsHudWindow.cs");
+        string messages = ReadProjectFile("Matraca.Windows", "WindowsUiMessages.cs");
+
+        Assert.Contains("ApplyNativeLocalization(next)", application);
+        Assert.Contains("effectiveUiLanguage = config[\"effectiveUiLanguage\"]", bridge);
+        Assert.Contains("ShellState.Writing => \"writing\"", hud);
+        Assert.Contains("effectiveUiLanguage = _effectiveUiLanguage", hud);
+        Assert.DoesNotContain("Contains(\"escrevendo\"", hud);
+        Assert.Contains("Settings...", messages);
+        Assert.Contains("Configurações...", messages);
     }
 
     [Fact]

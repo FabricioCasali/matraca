@@ -67,9 +67,10 @@ internal static class Program
         catch (Exception exception)
         {
             Logger.Error("Falha fatal", exception);
+            WindowsUiMessages messages = WindowsUiMessages.Current();
             WindowsNativeMethods.MessageBox(
                 nint.Zero,
-                "Erro fatal no Matraca:\n" + exception.Message,
+                messages.FatalError,
                 "Matraca",
                 WindowsNativeMethods.MbOk | WindowsNativeMethods.MbIconError);
         }

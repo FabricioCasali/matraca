@@ -31,6 +31,7 @@ internal sealed class WindowsApplication : IWindowsWebBridgeApp, IDisposable
     private readonly object _webTargetGate = new();
     private readonly string _runtimeGpu;
     private Config _config;
+    private WindowsUiMessages _messages;
     private WindowsKeyboardHook _keyboard;
     private WindowsConfigWatcher? _configWatcher;
     private TargetToken? _webTarget;
@@ -48,6 +49,7 @@ internal sealed class WindowsApplication : IWindowsWebBridgeApp, IDisposable
     public WindowsApplication()
     {
         _config = WindowsConfig.Load();
+        _messages = new WindowsUiMessages(_config.EffectiveUiLanguage);
         _runtimeGpu = _config.Gpu;
         Program.ApplyRuntimePreference(_runtimeGpu);
 
@@ -55,7 +57,7 @@ internal sealed class WindowsApplication : IWindowsWebBridgeApp, IDisposable
         _icons = new WindowsIconSet();
         _tray = new WindowsTrayIcon(
             _icons,
-            "Matraca - iniciando...");
+            _messages.TrayStarting);
         _shell = new WindowsNativeShell(_tray);
         _targets = new WindowsTargetWindow();
         _audio = new WindowsAudioCapture(_shell);
@@ -79,7 +81,9 @@ internal sealed class WindowsApplication : IWindowsWebBridgeApp, IDisposable
         _webBridge = new WindowsWebBridge(this, _shell);
         _webWindow = new WindowsWebViewWindow(_webBridge, _icons, _config);
         _tray.AppearanceChanged += () => _webWindow.ApplyAppearance(_config);
-        _hud = new WindowsHudWindow(Path.Combine(AppContext.BaseDirectory, "Web"));
+        _hud = new WindowsHudWindow(
+            Path.Combine(AppContext.BaseDirectory, "Web"),
+            _config.EffectiveUiLanguage);
         _powerMonitor = new WindowsPowerMonitor(_dispatcher);
         _shutdown = new BoundedShutdownCoordinator(ShutdownResourcesAsync, ShutdownGracePeriod);
 
@@ -141,9 +145,8 @@ internal sealed class WindowsApplication : IWindowsWebBridgeApp, IDisposable
         if (_config.DiscoverMode)
         {
             _shell.ShowNotification(
-                "Modo descoberta",
-                "Aperte sua tecla custom. O codigo aparece aqui e no matraca.log. "
-                    + "Depois coloque-o em appsettings.json (campo \"hotkey\").");
+                _messages.DiscoveryTitle,
+                _messages.DiscoveryMessage);
             Logger.Info("Iniciado em MODO DESCOBERTA de tecla.");
         }
 
@@ -168,8 +171,8 @@ internal sealed class WindowsApplication : IWindowsWebBridgeApp, IDisposable
     public Task<string?> PickFileAsync(string kind)
         => OnDispatcherAsync(() => kind switch
         {
-            "model" => WindowsFilePicker.PickModel(_webWindow.Handle),
-            "sound" => WindowsFilePicker.PickSound(_webWindow.Handle),
+            "model" => WindowsFilePicker.PickModel(_webWindow.Handle, _config.EffectiveUiLanguage),
+            "sound" => WindowsFilePicker.PickSound(_webWindow.Handle, _config.EffectiveUiLanguage),
             _ => throw new ArgumentOutOfRangeException(nameof(kind)),
         });
 
@@ -310,7 +313,7 @@ internal sealed class WindowsApplication : IWindowsWebBridgeApp, IDisposable
 
     public void ShowWebError(string message)
         => PostToDispatcher(() => _shell.ShowNotification(
-            "Operacao da interface falhou",
+            _messages.InterfaceErrorTitle,
             message,
             ShellNotificationLevel.Error));
 
@@ -338,13 +341,13 @@ internal sealed class WindowsApplication : IWindowsWebBridgeApp, IDisposable
 
     private void ConfigureTray()
     {
-        _tray.AddMenuItem(SettingsCommand, "Configuracoes...", () => OpenWebWindow("settings"));
-        _tray.AddMenuItem(HistoryCommand, "Historico de ditados...", () => OpenWebWindow("history"));
+        _tray.AddMenuItem(SettingsCommand, _messages.SettingsMenu, () => OpenWebWindow("settings"));
+        _tray.AddMenuItem(HistoryCommand, _messages.HistoryMenu, () => OpenWebWindow("history"));
         _tray.AddMenuSeparator();
-        _tray.AddMenuItem(LogCommand, "Abrir matraca.log", OpenLog);
-        _tray.AddMenuItem(ConfigFolderCommand, "Abrir pasta de config", OpenConfigFolder);
+        _tray.AddMenuItem(LogCommand, _messages.LogMenu, OpenLog);
+        _tray.AddMenuItem(ConfigFolderCommand, _messages.ConfigFolderMenu, OpenConfigFolder);
         _tray.AddMenuSeparator();
-        _tray.AddMenuItem(ExitCommand, "Sair", () => RequestShutdown(restart: false));
+        _tray.AddMenuItem(ExitCommand, _messages.ExitMenu, () => RequestShutdown(restart: false));
         _tray.Activated += () => OpenWebWindow("home");
         _tray.MenuOpening = OnTrayMenuOpening;
         _tray.MenuClosed += OnTrayMenuClosed;
@@ -355,7 +358,7 @@ internal sealed class WindowsApplication : IWindowsWebBridgeApp, IDisposable
         if (Volatile.Read(ref _stopping) != 0) return;
         if (_controller.IsSessionActive || _controller.IsBusy)
         {
-            _shell.ShowNotification("Aguarde", "Encerre o ditado antes de abrir o painel.");
+            _shell.ShowNotification(_messages.WaitTitle, _messages.WaitMessage);
             return;
         }
         _webWindow.Open(route);
@@ -403,7 +406,7 @@ internal sealed class WindowsApplication : IWindowsWebBridgeApp, IDisposable
     {
         if (_controller.IsSessionActive || _controller.IsBusy)
         {
-            _shell.ShowNotification("Aguarde", "Encerre o ditado antes de abrir o menu.");
+            _shell.ShowNotification(_messages.WaitTitle, _messages.MenuWaitMessage);
             return false;
         }
 
@@ -421,7 +424,7 @@ internal sealed class WindowsApplication : IWindowsWebBridgeApp, IDisposable
             try { ResumeControllerIfAvailableAsync().GetAwaiter().GetResult(); }
             catch { }
             Logger.Error("Falha ao suspender ditado antes de abrir o menu", exception);
-            _shell.ShowNotification("Menu indisponivel", "Nao foi possivel pausar o ditado com seguranca.");
+            _shell.ShowNotification(_messages.MenuUnavailableTitle, _messages.MenuUnavailableMessage);
             return false;
         }
     }
@@ -513,6 +516,7 @@ internal sealed class WindowsApplication : IWindowsWebBridgeApp, IDisposable
         _config = next;
         await OnDispatcherAsync(() =>
         {
+            ApplyNativeLocalization(next);
             _webWindow.ApplyAppearance(next);
             return true;
         }).ConfigureAwait(false);
@@ -537,8 +541,7 @@ internal sealed class WindowsApplication : IWindowsWebBridgeApp, IDisposable
         Volatile.Write(ref _restartPromptPending, 0);
         int result = WindowsNativeMethods.MessageBox(
             _dispatcher.WindowHandle,
-            "A troca entre GPU e CPU so vale reiniciando o Matraca.\n\n"
-                + "Todo o resto ja foi aplicado. Reiniciar agora?",
+            _messages.RestartPrompt,
             "Matraca",
             WindowsNativeMethods.MbYesNo | WindowsNativeMethods.MbIconQuestion);
         if (result == WindowsNativeMethods.IdYes) RequestShutdown(restart: true);
@@ -546,9 +549,31 @@ internal sealed class WindowsApplication : IWindowsWebBridgeApp, IDisposable
 
     private void NotifyConfigRejected(Exception exception)
         => PostToDispatcher(() => _shell.ShowNotification(
-            "Configuracao rejeitada",
-            exception.Message,
+            _messages.ConfigRejectedTitle,
+            _messages.ConfigError(exception),
             ShellNotificationLevel.Error));
+
+    private void ApplyNativeLocalization(Config config)
+    {
+        _messages = new WindowsUiMessages(config.EffectiveUiLanguage);
+        _tray.UpdateMenuItem(SettingsCommand, _messages.SettingsMenu);
+        _tray.UpdateMenuItem(HistoryCommand, _messages.HistoryMenu);
+        _tray.UpdateMenuItem(LogCommand, _messages.LogMenu);
+        _tray.UpdateMenuItem(ConfigFolderCommand, _messages.ConfigFolderMenu);
+        _tray.UpdateMenuItem(ExitCommand, _messages.ExitMenu);
+        _hud.ApplyConfig(config);
+
+        UiMessageCatalog coreMessages = new(config.EffectiveUiLanguage);
+        string status = _shell.CurrentState switch
+        {
+            ShellState.Recording => coreMessages.Recording(config.HotkeyNeedsKeyUp),
+            ShellState.Busy => coreMessages.Transcribing,
+            ShellState.Writing => coreMessages.Writing,
+            ShellState.Error => coreMessages.ModelLoadErrorState,
+            _ => config.DiscoverMode ? coreMessages.DiscoveryMode : coreMessages.Ready(config.HotkeyName),
+        };
+        _shell.SetState(_shell.CurrentState, status);
+    }
 
     private void OnSuspending()
     {

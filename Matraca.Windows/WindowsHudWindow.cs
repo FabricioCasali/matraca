@@ -22,12 +22,15 @@ internal sealed class WindowsHudWindow : IDisposable
     private bool _deliveryJustCompleted;
     private bool _deliveryError;
     private readonly WindowsConfigWatcher _appearanceWatcher;
+    private WindowsUiMessages _messages;
     private string _themeMode = "system";
     private string _palette = "olive";
+    private string _uiLanguage;
+    private string _effectiveUiLanguage;
     private bool _visible;
     private bool _hasPendingPublication;
     private string _pendingState = "ready";
-    private string _pendingTitle = "Matraca";
+    private string _pendingTitle;
     private string _pendingDetail = string.Empty;
     private string _mode = string.Empty;
     private nint _targetWindow;
@@ -35,9 +38,13 @@ internal sealed class WindowsHudWindow : IDisposable
     private int _shutdownRequested;
     private int _disposed;
 
-    public WindowsHudWindow(string authorizedAssetRoot)
+    public WindowsHudWindow(string authorizedAssetRoot, string effectiveUiLanguage)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(authorizedAssetRoot);
+        _messages = new WindowsUiMessages(effectiveUiLanguage);
+        _uiLanguage = effectiveUiLanguage;
+        _effectiveUiLanguage = effectiveUiLanguage;
+        _pendingTitle = _messages.HudReadyTitle;
         _dispatcher = new WindowsDispatcher();
         try
         {
@@ -85,19 +92,44 @@ internal sealed class WindowsHudWindow : IDisposable
 
     public nint Handle => _window.Handle;
 
-    private void OnAppearanceChanged(Config config) => Dispatch(RefreshAppearance);
+    private void OnAppearanceChanged(Config config) => Dispatch(() => ApplyConfigOnOwnerThread(config));
+
+    public void ApplyConfig(Config config)
+    {
+        ArgumentNullException.ThrowIfNull(config);
+        Dispatch(() => ApplyConfigOnOwnerThread(config));
+    }
+
+    private void ApplyConfigOnOwnerThread(Config config)
+    {
+        _messages = new WindowsUiMessages(config.EffectiveUiLanguage);
+        _themeMode = config.ThemeMode;
+        _palette = config.Palette;
+        _uiLanguage = config.UiLanguage;
+        _effectiveUiLanguage = config.EffectiveUiLanguage;
+        PublishAppearance();
+    }
 
     private void RefreshAppearance()
     {
-        RawConfig raw = WindowsConfig.LoadRaw();
-        _themeMode = raw.themeMode ?? "system";
-        _palette = raw.palette ?? "olive";
+        Config config = WindowsConfig.Load();
+        ApplyConfigOnOwnerThread(config);
+    }
+
+    private void PublishAppearance()
+    {
         if (_ready)
             _host.PostJson(JsonSerializer.Serialize(new
             {
                 version = 1,
                 type = "hud.appearance",
-                payload = new { themeMode = _themeMode, palette = _palette },
+                payload = new
+                {
+                    themeMode = _themeMode,
+                    palette = _palette,
+                    uiLanguage = _uiLanguage,
+                    effectiveUiLanguage = _effectiveUiLanguage,
+                },
             }));
     }
 
@@ -120,7 +152,7 @@ internal sealed class WindowsHudWindow : IDisposable
             _deliveryJustCompleted = false;
             Interlocked.Increment(ref _hideGeneration);
             if (_deliveryError) return;
-            Publish("writing", streaming && _dictationActive ? "Ouvindo · inserindo trecho" : "Inserindo texto", mode);
+            Publish("writing", streaming && _dictationActive ? _messages.HudWritingStreaming : _messages.HudWriting, mode);
         });
     }
 
@@ -220,26 +252,26 @@ internal sealed class WindowsHudWindow : IDisposable
             return;
         }
 
-        if (state == ShellState.Busy) _dictationActive = false;
+        if (state is ShellState.Busy or ShellState.Writing) _dictationActive = false;
         if (_deliveryError && !(state == ShellState.Recording && !_dictationActive)) return;
         _deliveryError = false;
         Interlocked.Increment(ref _hideGeneration);
         if (state == ShellState.Recording) _dictationActive = true;
-        bool writing = state == ShellState.Busy
-            && text.Contains("escrevendo", StringComparison.OrdinalIgnoreCase);
-        string name = writing ? "writing" : state switch
+        string name = state switch
         {
             ShellState.Recording => "listening",
             ShellState.Busy => "thinking",
+            ShellState.Writing => "writing",
             ShellState.Error => "error",
             _ => "ready",
         };
-        string title = writing ? "Escrevendo" : state switch
+        string title = state switch
         {
-            ShellState.Recording => "Ouvindo voce",
-            ShellState.Busy => "Pensando",
-            ShellState.Error => "Atencao",
-            _ => "Matraca",
+            ShellState.Recording => _messages.HudListeningTitle,
+            ShellState.Busy => _messages.HudThinkingTitle,
+            ShellState.Writing => _messages.HudWritingTitle,
+            ShellState.Error => _messages.HudAttentionTitle,
+            _ => _messages.HudReadyTitle,
         };
         Publish(name, title, state == ShellState.Recording ? mode : text);
     }
@@ -252,7 +284,9 @@ internal sealed class WindowsHudWindow : IDisposable
         _deliveryJustCompleted = !streaming || !_dictationActive;
         Publish(
             delivered ? "done" : "error",
-            delivered ? (streaming && _dictationActive ? "Trecho entregue · ainda ouvindo" : "Texto entregue") : "Entrega falhou · confira o histórico",
+            delivered
+                ? (streaming && _dictationActive ? _messages.HudDoneStreaming : _messages.HudDone)
+                : _messages.HudDeliveryError,
             text);
         if (!delivered) return;
         if (streaming && _dictationActive)
@@ -393,7 +427,7 @@ internal sealed class WindowsHudWindow : IDisposable
         {
             version = 1,
             type = "hud.state",
-            payload = new { state = "ready", title = "Matraca", detail = "", generation },
+            payload = new { state = "ready", title = _messages.HudReadyTitle, detail = "", generation },
         }));
         _ = Task.Delay(140).ContinueWith(
             _ => Dispatch(() =>
@@ -428,7 +462,7 @@ internal sealed class WindowsHudWindow : IDisposable
             _ => Dispatch(() =>
             {
                 if (generation == Volatile.Read(ref _hideGeneration) && _dictationActive)
-                    Publish("listening", "Ouvindo voce", _mode);
+                    Publish("listening", _messages.HudListeningTitle, _mode);
             }),
             CancellationToken.None,
             TaskContinuationOptions.ExecuteSynchronously,

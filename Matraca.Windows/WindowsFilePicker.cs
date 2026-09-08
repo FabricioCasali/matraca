@@ -14,17 +14,23 @@ internal static class WindowsFilePicker
     private const int MaximumPathLength = 32768;
 
     public static string? PickModel(nint owner)
+        => PickModel(owner, UiLanguageResolver.PortugueseBrazil);
+
+    public static string? PickModel(nint owner, string effectiveUiLanguage)
         => Pick(
             owner,
-            "Selecionar modelo Whisper",
-            "Modelos Whisper (*.bin)\0*.bin\0\0",
+            new WindowsUiMessages(effectiveUiLanguage).FileModelTitle,
+            new WindowsUiMessages(effectiveUiLanguage).FileModelFilter,
             "bin");
 
     public static string? PickSound(nint owner)
+        => PickSound(owner, UiLanguageResolver.PortugueseBrazil);
+
+    public static string? PickSound(nint owner, string effectiveUiLanguage)
         => Pick(
             owner,
-            "Selecionar som",
-            "Audio (*.wav;*.mp3)\0*.wav;*.mp3\0Todos (*.*)\0*.*\0\0",
+            new WindowsUiMessages(effectiveUiLanguage).FileSoundTitle,
+            new WindowsUiMessages(effectiveUiLanguage).FileSoundFilter,
             "wav");
 
     private static string? Pick(nint owner, string title, string filter, string extension)

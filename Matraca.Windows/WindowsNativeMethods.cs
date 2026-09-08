@@ -65,6 +65,7 @@ internal static class WindowsNativeMethods
     internal const int IdYes = 6;
 
     internal const uint MfString = 0x00000000;
+    internal const uint MfByCommand = 0x00000000;
     internal const uint MfSeparator = 0x00000800;
     internal const uint TpmRightButton = 0x0002;
     internal const uint TpmNonotify = 0x0080;
@@ -177,6 +178,15 @@ internal static class WindowsNativeMethods
     [DllImport("user32.dll", SetLastError = true)]
     [return: MarshalAs(UnmanagedType.Bool)]
     internal static extern bool DestroyIcon(nint icon);
+
+    [DllImport("user32.dll", EntryPoint = "ModifyMenuW", CharSet = CharSet.Unicode, SetLastError = true)]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    internal static extern bool ModifyMenu(
+        nint menu,
+        uint position,
+        uint flags,
+        nuint newItem,
+        string newItemText);
 
     [DllImport("user32.dll", EntryPoint = "MessageBoxW", CharSet = CharSet.Unicode, SetLastError = true)]
     internal static extern int MessageBox(nint owner, string text, string caption, uint type);
