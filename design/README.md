@@ -4,7 +4,7 @@ Esta pasta e a fonte versionada de especificacao, tokens, mocks e contratos do M
 
 ## Comece aqui
 
-- [Especificacao 1.0.1](docs/design-system.md): regras normativas para o refactor.
+- [Especificacao 1.1.0](docs/design-system.md): regras normativas para o refactor.
 - [Tokens](docs/design-system-tokens.json): valores compartilhados dos dez temas.
 - [Guia visual](matraca-design-system.html): exemplos de componentes.
 - [Historico de versoes](docs/design-system-changelog.md).

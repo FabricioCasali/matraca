@@ -12,7 +12,7 @@ Fontes principais:
 - `Matraca.Windows/WindowsWebBridge.cs` e `Matraca.Mac/Platform/Web/MacWebBridge.cs`: capacidades, modelos, permissões e mensagens.
 - `Matraca.Core/ModelDownloader.cs`: catálogo de modelos.
 
-Os defaults são do código, não da configuração instalada nem do JSON distribuído. O protótipo contém 38 definições em `CONFIG_FIELDS`, verificadas contra a lista de campos inventariada nos testes.
+Os defaults são do código, não da configuração instalada nem do JSON distribuído. O protótipo contém 39 definições em `CONFIG_FIELDS`, verificadas contra a lista de campos inventariada nos testes.
 
 ## Correspondência completa
 
@@ -22,6 +22,7 @@ Os defaults são do código, não da configuração instalada nem do JSON distri
 | `pinHotkey` | Ditado e atalhos | Vazio desliga; não pode repetir o atalho de ditado. |
 | `mode` | Ditado e atalhos | toggle, hold, live, push; default do código live. |
 | `language` | Ditado e atalhos | Texto livre; pt, en, es e auto são os exemplos da UI existente. |
+| `uiLanguage` | Aparência | `system`, `pt-BR` ou `en-US`; instalação nova usa `system`. Ausência em configuração legada preserva `pt-BR`. Não altera `language`. |
 | `autoEnter` | Ditado e atalhos | Desligado por padrão; aviso sobre envio antes de revisão. |
 | `modelPath` | Reconhecimento | Caminho local livre, diferente do catálogo de download. |
 | `gpu` | Reconhecimento | auto, gpu, cpu; reinício necessário para aplicar no processo. |
@@ -92,7 +93,20 @@ O Mac usa um subconjunto das teclas do parser compartilhado. `Win` representa Co
 
 Iniciar com Windows e uiAccess são opções de instalação, não campos de `RawConfig`. Flags de teste da linha de comando, estados de permissão, destino atual, consumo de IA, lista de dispositivos e progresso do download também não são preferências.
 
-Tema e família de cor são propostas novas já aprovadas no protótipo. Ainda não possuem campos equivalentes na configuração nativa.
+Tema e família de cor são propostas novas já aprovadas no protótipo. `uiLanguage` é a preferência aprovada para o idioma da interface e fica separada de `language`, que continua no grupo de reconhecimento. A interface oferece pt-BR e en-US; em `system`, locale `pt-*` resolve pt-BR e qualquer outro resolve en-US.
+
+## Internacionalização da interface (MT-038)
+
+`uiLanguage` é persistido junto das preferências de aparência e aceita somente os valores canônicos `system`, `pt-BR` e `en-US`. O valor efetivo é resolvido assim:
+
+| Preferência | Locale do sistema | Idioma efetivo |
+| --- | --- | --- |
+| `pt-BR` | qualquer | `pt-BR` |
+| `en-US` | qualquer | `en-US` |
+| `system` | começa por `pt` | `pt-BR` |
+| `system` | qualquer outro, inclusive não suportado | `en-US` |
+
+Em instalação nova, a ausência de configuração inicial significa `system`. Na leitura de configuração legada sem `uiLanguage`, o fallback compatível é `pt-BR`, sem regravar ou reinterpretar `language`. A troca é a quente, permanece em Configurações > Aparência, conserva a seção e o foco, e não modifica tema, família de cor, reconhecimento, histórico, consumo ou ditados.
 
 ## Diferenças deliberadas e riscos para a integração
 
@@ -108,4 +122,4 @@ Tema e família de cor são propostas novas já aprovadas no protótipo. Ainda n
 
 ## Verificação
 
-`tests/matraca-prototype.test.cjs` compara os 38 nomes inventariados com `CONFIG_FIELDS`; verifica 37 correspondências visuais e a exclusão deliberada de `vadThreshold`, agora interno. Também testa independência e restauração por dispositivo, espectro de 48 bandas, provedores, limites e marcação em dez temas. É um teste com DOM simulado, não prova de integração nativa nem auditoria completa de acessibilidade.
+`tests/matraca-prototype.test.cjs` compara os 39 nomes inventariados com `CONFIG_FIELDS`; verifica 38 correspondências visuais e a exclusão deliberada de `vadThreshold`, agora interno. Também testa a resolução e a migração de `uiLanguage`, a independência de `language`, a independência e restauração por dispositivo, espectro de 48 bandas, provedores, limites e marcação em dez temas. É um teste com DOM simulado, não prova de integração nativa nem auditoria completa de acessibilidade.

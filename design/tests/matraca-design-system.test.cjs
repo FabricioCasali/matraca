@@ -17,7 +17,7 @@ const files=[
  'tests/matraca-prototype.test.cjs','tests/matraca-brand.test.cjs','tests/matraca-design-system.test.cjs'
 ];
 const manifestPath='docs/design-system-manifest.json';
-assert.equal(tokens.version,'1.0.1');assert.ok(spec.includes('Versão da especificação: '+tokens.version));
+assert.equal(tokens.version,'1.1.0');assert.ok(spec.includes('Versão da especificação: '+tokens.version));
 assert.ok(read('matraca-design-system.html').includes(tokens.version));
 const ruleIds=[...spec.matchAll(/^#{2,3} ([A-Z]+-\d{3}) /gm)].map(m=>m[1]);
 assert.equal(new Set(ruleIds).size,ruleIds.length,'Unique normative rule IDs');

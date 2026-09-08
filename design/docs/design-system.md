@@ -1,6 +1,6 @@
 # Matraca Design System
 
-**Versão da especificação: 1.0.1**
+**Versão da especificação: 1.1.0**
 
 **Estado: referência consolidada para implementação; conformidade dos mocks ainda parcial.**
 
@@ -102,6 +102,14 @@ Anatomia: rótulo persistente, ajuda, controle, valor e erro associado. Usar `ar
 
 Usar select para escolhas finitas; controles de tema mantêm modo e família independentes. Seleção deve ter nome e indicação explícita. Switch representa estado ligado/desligado, usa `role="switch"` e `aria-checked`. Alterações sem necessidade de reinício aplicam-se sem mudar rota, perder foco ou reiniciar uma gravação.
 
+Para idioma da interface, o seletor fica em **Configurações → Aparência**, separado dos controles de tema. A preferência aceita `system`, `pt-BR` e `en-US`; a instalação nova começa em `system`. O campo `language` continua sendo o idioma do reconhecimento e não deve ser alterado pelo seletor da interface.
+
+### I18N-001 — Idioma da interface
+
+A interface oferece somente `pt-BR` e `en-US`. Quando a preferência é `system`, locale de sistema iniciado por `pt` (incluindo variantes como `pt-PT`) resolve `pt-BR`; qualquer outro locale, inclusive idioma não suportado, resolve `en-US`. A resolução deve ser determinística e não pode inferir idioma do campo `language` de reconhecimento.
+
+O valor persistido é `uiLanguage`. Ausência desse campo em uma configuração legada preserva `pt-BR`; uma configuração nova grava `system`. Migração não altera `language`, ditados, histórico, consumo, tema, família de cor ou outras preferências. A troca aplica-se a quente, conserva a seção atual e devolve o foco ao seletor.
+
 ### CMP-004 — Painel e navegação
 
 `.panel` agrupa uma tarefa relacionada. Navegação principal usa estado atual identificável; subseções de configuração não substituem a navegação de página. Menus fecham com Escape e clique fora; ao fechar, o foco volta ao acionador quando ainda existir. Nenhum menu deve ficar inacessível fora da área útil em janelas pequenas.
@@ -175,7 +183,7 @@ Eventos e condições de host estão em [movimento-e-gravacao.md](movimento-e-gr
 | Primeiro uso | [matraca-experiencia.html](../matraca-experiencia.html) | CMP-001/002/005/009 |
 | Ditado | [matraca-ditado.html](../matraca-ditado.html) | CMP-001/005/007/010 |
 | Microfone | [matraca-microfone.html](../matraca-microfone.html) | CMP-006 |
-| Configurações | [matraca-configuracoes.html](../matraca-configuracoes.html) | CMP-002/003/006/009 |
+| Configurações | [matraca-configuracoes.html](../matraca-configuracoes.html) | CMP-002/003/006/009, I18N-001 |
 | Histórico e consumo | [matraca-historico.html](../matraca-historico.html) | CMP-007/008 |
 | Frame e eventos | [matraca-gravacao.html](../matraca-gravacao.html) | CMP-010/MOT-001 |
 | Marca e sua animação | [matraca-identidade.html](../matraca-identidade.html) | BRD-001/MOT-001 |
@@ -201,7 +209,7 @@ Estas lacunas não reabrem a direção visual. São trabalho de conformidade e i
 
 ## VER-001 — Versão, integridade e preservação
 
-Versão 1.0.1 identifica esta especificação, não a versão do aplicativo. PATCH corrige documentação sem mudar contrato; MINOR acrescenta componente/regra compatível; MAJOR muda significado, estrutura ou contrato de componente. Toda alteração registra motivo e impacto no [histórico de versões](design-system-changelog.md).
+Versão 1.1.0 identifica esta especificação, não a versão do aplicativo. PATCH corrige documentação sem mudar contrato; MINOR acrescenta componente/regra compatível; MAJOR muda significado, estrutura ou contrato de componente. Toda alteração registra motivo e impacto no [histórico de versões](design-system-changelog.md).
 
 O [manifesto](design-system-manifest.json) lista arquivos-fonte relativos e SHA-256. O teste de pacote valida presença, referências, versão e assinaturas. Não inclui screenshots nem a si próprio na assinatura.
 
@@ -223,6 +231,6 @@ Somente após revisar e registrar uma alteração intencional: `node tests/matra
 
 ## ADOPT-001 — Como uma tarefa deve citar o sistema
 
-Exemplo: “Refatorar Microfone conforme DS 1.0.1, CMP-006, FND-001/003 e A11Y-001; usar o mock Microfone como composição e o inventário como contrato de dados. Aceite: troca restaura somente o dispositivo correto; tema não interrompe teste; desconexão recuperável; sem ajuste genérico.”
+Exemplo: “Refatorar Microfone conforme DS 1.1.0, CMP-006, FND-001/003 e A11Y-001; usar o mock Microfone como composição e o inventário como contrato de dados. Aceite: troca restaura somente o dispositivo correto; tema não interrompe teste; desconexão recuperável; sem ajuste genérico.”
 
 A tarefa também informa campos/eventos alterados, plataformas, regressões protegidas e testes. “Seguir o design system” sozinho não especifica mudança de lógica. O plano de refactor será aprovado antes de alterar a aplicação neste repositório.

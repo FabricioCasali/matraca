@@ -1,5 +1,12 @@
 # Histórico de versões do Matraca Design System
 
+## 1.1.0 — Internacionalização da interface MT-038
+
+- `I18N-001` define a interface em pt-BR/en-US e a preferência `system`, `pt-BR` ou `en-US` em Configurações → Aparência.
+- Locale `pt-*` resolve pt-BR; qualquer outro locale, inclusive não suportado, resolve en-US. Configuração legada sem `uiLanguage` preserva pt-BR; instalação nova usa `system`.
+- `language` permanece exclusivamente o idioma do reconhecimento. A troca da interface é imediata, acessível e não altera ditados, histórico ou demais preferências.
+- Tokens visuais não mudaram; somente a versão do pacote foi atualizada de 1.0.1 para 1.1.0.
+
 ## Nao lancado — Navegacao e janela MT-037
 
 - CMP-004: navegacao principal fixa com rolagem independente em viewport baixo; somente conteudo acompanha a rolagem principal. Composicao compacta existente preservada.

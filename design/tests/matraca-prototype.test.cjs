@@ -32,7 +32,7 @@ const context = vm.createContext({
   document: { getElementById: node, documentElement: { dataset: {} }, activeElement: null,
     addEventListener(name, fn) { const previous=events[name];events[name]=event=>{previous?.(event);fn(event);}; }, querySelectorAll() { return []; } },
   window: { matchMedia() { return { matches: false, addEventListener() {} }; } },
-  navigator: { platform: 'Win32', clipboard: { async writeText() {} } },
+  navigator: { platform: 'Win32', language: 'pt-BR', clipboard: { async writeText() {} } },
   localStorage: { getItem: key => preferences.get(key), setItem: (key, value) => preferences.set(key, value) }
 });
 vm.runInContext(code, context);
@@ -52,6 +52,20 @@ function markup() {
   assert.equal(stack.length,0,'Closed generated tags');
 }
 markup();
+assert.equal(run('config.uiLanguage'),'system','New installations use the system interface language');
+assert.equal(run("resolveUiLanguage('pt-BR','en-US')"),'pt-BR');
+assert.equal(run("resolveUiLanguage('en-US','pt-BR')"),'en-US');
+assert.equal(run("resolveUiLanguage('system','pt-BR')"),'pt-BR');
+assert.equal(run("resolveUiLanguage('system','pt-PT')"),'pt-BR');
+assert.equal(run("resolveUiLanguage('system','fr-FR')"),'en-US');
+assert.equal(run("resolveUiLanguage('system','xx-YY')"),'en-US');
+run("localStorage.setItem(STORE,JSON.stringify({theme:'dark',palette:'olive',hotkey:'F8'}))");
+vm.runInContext(code.match(/try \{ const stored=localStorage\.getItem\(STORE\)[\s\S]*?catch\(_\) \{\}/)[0],context);
+assert.equal(run('config.uiLanguage'),'pt-BR','Legacy preferences without uiLanguage preserve Brazilian Portuguese');
+run("config.uiLanguage='system';savePreferences()");
+assert.equal(run('config.language'),'pt','Recognition language remains separate');
+run("changeConfig('language','en')");
+assert.equal(run('config.language'),'en');assert.equal(run('config.uiLanguage'),'system');
 press('test-step'); assert.equal(run('state.step'),0,'Cannot skip permission gate');
 press('prepare'); press('cancel-preparation'); drain(); assert.equal(run('state.step'),0); assert.equal(run('state.prepared'),false);
 press('prepare'); drain(); assert.equal(run('state.prepared'),true); markup();
@@ -130,7 +144,7 @@ assert.equal(run('document.documentElement.dataset.theme'),'dark');
 assert.equal(run('state.palette'),'ochre');
 const stored=run('localStorage.getItem(STORE)');
 run("state.theme='light';state.palette='teal'");
-vm.runInContext(code.match(/try \{ const p=JSON.parse\(localStorage[\s\S]*?catch\(_\) \{\}/)[0],context);
+vm.runInContext(code.match(/try \{ const stored=localStorage\.getItem\(STORE\)[\s\S]*?catch\(_\) \{\}/)[0],context);
 assert.equal(run('state.theme'),'system');assert.equal(run('state.palette'),'ochre');
 assert.equal(run('localStorage.getItem(STORE)'),stored);
 press('color-invalid'); assert.equal(run('state.palette'),'ochre');
@@ -157,8 +171,8 @@ for(const view of ['home','microphone','system'])for(const theme of ['light','da
  run(`state.view=${JSON.stringify(view)};state.theme=${JSON.stringify(theme)};state.palette=${JSON.stringify(palette)};render()`);markup();
 }
 console.log('PASS: microphone start/stop/finish, sensitivity, navigation cleanup, theme preservation, cancellation and markup of three views across ten themes.');
-const expectedFields='modelPath language hotkey pinHotkey pinDelivery mode autoEnter beep beepVolume startSound stopSound silenceMs phraseMaxSeconds vadThreshold micSensitivity inputDevice vocabulary history historyMaxItems postProcess postProcessProvider postProcessEndpoint postProcessModel postProcessApiKey postProcessOpenAiApiKey postProcessDeepSeekApiKey postProcessReasoning postProcessPrompt postProcessTimeoutMs idleUnloadMinutes gpu focusBorder focusBorderColor focusBorderColorBusy focusBorderColorPinned focusBorderThickness focusBorderOpacity pasteMethod'.split(' ');
-assert.equal(expectedFields.length,38);
+const expectedFields='modelPath language uiLanguage hotkey pinHotkey pinDelivery mode autoEnter beep beepVolume startSound stopSound silenceMs phraseMaxSeconds vadThreshold micSensitivity inputDevice vocabulary history historyMaxItems postProcess postProcessProvider postProcessEndpoint postProcessModel postProcessApiKey postProcessOpenAiApiKey postProcessDeepSeekApiKey postProcessReasoning postProcessPrompt postProcessTimeoutMs idleUnloadMinutes gpu focusBorder focusBorderColor focusBorderColorBusy focusBorderColorPinned focusBorderThickness focusBorderOpacity pasteMethod'.split(' ');
+assert.equal(expectedFields.length,39);
 assert.deepEqual(Array.from(run('CONFIG_FIELDS.map(([key])=>key)')).sort(),expectedFields.slice().sort());
 const exposed=new Set();
 press('nav-settings');
@@ -170,6 +184,13 @@ for(const section of ['dictation','recognition','audio','delivery','history','re
  }
 }
 assert.deepEqual([...exposed].sort(),expectedFields.filter(key=>key!=='vadThreshold').sort(),'Global legacy threshold is deliberately internal; device adjustment replaces generic controls');
+press('section-appearance');
+assert.ok(node('app').innerHTML.includes('data-config-key="uiLanguage"'),'Interface language belongs in Appearance');
+run("changeConfig('uiLanguage','en-US')");
+assert.equal(run('document.documentElement.lang'),'en-US');
+assert.ok(node('app').innerHTML.includes('Settings'));assert.ok(node('app').innerHTML.includes('Appearance'));
+run("changeConfig('uiLanguage','system')");
+assert.equal(run('document.documentElement.lang'),'pt-BR');
 press('section-review');run("changeConfig('postProcessProvider','deepseek')");
 assert.equal(run("changeConfig('postProcess',true)"),false);
 run("changeConfig('postProcessModel','deepseek-v4-flash');changeConfig('postProcessReasoning','off')");

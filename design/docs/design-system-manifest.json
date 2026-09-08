@@ -1,6 +1,6 @@
 {
   "package": "matraca-design-system",
-  "specificationVersion": "1.0.1",
+  "specificationVersion": "1.1.0",
   "storageDecision": "project-design-directory",
   "gitPublication": "requires-explicit-push",
   "note": "Integrity snapshot in the Matraca repository. Git history and external backup are separate. Screenshots are excluded derivatives.",
@@ -138,7 +138,7 @@
     {
       "path": "README.md",
       "bytes": 2826,
-      "sha256": "0e7ba4327474c52f9d22a8e4467bb664030ecf84a46922795f62d691f9075fe4"
+      "sha256": "723f74b3c40f7e9a5e3a0a59bbdffc719a6a081aadf4353332303f7ae0a08c7b"
     },
     {
       "path": ".gitattributes",
@@ -147,18 +147,18 @@
     },
     {
       "path": "docs/design-system.md",
-      "bytes": 20653,
-      "sha256": "6c5e4738e169338534047af3d44ff917a3712b9eb452946cf173e8aa32da79a1"
+      "bytes": 21708,
+      "sha256": "52d3c0c0ecb42fe668aef574d923d47a2e9a378b5f8a25b900c8a57fae518a9f"
     },
     {
       "path": "docs/design-system-tokens.json",
       "bytes": 3580,
-      "sha256": "f79ae9665a847e3f8b7d12f03f4e36ec7fcf2473a7846d180a82d8137020b4d3"
+      "sha256": "92e136f9e145db5174283e1aa5841804ffd7362ddd9c23a4456e945b8dfc899a"
     },
     {
       "path": "docs/design-system-changelog.md",
-      "bytes": 2789,
-      "sha256": "a728856ac32c1d4da8ea54e600b2ffaabb50922528f5a2b3ee18b1162845469d"
+      "bytes": 3421,
+      "sha256": "3cb62c37c52f136f343a76fc4d67351f8766f0d9f0861fc3e8d003ede73e2ec0"
     },
     {
       "path": "docs/BOARD.md",
@@ -167,8 +167,8 @@
     },
     {
       "path": "docs/configuracoes-inventario.md",
-      "bytes": 9732,
-      "sha256": "60d00fc37725a688004c1fb5ff05b2c72d46b79872f51740556e10197d5f618e"
+      "bytes": 11024,
+      "sha256": "8fa67aca65e60e99345a830d1bb1620c89b12537306d7d4a4d0bed23033d6567"
     },
     {
       "path": "docs/consumo-revisao.md",
@@ -187,8 +187,8 @@
     },
     {
       "path": "matraca-experiencia.html",
-      "bytes": 130113,
-      "sha256": "d926c8e503d757bf0acb77bcda5e0e73eec6b6527f2391c4c566a804b54e7369"
+      "bytes": 133229,
+      "sha256": "da9091129172d40140ba563d76ebae2fb115c982c6801c705bfdf59cc2ecd6eb"
     },
     {
       "path": "matraca-identidade.html",
@@ -198,7 +198,7 @@
     {
       "path": "matraca-design-system.html",
       "bytes": 540,
-      "sha256": "1168bc91a55c58da9fb823d7088949e55a12d9a742f0202baccb04de347238cf"
+      "sha256": "2d6e6fc782bd8097f27ad06f95811debadcac03c7eb53b92fb488493717a2474"
     },
     {
       "path": "matraca-ditado.html",
@@ -227,8 +227,8 @@
     },
     {
       "path": "tests/matraca-prototype.test.cjs",
-      "bytes": 25197,
-      "sha256": "bea3eea438ef944c5a212c5f635e8814bd7e46195a28a4fde3125bd5c1e849be"
+      "bytes": 26795,
+      "sha256": "1ade68098f914ba6bb40a9c2c4ccfb2464a7c1aa91ab76737b51f905f779912a"
     },
     {
       "path": "tests/matraca-brand.test.cjs",
@@ -238,7 +238,7 @@
     {
       "path": "tests/matraca-design-system.test.cjs",
       "bytes": 5032,
-      "sha256": "99f35c3d9f5330d47769107e4f709c66bdb1b14e183b1a09e9c4522f5e609038"
+      "sha256": "d5f1ac0e472fb32e5a5cb14a1f5b3bb3bd9a1c0a3dfe5363f1b1282887d47df2"
     }
   ]
 }
