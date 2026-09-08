@@ -30,6 +30,7 @@ public sealed class MacLocalizationContractTests
         string hud = ReadProjectFile("Matraca.Mac", "Platform", "Web", "MacHudWindowController.cs");
         string bridge = ReadProjectFile("Matraca.Mac", "Platform", "Web", "MacWebBridge.cs");
         Assert.Contains("ShellState.Writing", hud);
+        Assert.Contains("effectiveUiLanguage = _app.CurrentConfig.EffectiveUiLanguage", hud);
         Assert.DoesNotContain("Contains(\"escrevendo\"", hud);
         Assert.Contains("ShellState.Writing => \"writing\"", bridge);
     }
@@ -42,6 +43,7 @@ public sealed class MacLocalizationContractTests
         string host = ReadProjectFile("Matraca.Mac", "Platform", "Web", "MacWebViewHost.cs");
         string bridge = ReadProjectFile("Matraca.Mac", "Platform", "Web", "MacWebBridge.cs");
         Assert.Contains("SetLanguage", status);
+        Assert.Contains("ApplyNativeLocalization(config)", ReadProjectFile("Matraca.Mac", "MacTrayApp.cs"));
         Assert.Contains("SetAccessibilityLabel", status);
         Assert.Contains("LocalizedText", navigation);
         Assert.Contains("ConfirmContinue", navigation);

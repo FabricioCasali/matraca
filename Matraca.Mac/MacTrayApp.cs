@@ -177,10 +177,11 @@ internal sealed class MacTrayApp : IDisposable
     internal bool CopyText(string text) => new MacPasteboard().WriteText(text);
 
     internal void ShowWebError(string message)
-        => MainThread.Post(() => _shell.ShowNotification(
-            "Operacao da interface falhou",
-            message,
-            ShellNotificationLevel.Error));
+        => MainThread.Post(() =>
+        {
+            MacUiText ui = new(_config.EffectiveUiLanguage);
+            _shell.ShowNotification(ui.InterfaceErrorTitle, message, ShellNotificationLevel.Error);
+        });
 
     internal void CaptureWebTarget()
     {
@@ -365,7 +366,7 @@ internal sealed class MacTrayApp : IDisposable
             await _controller.ApplyConfigAsync(applicable).ConfigureAwait(false);
         }
         _config = config;
-        MainThread.Post(() => _shell.SetLanguage(config.EffectiveUiLanguage));
+        MainThread.Post(() => ApplyNativeLocalization(config));
         if (notifyChanged) ConfigChanged?.Invoke(config);
         if (notifyRestart && accelerationChanged) NotifyRestartRequired();
     }
@@ -377,6 +378,21 @@ internal sealed class MacTrayApp : IDisposable
             ui.RestartTitle,
             ui.RestartMessage,
             ShellNotificationLevel.Warning));
+    }
+
+    private void ApplyNativeLocalization(CoreConfig config)
+    {
+        _shell.SetLanguage(config.EffectiveUiLanguage);
+        UiMessageCatalog messages = new(config.EffectiveUiLanguage);
+        string status = _shell.CurrentState switch
+        {
+            ShellState.Recording => messages.Recording(config.HotkeyNeedsKeyUp),
+            ShellState.Busy => messages.Transcribing,
+            ShellState.Writing => messages.Writing,
+            ShellState.Error => messages.ModelLoadErrorState,
+            _ => config.DiscoverMode ? messages.DiscoveryMode : messages.Ready(config.HotkeyName),
+        };
+        _shell.SetState(_shell.CurrentState, status);
     }
 
     private void NotifyConfigRejected(Exception exception)

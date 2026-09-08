@@ -70,7 +70,13 @@ internal sealed class MacHudWindowController : IDisposable
         {
             version = 1,
             type = "hud.appearance",
-            payload = new { themeMode = raw.themeMode ?? "system", palette = raw.palette ?? "olive" },
+            payload = new
+            {
+                themeMode = raw.themeMode ?? "system",
+                palette = raw.palette ?? "olive",
+                uiLanguage = _app.CurrentConfig.UiLanguage,
+                effectiveUiLanguage = _app.CurrentConfig.EffectiveUiLanguage,
+            },
         }));
     }
 

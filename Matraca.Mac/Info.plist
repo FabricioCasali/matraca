@@ -30,6 +30,6 @@
   <key>LSUIElement</key>
   <true/>
   <key>NSMicrophoneUsageDescription</key>
-  <string>O Matraca usa o microfone para transcrever sua fala localmente, na sua máquina.</string>
+  <string>Matraca uses the microphone to transcribe your speech locally on your Mac.</string>
 </dict>
 </plist>
