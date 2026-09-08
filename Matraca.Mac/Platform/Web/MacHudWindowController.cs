@@ -100,7 +100,7 @@ internal sealed class MacHudWindowController : IDisposable
             else Hide();
             return;
         }
-        if (state == ShellState.Busy) _dictationActive = false;
+        if (state is ShellState.Busy or ShellState.Writing) _dictationActive = false;
         if (_deliveryError && !(state == ShellState.Recording && !_dictationActive)) return;
         _deliveryError = false;
         if (state == ShellState.Recording) _dictationActive = true;

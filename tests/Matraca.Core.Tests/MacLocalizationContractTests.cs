@@ -30,6 +30,7 @@ public sealed class MacLocalizationContractTests
         string hud = ReadProjectFile("Matraca.Mac", "Platform", "Web", "MacHudWindowController.cs");
         string bridge = ReadProjectFile("Matraca.Mac", "Platform", "Web", "MacWebBridge.cs");
         Assert.Contains("ShellState.Writing", hud);
+        Assert.Contains("state is ShellState.Busy or ShellState.Writing", hud);
         Assert.Contains("effectiveUiLanguage = _app.CurrentConfig.EffectiveUiLanguage", hud);
         Assert.DoesNotContain("Contains(\"escrevendo\"", hud);
         Assert.Contains("ShellState.Writing => \"writing\"", bridge);

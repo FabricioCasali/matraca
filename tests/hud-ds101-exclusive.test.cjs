@@ -163,8 +163,10 @@ for (const file of ['Matraca.Windows/WindowsHudWindow.cs', 'Matraca.Mac/Platform
     assert.match(source, /generation = _hideGeneration/);
     assert.match(source, /invalidateTimers: false/);
     assert.match(source, /hud\.appearance/);
-    assert.match(source, /raw\.themeMode/);
-    assert.match(source, /raw\.palette/);
+    assert.match(source, file.includes('Windows') ? /config\.ThemeMode/ : /raw\.themeMode/);
+    assert.match(source, file.includes('Windows') ? /config\.Palette/ : /raw\.palette/);
+    assert.match(source, /uiLanguage/);
+    assert.match(source, /effectiveUiLanguage/);
     const start = source.slice(source.indexOf(file.includes('Windows') ? 'public void PublishDeliveryStarted' : 'private void OnDeliveryStarted'));
     assert.match(start, /Interlocked\.Increment\(ref _hideGeneration\);\s*if \(_deliveryError\) return;/);
     assert.doesNotMatch(source, /Substring|\.\.\d|\.Take\(/);
