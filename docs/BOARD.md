@@ -32,8 +32,8 @@ O desenho da frente 2.0 está em [`PLANO-2.0.md`](PLANO-2.0.md).
   sem descartar texto. Restam provas reais de audio/entrega, foco/cliques, monitores,
   Dock/DPI, leitor de tela e animacoes no Windows/macOS. Nomes de microfone ambiguos
   atualmente impedem captura em vez de associar ajuste ao dispositivo errado; falta
-  resolver identidades duplicadas pelas APIs nativas. ICO Windows 03A integrado;
-  provas assistidas e ICNS seguem no empacotamento MT-007. Verificacao Web em
+  resolver identidades duplicadas pelas APIs nativas. ICO Windows e ICNS macOS 03A
+  integrados; provas assistidas seguem no empacotamento MT-007. Verificacao Web em
   `tests/web/ui.test.cjs`, `tests/web/browser.cjs` e `tests/hud-ds101-exclusive.test.cjs`;
   navegador usa bridge exclusiva de teste, nao comprova o host. Tokens gerados por
   `node Matraca.Web/export-design.cjs` e conferidos com `--check`.
@@ -100,10 +100,11 @@ O desenho da frente 2.0 está em [`PLANO-2.0.md`](PLANO-2.0.md).
 - **MT-007** **Fase 5 — empacotamento** — o instalador Windows voltou a publicar as
   variantes standard e uiAccess sem propagar o manifest para o Core. Icones Windows
   derivados exclusivamente dos SVGs oficiais 03A (DS 1.0.1, BRD-001/FND-001/A11Y-001):
-  EXE/instalador, janela por tema/familia e bandeja monocromatica com quatro estados.
+  EXE/instalador, janela por tema/familia, bandeja monocromatica com quatro estados e
+  ICNS olive-light do bundle macOS, com representacoes de 16 a 1024 px.
   Gerador e contrato em `tools/icons/README.md`; testes em `tests/windows-icons*`.
-  Restam prova assistida na bandeja/taskbar, tema/DPI/alto contraste, artefatos finais,
-  ICNS, `.app` + `.dmg` no Mac e `macos-14` na matriz do CI. Prova local deve usar
+  Restam prova assistida na bandeja/taskbar/Dock, tema/DPI/alto contraste, artefatos finais,
+  `.app` + `.dmg` no Mac e `macos-14` na matriz do CI. Prova local deve usar
   build isolado, sem substituir a instalacao nem interromper o aplicativo em uso.
   · `[2.0]`
   · M · importante

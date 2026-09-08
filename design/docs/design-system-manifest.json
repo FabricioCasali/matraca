@@ -12,8 +12,8 @@
     },
     {
       "path": "assets/brand/README.md",
-      "bytes": 3002,
-      "sha256": "8d0dbf164e76a9693b6821912e522c4018a4a4eb868cd0a1c02695ce217efc1a"
+      "bytes": 3033,
+      "sha256": "00743acaf764bc560537888255cfa2fa283cd1a6d0c760d56b4abc556619d5a3"
     },
     {
       "path": "assets/brand/matraca-03a-symbol-light.svg",
@@ -137,8 +137,8 @@
     },
     {
       "path": "README.md",
-      "bytes": 2800,
-      "sha256": "8113482895aecb059cc8f5e38f477c9376ea5a52bf0a88a0a8932cf5c93bfade"
+      "bytes": 2826,
+      "sha256": "0e7ba4327474c52f9d22a8e4467bb664030ecf84a46922795f62d691f9075fe4"
     },
     {
       "path": ".gitattributes",
@@ -147,8 +147,8 @@
     },
     {
       "path": "docs/design-system.md",
-      "bytes": 20593,
-      "sha256": "53a2491d006e4cda3708df43a36461c20e1e78c4ca636431f680b3442fb35523"
+      "bytes": 20653,
+      "sha256": "6c5e4738e169338534047af3d44ff917a3712b9eb452946cf173e8aa32da79a1"
     },
     {
       "path": "docs/design-system-tokens.json",
@@ -157,8 +157,8 @@
     },
     {
       "path": "docs/design-system-changelog.md",
-      "bytes": 2682,
-      "sha256": "407b923d63c33ec42ab7feec36e1ac51334a69a0b07f2c4af6bf21c20bb72ff5"
+      "bytes": 2789,
+      "sha256": "a728856ac32c1d4da8ea54e600b2ffaabb50922528f5a2b3ee18b1162845469d"
     },
     {
       "path": "docs/BOARD.md",

@@ -1,4 +1,4 @@
-# Icones nativos Windows
+# Icones nativos
 
 Implementacao de DS 1.0.1: BRD-001, FND-001, CMP-003/005, MOT-001 e A11Y-001.
 Nenhum desenho novo: resvg 2.6.2 rasteriza os SVGs estaticos oficiais de
@@ -9,6 +9,7 @@ npm ci --prefix tools/icons --ignore-scripts
 pwsh -File tools/make-icons.ps1
 pwsh -File tools/make-icons.ps1 -Check
 node tests/windows-icons.test.cjs
+node tests/macos-icons.test.cjs
 pwsh -File tests/windows-icons-native.ps1 -PreviewPath <caminho-absoluto.png>
 ```
 
@@ -30,6 +31,10 @@ ICO tem PNGs RGBA em 16/20/24/32/40/48/64/128/256 px, formato suportado desde Vi
 Build/publish .NET nao precisa de Node: os ICOs derivados sao versionados.
 O instalador ja aponta para `app.ico` e os atalhos para o EXE, sem caminhos alternativos.
 
+- `Matraca.Mac/Resources/Matraca.icns`: olive-light oficial e fixo no Dock/Command-Tab.
+  Inclui representacoes PNG de 16 a 1024 px e e copiado por `Matraca.Mac/pack.sh`.
+  `CFBundleIconFile` aponta para o recurso versionado; build/publish .NET nao exige Node.
+
 Referencias: [resvg](https://github.com/thx/resvg-js),
 [ICO com PNG](https://devblogs.microsoft.com/oldnewthing/20101022-00/?p=12473),
 [WM_SETICON](https://learn.microsoft.com/en-us/windows/win32/winmsg/wm-seticon).
@@ -37,4 +42,5 @@ Referencias: [resvg](https://github.com/thx/resvg-js),
 Limites: os discos dos marcadores conservam a superficie dos SVGs oficiais;
 contraste sobre transparencia/alto contraste personalizado, Explorer cache,
 trocas reais de tema/DPI e acessibilidade precisam de prova assistida.
-ICNS e barra de menus macOS nao foram alterados. Estado executavel em `docs/BOARD.md`.
+A barra de menus macOS continua sem pacote template dinamico. Dock, Command-Tab e cache
+do Launch Services precisam de prova assistida. Estado executavel em `docs/BOARD.md`.

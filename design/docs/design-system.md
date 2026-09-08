@@ -82,7 +82,7 @@ MT-037: tamanho inicial de referencia 1200 x 820 unidades logicas (tokens `windo
 
 A variante explicitamente confirmada pelo usuário é **03A, “m que fala” (`monogram-speech`)**. Os [SVGs exportados](../assets/brand/README.md) são a referência para empacotamento. O estudo conserva as outras variantes apenas para histórico. A terminação diagonal pertence à marca; a remoção da “perninha” dizia respeito somente ao prolongamento extra da animação de escuta. Não reabrir conceitos ou trocar a variante por iniciativa do implementador.
 
-Ícones de função são vetoriais, de linguagem uniforme. Botão apenas com ícone exige nome acessível. Bandeja/barra de menus deve ter versão monocromática e indicação de estado além da cor. Pacote ICO/ICNS e nome tipográfico final continuam pendentes; exports SVG dos estudos não são esse pacote.
+Ícones de função são vetoriais, de linguagem uniforme. Botão apenas com ícone exige nome acessível. Bandeja/barra de menus deve ter versão monocromática e indicação de estado além da cor. ICO e ICNS são derivados reproduzíveis dos SVGs 03A; nome tipográfico final e pacote template da barra de menus macOS continuam pendentes.
 
 ## Componentes normativos
 
@@ -187,7 +187,7 @@ Os arquivos de entrada, salvo o estudo de identidade, dependem de `matraca-exper
 
 | Lacuna | Tratamento antes de declarar conformidade |
 | --- | --- |
-| Marca provisória no app | Propagar os SVGs 03A confirmados; gerar pacote ICO/ICNS posteriormente. |
+| Marca provisória no app | SVGs 03A, ICO Windows e ICNS macOS integrados; validar shell real, escalas e cache das plataformas. |
 | Tokens/literais repetidos nos HTMLs | Adotar fonte compartilhada no refactor e verificar valores; não tratar duplicação como padrão. |
 | Configuração mock independente da execução mock | Integrar ao estado real; modos e atalho completos não estão executados pelo protótipo. |
 | Microfone e espectro sintéticos | Conectar métricas e identidade real do dispositivo; implementar persistência por microfone. |

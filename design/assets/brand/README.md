@@ -33,9 +33,9 @@ Os arquivos foram reexportados da variante 03A confirmada, sem criar copias das 
 
 O SVG de escuta tem viewBox ampliado para acomodar o traco de entrada sem corte. As animacoes usam CSS, inclusive quando exibidas por `<img>` em navegadores compativeis; a bandeja nativa nao executa animacao SVG. Para controlar pausa, integrar o componente no DOM e gerenciar seu ciclo de vida.
 
-Os estados de bandeja reproduzem os marcadores do estudo, com disco de recorte na cor da superficie prevista. Validar a aparencia sobre a superficie real do sistema antes de gerar ICO/ICNS; estes arquivos nao sao imagens template do macOS prontas para qualquer fundo.
+Os estados de bandeja reproduzem os marcadores do estudo, com disco de recorte na cor da superficie prevista. O ICO do Windows e o ICNS do macOS sao derivados reproduziveis desses SVGs; os estados de bandeja nao sao imagens template do macOS prontas para qualquer fundo.
 
-O pacote nao inclui o nome Matraca convertido em curvas, ICO ou ICNS. Nao sao exportacoes de logo tipografico final.
+O pacote nao inclui o nome Matraca convertido em curvas. ICO e ICNS ficam nos projetos nativos, sem serem exportacoes de logo tipografico final.
 
 ## Reproduzir e conferir
 

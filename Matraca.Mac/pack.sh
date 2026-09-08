@@ -22,6 +22,7 @@ rm -rf "$PUBLISH" "$APP"
 
 mkdir -p "$APP/Contents/MacOS" "$APP/Contents/Resources/Web"
 cp "$ROOT/Info.plist" "$APP/Contents/Info.plist"
+cp "$ROOT/Resources/Matraca.icns" "$APP/Contents/Resources/Matraca.icns"
 cp -R "$PUBLISH"/ "$APP/Contents/MacOS/"
 if [[ ! -d "$APP/Contents/MacOS/Web" ]]; then
   echo "Published web assets were not found." >&2

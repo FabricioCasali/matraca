@@ -17,7 +17,8 @@
 - Confirmação explícita da variante 03A, “m que fala”.
 - Exportação de 24 SVGs: símbolos, dez ícones de tema, estados de bandeja e animações aprovadas.
 - Gerador reproduzível, conferência de arquivos e inclusão dos assets no manifesto.
-- Sem alteração da aplicação nativa; commit e push não executados por esta exportação.
+- ICO Windows e ICNS macOS derivados dos SVGs oficiais; o ICNS olive-light identifica o bundle no Dock e Command-Tab.
+- Barra de menus template/dinâmica e nome tipográfico final continuam pendentes.
 
 ## 1.0.1 — Adoção no repositório
 

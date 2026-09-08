@@ -47,6 +47,8 @@ jobs:
       - name: Validar design e interface compartilhada
         shell: pwsh
         run: |
+          npm ci --prefix tools/icons --ignore-scripts
+          if ($LASTEXITCODE) { exit $LASTEXITCODE }
           node design/tests/matraca-design-system.test.cjs
           if ($LASTEXITCODE) { exit $LASTEXITCODE }
           node design/tests/matraca-prototype.test.cjs
@@ -56,6 +58,10 @@ jobs:
           node Matraca.Web/export-design.cjs --check
           if ($LASTEXITCODE) { exit $LASTEXITCODE }
           node --test tests/web/ui.test.cjs tests/hud-ds101-exclusive.test.cjs
+          if ($LASTEXITCODE) { exit $LASTEXITCODE }
+          node tests/windows-icons.test.cjs
+          if ($LASTEXITCODE) { exit $LASTEXITCODE }
+          node tests/macos-icons.test.cjs
           if ($LASTEXITCODE) { exit $LASTEXITCODE }
 
       - name: Testar Core e compilar solution

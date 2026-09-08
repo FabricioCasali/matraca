@@ -1,4 +1,4 @@
-// resvg rasterizes the unmodified official SVG. ICO contains PNG frames (Vista+).
+// resvg rasterizes the unmodified official SVG. ICO and ICNS contain PNG frames.
 const fs = require('node:fs');
 const path = require('node:path');
 const { Resvg } = require('@resvg/resvg-js');
@@ -6,6 +6,13 @@ const root = path.resolve(__dirname, '../..');
 const brand = path.join(root, 'design/assets/brand');
 const output = path.join(root, 'Matraca.Windows');
 const sizes = [16, 20, 24, 32, 40, 48, 64, 128, 256];
+const macOutput = path.join(root, 'Matraca.Mac/Resources/Matraca.icns');
+const macSource = 'matraca-03a-app-olive-light.svg';
+const icnsFrames = [
+  ['icp4', 16], ['ic11', 32], ['icp5', 32], ['ic12', 64], ['icp6', 64],
+  ['ic07', 128], ['ic13', 256], ['ic08', 256], ['ic14', 512], ['ic09', 512],
+  ['ic10', 1024]
+];
 const sources = { 'app.ico': 'matraca-03a-app-olive-light.svg' };
 for (const theme of ['light', 'dark']) {
   for (const palette of ['olive', 'ochre', 'terracotta', 'plum', 'teal'])
@@ -37,6 +44,20 @@ function encode(svg) {
   return Buffer.concat([directory, ...frames]);
 }
 
+function encodeIcns(svg) {
+  const chunks = icnsFrames.map(([type, size]) => {
+    const png = render(svg, size);
+    const header = Buffer.alloc(8);
+    header.write(type, 0, 4, 'ascii');
+    header.writeUInt32BE(header.length + png.length, 4);
+    return Buffer.concat([header, png]);
+  });
+  const header = Buffer.alloc(8);
+  header.write('icns', 0, 4, 'ascii');
+  header.writeUInt32BE(header.length + chunks.reduce((total, chunk) => total + chunk.length, 0), 4);
+  return Buffer.concat([header, ...chunks]);
+}
+
 function generate(check) {
   for (const [file, source] of Object.entries(sources)) {
     const ico = encode(fs.readFileSync(path.join(brand, source)));
@@ -56,8 +77,17 @@ function generate(check) {
       if (fs.existsSync(target)) throw Error(`Icone legado ainda presente: ${legacy}`);
     } else fs.rmSync(target, { force: true });
   }
-  console.log(`${Object.keys(sources).length} ICOs oficiais ${check ? 'conferidos' : 'gerados'}.`);
+
+  const icns = encodeIcns(fs.readFileSync(path.join(brand, macSource)));
+  if (check) {
+    if (!fs.existsSync(macOutput) || !icns.equals(fs.readFileSync(macOutput)))
+      throw Error('ICNS diverge do SVG oficial: Matraca.icns');
+  } else {
+    fs.mkdirSync(path.dirname(macOutput), { recursive: true });
+    fs.writeFileSync(macOutput, icns);
+  }
+  console.log(`${Object.keys(sources).length} ICOs e 1 ICNS oficiais ${check ? 'conferidos' : 'gerados'}.`);
 }
 
-module.exports = { sources, sizes, render, encode, generate };
+module.exports = { sources, sizes, macOutput, macSource, icnsFrames, render, encode, encodeIcns, generate };
 if (require.main === module) generate(process.argv.includes('--check'));

@@ -40,7 +40,7 @@ Requer Node.js 18 ou superior, sem instalar dependencias. O teste do pacote comp
 
 Mudancas intencionais devem atualizar o changelog e o manifesto, apos revisao: `node design/tests/matraca-design-system.test.cjs --seal`.
 
-Screenshots antigos nao foram importados: sao derivados potencialmente desatualizados. A fonte e o HTML acompanhado da especificacao. A marca confirmada e **03A**; os [24 SVGs estaticos e animados](assets/brand/README.md) ficam em `assets/brand/`. Confira a exportacao com `node design/tools/export-brand-svg.cjs --check` a partir da raiz do repositorio. Pacote ICO/ICNS ainda pendente.
+Screenshots antigos nao foram importados: sao derivados potencialmente desatualizados. A fonte e o HTML acompanhado da especificacao. A marca confirmada e **03A**; os [24 SVGs estaticos e animados](assets/brand/README.md) ficam em `assets/brand/`. Confira a exportacao com `node design/tools/export-brand-svg.cjs --check` a partir da raiz do repositorio. ICO e ICNS nativos sao derivados versionados desses SVGs.
 
 ## Preservacao
 
