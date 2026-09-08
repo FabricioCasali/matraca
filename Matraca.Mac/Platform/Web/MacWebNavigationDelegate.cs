@@ -8,6 +8,7 @@ internal sealed unsafe class MacWebNavigationDelegate : IDisposable
 {
     private const nint Cancel = 0;
     private const nint Allow = 1;
+    private const nint AlertFirstButtonReturn = 1000;
     private static readonly object CallbackGate = new();
     private static readonly Dictionary<IntPtr, MacWebNavigationDelegate> Instances = [];
     private static readonly IntPtr DelegateClass = CreateDelegateClass();
@@ -48,6 +49,10 @@ internal sealed unsafe class MacWebNavigationDelegate : IDisposable
                 ObjCSelectors.CreateWebViewForNavigationAction,
                 (IntPtr)(delegate* unmanaged<IntPtr, IntPtr, IntPtr, IntPtr, IntPtr, IntPtr, IntPtr>)&CreateWebView,
                 "@@:@@@@")
+            .AddMethod(
+                ObjCSelectors.RunJavaScriptConfirmPanel,
+                (IntPtr)(delegate* unmanaged<IntPtr, IntPtr, IntPtr, IntPtr, IntPtr, IntPtr, void>)&RunJavaScriptConfirmPanel,
+                "v@:@@@@?")
             .Register();
 
     [UnmanagedCallersOnly]
@@ -90,6 +95,46 @@ internal sealed unsafe class MacWebNavigationDelegate : IDisposable
     {
         try { return IntPtr.Zero; }
         catch { return IntPtr.Zero; }
+    }
+
+    [UnmanagedCallersOnly]
+    private static void RunJavaScriptConfirmPanel(
+        IntPtr self,
+        IntPtr command,
+        IntPtr webView,
+        IntPtr message,
+        IntPtr frame,
+        IntPtr completionHandler)
+    {
+        bool confirmed = false;
+        try
+        {
+            IntPtr alert = ObjC.New(ObjCClasses.NSAlert);
+            try
+            {
+                string prompt = NSStringRef.To(message) ?? "Confirmar acao?";
+                ObjC.SendVoid(alert, ObjCSelectors.SetMessageText, NSStringRef.From(prompt));
+                ObjC.Send(alert, ObjCSelectors.AddButtonWithTitle, NSStringRef.From("Continuar"));
+                ObjC.Send(alert, ObjCSelectors.AddButtonWithTitle, NSStringRef.From("Cancelar"));
+                confirmed = ObjC.SendNInt(alert, ObjCSelectors.RunModal) == AlertFirstButtonReturn;
+            }
+            finally
+            {
+                if (alert != IntPtr.Zero) ObjC.SendVoid(alert, ObjCSelectors.Release);
+            }
+        }
+        catch (Exception exception)
+        {
+            Logger.Error("Falha ao exibir confirmacao do painel web", exception);
+        }
+        try
+        {
+            ObjCBlock.InvokeBoolean(completionHandler, confirmed);
+        }
+        catch (Exception exception)
+        {
+            Logger.Error("Falha ao concluir confirmacao do painel web", exception);
+        }
     }
 
     private static string? GetUrl(IntPtr navigationAction)

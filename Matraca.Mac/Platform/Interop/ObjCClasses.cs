@@ -10,6 +10,7 @@ internal static class ObjCClasses
     public static readonly IntPtr NSObject = Get("NSObject");
     public static readonly IntPtr NSAutoreleasePool = Get("NSAutoreleasePool");
     public static readonly IntPtr NSApplication = Get("NSApplication");
+    public static readonly IntPtr NSAlert = Get("NSAlert");
     public static readonly IntPtr NSStatusBar = Get("NSStatusBar");
     public static readonly IntPtr NSMenu = Get("NSMenu");
     public static readonly IntPtr NSMenuItem = Get("NSMenuItem");

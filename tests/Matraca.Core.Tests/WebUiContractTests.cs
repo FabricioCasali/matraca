@@ -137,6 +137,22 @@ public sealed class WebUiContractTests
         Assert.Contains("OpenAiCompatibleTextReviewer.DeepSeekEndpoint", processor);
     }
 
+    [Fact]
+    public void MacWebViewHandlesJavaScriptConfirmationsNatively()
+    {
+        string navigationDelegate = ReadProjectFile(
+            "Matraca.Mac", "Platform", "Web", "MacWebNavigationDelegate.cs");
+        string block = ReadProjectFile("Matraca.Mac", "Platform", "Interop", "ObjCBlock.cs");
+        string selectors = ReadProjectFile("Matraca.Mac", "Platform", "Interop", "ObjCSelectors.cs");
+
+        Assert.Contains(".AddProtocol(\"WKUIDelegate\")", navigationDelegate);
+        Assert.Contains("ObjCSelectors.RunJavaScriptConfirmPanel", navigationDelegate);
+        Assert.Contains("ObjCClasses.NSAlert", navigationDelegate);
+        Assert.Contains("ObjCBlock.InvokeBoolean(completionHandler, confirmed)", navigationDelegate);
+        Assert.Contains("delegate* unmanaged<IntPtr, byte, void>", block);
+        Assert.Contains("runJavaScriptConfirmPanelWithMessage", selectors);
+    }
+
     private static string ReadProjectFile(params string[] parts)
     {
         DirectoryInfo? directory = new(AppContext.BaseDirectory);

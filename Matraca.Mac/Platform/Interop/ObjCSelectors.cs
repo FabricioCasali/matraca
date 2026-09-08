@@ -114,6 +114,11 @@ internal static class ObjCSelectors
         Register("removeScriptMessageHandlerForName:");
     public static readonly IntPtr SetNavigationDelegate = Register("setNavigationDelegate:");
     public static readonly IntPtr SetUIDelegate = Register("setUIDelegate:");
+    public static readonly IntPtr RunJavaScriptConfirmPanel = Register(
+        "webView:runJavaScriptConfirmPanelWithMessage:initiatedByFrame:completionHandler:");
+    public static readonly IntPtr SetMessageText = Register("setMessageText:");
+    public static readonly IntPtr AddButtonWithTitle = Register("addButtonWithTitle:");
+    public static readonly IntPtr RunModal = Register("runModal");
     public static readonly IntPtr EvaluateJavaScriptCompletionHandler =
         Register("evaluateJavaScript:completionHandler:");
     public static readonly IntPtr StopLoading = Register("stopLoading");
