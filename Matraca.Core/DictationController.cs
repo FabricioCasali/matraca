@@ -239,8 +239,8 @@ public sealed class DictationController : IDisposable
         _lastDiscovered = gesture;
         string name = gesture.ToString();
         Logger.Info($"Tecla detectada: {name}");
-        Notify("Tecla detectada",
-            $"Atalho: {name}\nColoque \"hotkey\": \"{name}\" em appsettings.json.");
+        UiMessageCatalog messages = Messages;
+        Notify(messages.KeyDiscoveredTitle, messages.KeyDiscoveredMessage(name));
     }
 
     private async Task HandleDictationKeyCoreAsync(bool pressed, bool suppressAction = false)
@@ -356,7 +356,8 @@ public sealed class DictationController : IDisposable
         catch (Exception exception)
         {
             Logger.Error(streaming ? "Falha ao iniciar modo live" : "Falha ao iniciar gravacao", exception);
-            Notify("Erro", "Nao consegui acessar o microfone. Veja matraca.log.", ShellNotificationLevel.Error);
+            UiMessageCatalog messages = MessagesFor(session.Config);
+            Notify(messages.ErrorTitle, messages.MicrophoneError, ShellNotificationLevel.Error);
             await AbortStartAsync(session).ConfigureAwait(false);
             SetIdle();
         }
@@ -399,7 +400,8 @@ public sealed class DictationController : IDisposable
                 return;
             }
             Logger.Error("Falha na transcricao", exception);
-            Notify("Erro", "Falha ao transcrever. Veja matraca.log.", ShellNotificationLevel.Error);
+            UiMessageCatalog messages = MessagesFor(session.Config);
+            Notify(messages.ErrorTitle, messages.TranscriptionError, ShellNotificationLevel.Error);
         }
         finally
         {
@@ -418,7 +420,8 @@ public sealed class DictationController : IDisposable
         var model = await session.Model.ConfigureAwait(false);
         if (model == null)
         {
-            Notify("Erro", "Modelo nao carregado. Veja matraca.log.", ShellNotificationLevel.Error);
+            UiMessageCatalog messages = MessagesFor(session.Config);
+            Notify(messages.ErrorTitle, messages.ModelNotLoadedError, ShellNotificationLevel.Error);
             return;
         }
 
@@ -427,7 +430,8 @@ public sealed class DictationController : IDisposable
         Logger.Info($"Transcrito: \"{text}\"");
         if (string.IsNullOrWhiteSpace(text))
         {
-            Notify("Vazio", "Nao entendi nenhum audio.");
+            UiMessageCatalog messages = MessagesFor(session.Config);
+            Notify(messages.EmptyAudioTitle, messages.EmptyAudioMessage);
             return;
         }
 
@@ -536,7 +540,7 @@ public sealed class DictationController : IDisposable
         if (Volatile.Read(ref _shuttingDown) != 0 || session.Cancellation.IsCancellationRequested)
             return TextDeliveryResult.Cancelled;
         if (!session.Streaming)
-            SetShellState(ShellState.Busy, "Matraca - escrevendo...");
+            SetShellState(ShellState.Writing, MessagesFor(session.Config).Writing);
         if (text.Length > 0) DeliveryStarted?.Invoke(session.Streaming);
         if (addToHistory) session.History?.Add(text, reviewUsage);
 
@@ -558,7 +562,9 @@ public sealed class DictationController : IDisposable
             {
                 if (!_targets.IsAlive(pinnedTarget))
                 {
-                    Unpin(pinnedTarget, "Janela fixada sumiu", "Ela foi fechada; o ditado volta pra janela em foco.");
+                    UiMessageCatalog messages = Messages;
+                    Unpin(pinnedTarget, messages.PinnedTargetUnavailableTitle,
+                        messages.PinnedTargetUnavailableMessage);
                 }
                 else
                 {
@@ -579,7 +585,9 @@ public sealed class DictationController : IDisposable
                     }
 
                     if (result != TextDeliveryResult.TargetUnavailable) return result;
-                    Unpin(pinnedTarget, "Janela fixada sumiu", "Ela foi fechada; o ditado volta pra janela em foco.");
+                    UiMessageCatalog messages = Messages;
+                    Unpin(pinnedTarget, messages.PinnedTargetUnavailableTitle,
+                        messages.PinnedTargetUnavailableMessage);
                 }
             }
             finally
@@ -628,14 +636,16 @@ public sealed class DictationController : IDisposable
         lock (_targetGate) pinnedTarget = _pinnedTarget;
         if (pinnedTarget != null)
         {
-            Unpin(pinnedTarget, "Destino liberado", "O ditado volta pra janela em foco.");
+            UiMessageCatalog messages = Messages;
+            Unpin(pinnedTarget, messages.UnpinnedTitle, messages.UnpinnedMessage);
             return Task.CompletedTask;
         }
 
         var target = _targets.CaptureActive();
         if (target == null)
         {
-            Notify("Nada pra fixar", "Nao consegui identificar a janela em foco.", ShellNotificationLevel.Warning);
+            UiMessageCatalog messages = Messages;
+            Notify(messages.NoTargetTitle, messages.NoTargetMessage, ShellNotificationLevel.Warning);
             return Task.CompletedTask;
         }
 
@@ -645,7 +655,8 @@ public sealed class DictationController : IDisposable
         {
             ReleaseTarget(target);
             Logger.Error("Falha ao identificar destino fixo", exception);
-            Notify("Nada pra fixar", "Nao consegui identificar a janela em foco.", ShellNotificationLevel.Warning);
+            UiMessageCatalog messages = Messages;
+            Notify(messages.NoTargetTitle, messages.NoTargetMessage, ShellNotificationLevel.Warning);
             return Task.CompletedTask;
         }
         lock (_targetGate)
@@ -654,8 +665,10 @@ public sealed class DictationController : IDisposable
             _pinnedTitle = pinnedTitle;
         }
         Logger.Info($"Destino fixado: token={target.Value} \"{pinnedTitle}\"");
-        Notify("Destino fixado", $"O ditado vai sempre para: {ShortTitle(pinnedTitle)}\n" +
-            $"Aperte {_config.PinHotkeyName} de novo para liberar.");
+        UiMessageCatalog catalog = Messages;
+        Notify(catalog.PinnedTargetTitle, catalog.PinnedTarget(
+            ShortTitle(pinnedTitle, catalog.WindowWithoutTitle),
+            _config.PinHotkeyName));
         RefreshState();
         return Task.CompletedTask;
     }
@@ -801,7 +814,8 @@ public sealed class DictationController : IDisposable
             {
                 completion?.TrySetException(exception);
                 Logger.Error("Falha ao aplicar reload agendado do modelo", exception);
-                Notify("Erro", "O novo modelo nao carregou; mantive a configuracao anterior.", ShellNotificationLevel.Error);
+                UiMessageCatalog messages = Messages;
+                Notify(messages.ErrorTitle, messages.ModelReloadFallback, ShellNotificationLevel.Error);
             }
         }
         ConfigureIndicator(_config);
@@ -823,22 +837,26 @@ public sealed class DictationController : IDisposable
         switch (state)
         {
             case TranscriptionModelState.Loading:
-                SetShellState(ShellState.Busy, "Matraca — carregando modelo...");
+                SetShellState(ShellState.Busy, Messages.LoadingModel);
                 break;
             case TranscriptionModelState.Ready:
                 SetIdle();
                 if (!_announcedReady)
                 {
                     _announcedReady = true;
-                    Notify("Pronto", $"Atalho: {_config.HotkeyName} · modo: {_config.Mode} · {_config.Gpu}.");
+                    UiMessageCatalog messages = Messages;
+                    Notify(messages.ReadyTitle,
+                        messages.ReadyNotification(_config.HotkeyName, _config.Mode, _config.Gpu));
                 }
                 break;
             case TranscriptionModelState.Failed:
-                SetShellState(ShellState.Error, "Matraca — ERRO ao carregar modelo");
-                Notify("Erro", "Nao consegui carregar o modelo Whisper. Veja matraca.log.", ShellNotificationLevel.Error);
+                SetShellState(ShellState.Error, Messages.ModelLoadErrorState);
+                UiMessageCatalog failedMessages = Messages;
+                Notify(failedMessages.ErrorTitle, failedMessages.ModelLoadErrorNotification,
+                    ShellNotificationLevel.Error);
                 break;
             case TranscriptionModelState.Unloaded:
-                SetShellState(ShellState.Idle, $"Matraca — ocioso, VRAM liberada ({_config.HotkeyName})");
+                SetShellState(ShellState.Idle, Messages.Unloaded(_config.HotkeyName));
                 break;
         }
     }
@@ -871,10 +889,10 @@ public sealed class DictationController : IDisposable
             pinnedTitle = _pinnedTitle;
         }
         string text = _config.DiscoverMode
-            ? "Matraca — MODO DESCOBERTA"
+            ? Messages.DiscoveryMode
             : pinnedTarget != null
-                ? $"Matraca — fixado em: {ShortTitle(pinnedTitle)}"
-                : $"Matraca — pronto ({_config.HotkeyName})";
+                ? Messages.PinnedState(ShortTitle(pinnedTitle, Messages.WindowWithoutTitle))
+                : Messages.Ready(_config.HotkeyName);
         SetShellState(ShellState.Idle, text);
         Dispatch(() =>
         {
@@ -890,16 +908,13 @@ public sealed class DictationController : IDisposable
 
     private void SetSuspended()
     {
-        SetShellState(ShellState.Idle, "Matraca - suspenso");
+        SetShellState(ShellState.Idle, Messages.Suspended);
         Dispatch(_targets.HideIndicator);
     }
 
     private void SetRecording(Config config)
     {
-        string instruction = config.HotkeyNeedsKeyUp
-            ? "solte para parar"
-            : "aperte de novo p/ parar";
-        SetShellState(ShellState.Recording, $"Matraca — GRAVANDO ({instruction})");
+        SetShellState(ShellState.Recording, MessagesFor(config).Recording(config.HotkeyNeedsKeyUp));
         Dispatch(() =>
         {
             lock (_targetGate)
@@ -913,7 +928,7 @@ public sealed class DictationController : IDisposable
 
     private void SetBusy(Config config)
     {
-        SetShellState(ShellState.Busy, "Matraca — transcrevendo...");
+        SetShellState(ShellState.Busy, MessagesFor(config).Transcribing);
         Dispatch(() =>
         {
             lock (_targetGate)
@@ -1138,9 +1153,14 @@ public sealed class DictationController : IDisposable
         ShellNotificationLevel level = ShellNotificationLevel.Info)
         => Dispatch(() => _shell.ShowNotification(title, message, level));
 
-    private static string ShortTitle(string title)
+    private UiMessageCatalog Messages => MessagesFor(_config);
+
+    private static UiMessageCatalog MessagesFor(Config config)
+        => new(config.EffectiveUiLanguage);
+
+    private static string ShortTitle(string title, string emptyTitle)
     {
-        if (string.IsNullOrWhiteSpace(title)) return "(janela sem titulo)";
+        if (string.IsNullOrWhiteSpace(title)) return emptyTitle;
         return title.Length <= 60 ? title : title[..57] + "...";
     }
 

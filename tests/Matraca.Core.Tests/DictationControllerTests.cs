@@ -127,6 +127,40 @@ public sealed class DictationControllerTests
     }
 
     [Fact]
+    public async Task NonStreamingDeliveryPublishesExplicitWritingState()
+    {
+        var setup = CreateController(NewConfig("hold"), ["spoken"]);
+        setup.Controller.Start();
+
+        await setup.Controller.HandleDictationKeyAsync(true);
+        await setup.Controller.HandleDictationKeyAsync(false);
+
+        Assert.Contains(setup.Shell.States, state => state.State == ShellState.Writing);
+        Assert.DoesNotContain(
+            setup.Shell.States,
+            state => state.State == ShellState.Busy && state.Text.Contains("escrevendo"));
+        await setup.Controller.ShutdownAsync();
+    }
+
+    [Fact]
+    public async Task ControllerUsesEffectiveUiLanguageForNotifications()
+    {
+        var setup = CreateController(NewConfig("hold", uiLanguage: UiLanguageResolver.EnglishUnitedStates), []);
+        TargetToken target = setup.Targets.CreateAliveTarget();
+        setup.Targets.Active = target;
+        setup.Targets.Title = "My private editor";
+        setup.Controller.Start();
+
+        await setup.Controller.TogglePinAsync();
+
+        Assert.Contains(
+            setup.Shell.Notifications,
+            notification => notification.Title == "Destination pinned"
+                && notification.Message.Contains("My private editor"));
+        await setup.Controller.ShutdownAsync();
+    }
+
+    [Fact]
     public async Task RepeatedKeyDownDoesNotToggleUntilKeyUpArrives()
     {
         var (controller, keyboard, audio, _, _, _) = CreateController(NewConfig("toggle"), ["text"]);
@@ -1356,7 +1390,8 @@ public sealed class DictationControllerTests
         int historyMaxItems = 100,
         bool history = true,
         string postProcessProvider = "anthropic",
-        string postProcessEndpoint = "") => new()
+        string postProcessEndpoint = "",
+        string uiLanguage = "pt-BR") => new()
     {
         ModelPath = modelPath,
         Mode = mode,
@@ -1375,6 +1410,8 @@ public sealed class DictationControllerTests
         HistoryMaxItems = historyMaxItems,
         PostProcessProvider = postProcessProvider,
         PostProcessEndpoint = postProcessEndpoint,
+        UiLanguage = uiLanguage,
+        EffectiveUiLanguage = uiLanguage,
     };
 
     private static string NewTemporaryDirectory()
