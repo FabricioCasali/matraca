@@ -5,7 +5,7 @@ namespace Matraca.Core;
 public static class ConfigSnapshot
 {
     // Preserve raw settings while keeping credentials out of the public bridge payload.
-    public static Dictionary<string, object?> Create(RawConfig raw)
+    public static Dictionary<string, object?> Create(RawConfig raw, string? systemLanguage = null)
     {
         ArgumentNullException.ThrowIfNull(raw);
         var result = new Dictionary<string, object?>();
@@ -18,9 +18,12 @@ public static class ConfigSnapshot
         }
 
         string provider = Config.NormalizePostProcessProvider(raw.postProcessProvider);
+        string uiLanguage = UiLanguageResolver.Normalize(raw.uiLanguage);
         result["postProcessProvider"] = provider;
         result["themeMode"] = Config.NormalizeThemeMode(raw.themeMode);
         result["palette"] = Config.NormalizePalette(raw.palette);
+        result["uiLanguage"] = uiLanguage;
+        result["effectiveUiLanguage"] = UiLanguageResolver.ResolveEffective(uiLanguage, systemLanguage);
         result["postProcessApiKeyConfigured"] = !string.IsNullOrWhiteSpace(provider switch
         {
             "openai-compatible" => raw.postProcessOpenAiApiKey,

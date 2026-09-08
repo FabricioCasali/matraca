@@ -62,6 +62,8 @@ public sealed class ConfigTests
 
         Assert.Equal("", config.ModelPath);
         Assert.Equal("pt", config.Language);
+        Assert.Equal("pt-BR", config.UiLanguage);
+        Assert.Equal("pt-BR", config.EffectiveUiLanguage);
         Assert.False(config.DiscoverMode);
         Assert.Equal(new HotkeyGesture("F15", KeyMods.None), config.Hotkey);
         Assert.Null(config.PinHotkey);
@@ -73,6 +75,44 @@ public sealed class ConfigTests
         Assert.Equal("auto", config.Gpu);
         Assert.Equal("anthropic", config.PostProcessProvider);
         Assert.Equal("", config.PostProcessEndpoint);
+    }
+
+    [Theory]
+    [InlineData(null, "pt-BR")]
+    [InlineData("", "pt-BR")]
+    [InlineData("invalid", "pt-BR")]
+    [InlineData("PT-br", "pt-BR")]
+    [InlineData("en-US", "en-US")]
+    [InlineData("system", "system")]
+    public void UiLanguageUsesOnlyCanonicalPreferences(string? rawValue, string expected)
+    {
+        var config = Config.FromRaw(
+            new RawConfig { uiLanguage = rawValue },
+            systemLanguage: "en-US");
+
+        Assert.Equal(expected, config.UiLanguage);
+        Assert.Equal(expected == "system" ? "en-US" : expected, config.EffectiveUiLanguage);
+        Assert.Equal(expected, config.WithGpu("cpu").UiLanguage);
+        Assert.Equal(config.EffectiveUiLanguage, config.WithGpu("cpu").EffectiveUiLanguage);
+    }
+
+    [Theory]
+    [InlineData("pt-BR", "pt-BR")]
+    [InlineData("pt-PT", "pt-BR")]
+    [InlineData("PT-br", "pt-BR")]
+    [InlineData("en-US", "en-US")]
+    [InlineData("de-DE", "en-US")]
+    [InlineData("ja-JP", "en-US")]
+    public void SystemUiLanguageResolvesPortugueseAndFallsBackToEnglish(
+        string systemLanguage,
+        string expectedEffectiveLanguage)
+    {
+        var config = Config.FromRaw(
+            new RawConfig { uiLanguage = "system" },
+            systemLanguage: systemLanguage);
+
+        Assert.Equal("system", config.UiLanguage);
+        Assert.Equal(expectedEffectiveLanguage, config.EffectiveUiLanguage);
     }
 
     [Theory]

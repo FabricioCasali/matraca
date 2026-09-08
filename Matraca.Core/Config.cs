@@ -20,6 +20,8 @@ public sealed class Config
     public string Palette { get; init; } = "olive";
     public string ModelPath { get; init; } = "";
     public string Language { get; init; } = "pt";
+    public string UiLanguage { get; init; } = UiLanguageResolver.PortugueseBrazil;
+    public string EffectiveUiLanguage { get; init; } = UiLanguageResolver.PortugueseBrazil;
     public bool DiscoverMode { get; init; }
     public HotkeyGesture? Hotkey { get; init; } = new("F15", KeyMods.None);
     public string HotkeyName => DiscoverMode ? "discover" : Hotkey?.ToString() ?? "discover";
@@ -75,6 +77,8 @@ public sealed class Config
         Palette = Palette,
         ModelPath = ModelPath,
         Language = Language,
+        UiLanguage = UiLanguage,
+        EffectiveUiLanguage = EffectiveUiLanguage,
         DiscoverMode = DiscoverMode,
         Hotkey = Hotkey,
         PinHotkey = PinHotkey,
@@ -116,8 +120,14 @@ public sealed class Config
         AppPaths paths,
         string packagedConfigFile,
         Func<string, HotkeyGesture?>? compatibilityParser = null,
-        Action<string>? warning = null)
-        => FromRaw(LoadRaw(paths, packagedConfigFile, warning), compatibilityParser, warning, paths);
+        Action<string>? warning = null,
+        string? systemLanguage = null)
+        => FromRaw(
+            LoadRaw(paths, packagedConfigFile, warning),
+            compatibilityParser,
+            warning,
+            paths,
+            systemLanguage);
 
     public static RawConfig LoadRaw(AppPaths paths, string packagedConfigFile, Action<string>? warning = null)
     {
@@ -174,7 +184,8 @@ public sealed class Config
         RawConfig raw,
         Func<string, HotkeyGesture?>? compatibilityParser = null,
         Action<string>? warning = null,
-        AppPaths? paths = null)
+        AppPaths? paths = null,
+        string? systemLanguage = null)
     {
         ArgumentNullException.ThrowIfNull(raw);
 
@@ -202,6 +213,7 @@ public sealed class Config
         }
 
         string postProcessProvider = NormalizePostProcessProvider(raw.postProcessProvider);
+        string uiLanguage = UiLanguageResolver.Normalize(raw.uiLanguage);
 
         return new Config
         {
@@ -209,6 +221,8 @@ public sealed class Config
             Palette = NormalizePalette(raw.palette),
             ModelPath = ResolveConfiguredPath(raw.modelPath, paths),
             Language = string.IsNullOrWhiteSpace(raw.language) ? "pt" : raw.language.Trim(),
+            UiLanguage = uiLanguage,
+            EffectiveUiLanguage = UiLanguageResolver.ResolveEffective(uiLanguage, systemLanguage),
             DiscoverMode = discover,
             Hotkey = hotkey,
             PinHotkey = pinHotkey,

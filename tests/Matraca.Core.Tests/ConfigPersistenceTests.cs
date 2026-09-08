@@ -15,6 +15,7 @@ public sealed class ConfigPersistenceTests
             var raw = new RawConfig
             {
                 hotkey = "Ctrl+Alt+D", mode = "hold", themeMode = "dark", palette = "teal",
+                uiLanguage = "en-US",
                 focusBorderColor = "#123456", postProcessModel = "local-model",
                 postProcessProvider = "openai-compatible",
                 postProcessApiKey = "test-anthropic", postProcessOpenAiApiKey = "test-openai",
@@ -27,10 +28,14 @@ public sealed class ConfigPersistenceTests
             var config = Config.Load(paths, "missing.json");
             Assert.Equal("dark", config.ThemeMode);
             Assert.Equal("teal", config.Palette);
+            Assert.Equal("en-US", config.UiLanguage);
+            Assert.Equal("en-US", config.EffectiveUiLanguage);
             var snapshot = ConfigSnapshot.Create(loaded);
             using var json = JsonDocument.Parse(JsonSerializer.Serialize(snapshot));
             Assert.Equal("dark", json.RootElement.GetProperty("themeMode").GetString());
             Assert.Equal("teal", json.RootElement.GetProperty("palette").GetString());
+            Assert.Equal("en-US", json.RootElement.GetProperty("uiLanguage").GetString());
+            Assert.Equal("en-US", json.RootElement.GetProperty("effectiveUiLanguage").GetString());
             Assert.True(json.RootElement.GetProperty("postProcessApiKeyConfigured").GetBoolean());
             Assert.DoesNotContain("test-", json.RootElement.GetRawText());
             Assert.Equal("#123456", json.RootElement.GetProperty("focusBorderColor").GetString());
@@ -45,8 +50,11 @@ public sealed class ConfigPersistenceTests
         var snapshot = ConfigSnapshot.Create(raw);
         Assert.Null(raw.themeMode);
         Assert.Null(raw.palette);
+        Assert.Null(raw.uiLanguage);
         Assert.Equal("system", snapshot["themeMode"]);
         Assert.Equal("olive", snapshot["palette"]);
+        Assert.Equal("pt-BR", snapshot["uiLanguage"]);
+        Assert.Equal("pt-BR", snapshot["effectiveUiLanguage"]);
         Assert.Equal("push", Config.FromRaw(raw).Mode);
         Assert.False(Config.FromRaw(raw).History);
     }
@@ -60,11 +68,13 @@ public sealed class ConfigPersistenceTests
             var paths = AppPaths.ForMac(root);
             var packaged = Path.Combine(AppContext.BaseDirectory, "packaged-appsettings.json");
 
-            var config = Config.Load(paths, packaged);
+            var config = Config.Load(paths, packaged, systemLanguage: "pt-PT");
 
             Assert.Equal("F15", config.HotkeyName);
             Assert.Equal("live", config.Mode);
             Assert.Equal("pt", config.Language);
+            Assert.Equal("system", config.UiLanguage);
+            Assert.Equal("pt-BR", config.EffectiveUiLanguage);
             Assert.Equal("unicode", config.PasteMethod);
             Assert.Equal(450, config.SilenceMs);
             Assert.Equal(6, config.PhraseMaxSeconds);
