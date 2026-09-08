@@ -44,9 +44,12 @@ internal sealed class MacWebBridge : IDisposable
     public event Action<string>? MessageProduced;
     public event Action? CloseWindowRequested;
     public bool CanOpenWindow => _app?.CanOpenWebWindow ?? true;
+    internal string EffectiveUiLanguage
+        => _app?.CurrentConfig.EffectiveUiLanguage
+            ?? UiLanguageResolver.ResolveEffective(UiLanguageResolver.System);
 
     public void RejectOpenWhileBusy()
-        => _app?.ShowWebError("Encerre o ditado antes de abrir o painel.");
+        => _app?.ShowWebError(new MacUiText(EffectiveUiLanguage).OperationFailed);
 
     public void PrepareToOpen()
     {
@@ -110,24 +113,28 @@ internal sealed class MacWebBridge : IDisposable
         }
         catch (NotSupportedException exception)
         {
-            return ErrorResponse(GetRequestId(json), "not_implemented", exception.Message);
+            Logger.Info($"Operacao nao implementada solicitada pela interface: {exception.Message}");
+            return ErrorResponse(GetRequestId(json), "not_implemented");
         }
         catch (JsonException exception)
         {
-            return ErrorResponse(GetRequestId(json), "invalid_request", exception.Message);
+            Logger.Info($"Solicitacao invalida da interface: {exception.Message}");
+            return ErrorResponse(GetRequestId(json), "invalid_request");
         }
         catch (UnauthorizedAccessException exception)
         {
-            return ErrorResponse(GetRequestId(json), "permission_denied", exception.Message);
+            Logger.Warn($"Permissao negada para operacao da interface: {exception.Message}");
+            return ErrorResponse(GetRequestId(json), "permission_denied");
         }
         catch (OperationCanceledException exception)
         {
-            return ErrorResponse(GetRequestId(json), "canceled", exception.Message);
+            Logger.Info($"Operacao da interface cancelada: {exception.Message}");
+            return ErrorResponse(GetRequestId(json), "canceled");
         }
         catch (Exception exception)
         {
             Logger.Error("Falha ao executar comando da interface web", exception);
-            return ErrorResponse(GetRequestId(json), "native_error", exception.Message);
+            return ErrorResponse(GetRequestId(json), "native_error");
         }
     }
 
@@ -285,7 +292,7 @@ internal sealed class MacWebBridge : IDisposable
         TextDeliveryResult result = await _app.RepasteAsync(entry.Text, target).ConfigureAwait(false);
         if (result != TextDeliveryResult.Delivered)
         {
-            string message = $"Nao foi possivel recolar o texto: {result}.";
+            string message = new MacUiText(EffectiveUiLanguage).RepasteFailed;
             _app.ShowWebError(message);
             throw new InvalidOperationException(message);
         }
@@ -492,14 +499,14 @@ internal sealed class MacWebBridge : IDisposable
                 threshold = CurrentThreshold,
             };
         }
-        catch (Exception exception)
+        catch
         {
             try { await _microphone.StopAsync().ConfigureAwait(false); }
             catch (Exception cleanup) { Logger.Error("Falha ao limpar monitor", cleanup); }
             finally
             {
                 _monitoredDevice = "";
-                Emit("mic.error", new { message = exception.Message });
+                Emit("mic.error", new { message = new MacUiText(EffectiveUiLanguage).MicrophoneUnavailable });
             }
             throw;
         }
@@ -547,7 +554,8 @@ internal sealed class MacWebBridge : IDisposable
     private object BuildState() => new
     {
         state = StateName(_app?.CurrentState ?? ShellState.Idle),
-        text = _app?.CurrentStateText ?? "Acessibilidade necessaria.",
+        text = _app?.CurrentStateText
+            ?? new MacUiText(EffectiveUiLanguage).AccessibilityRequiredMessage,
         active = _app?.CurrentState == ShellState.Recording,
     };
 
@@ -601,7 +609,7 @@ internal sealed class MacWebBridge : IDisposable
 
     private async Task<object> ToggleDictationAsync()
     {
-        if (_app == null) throw new InvalidOperationException("O aplicativo não está disponível.");
+        if (_app == null) throw new InvalidOperationException(new MacUiText(EffectiveUiLanguage).RuntimeUnavailable);
         await _app.ToggleDictationFromUiAsync(_app.CurrentWebTarget).ConfigureAwait(false);
         return BuildState();
     }
@@ -619,7 +627,7 @@ internal sealed class MacWebBridge : IDisposable
             finally
             {
                 _monitoredDevice = "";
-                Emit("mic.error", new { message });
+                Emit("mic.error", new { message = new MacUiText(EffectiveUiLanguage).MicrophoneUnavailable });
             }
         }
         catch (Exception exception) { Logger.Error("Falha ao parar monitor", exception); }
@@ -645,13 +653,24 @@ internal sealed class MacWebBridge : IDisposable
     }
 
     private void OnStateChanged(ShellState state, string text)
-        => Emit("hud.state", new
+    {
+        MacUiText ui = new(EffectiveUiLanguage);
+        string title = state switch
+        {
+            ShellState.Recording => ui.HudListening,
+            ShellState.Busy => ui.HudThinking,
+            ShellState.Writing => ui.HudWriting,
+            ShellState.Error => ui.HudAttention,
+            _ => ui.HudReady,
+        };
+        Emit("hud.state", new
         {
             state = StateName(state),
-            title = text,
+            title,
             text,
             detail = state == ShellState.Recording ? _app?.CurrentConfig.Mode : "",
         });
+    }
 
     private void OnConfigChanged(Matraca.Core.Config config)
     {
@@ -678,7 +697,7 @@ internal sealed class MacWebBridge : IDisposable
             streaming,
         });
 
-    private static object BuildPublicConfig(RawConfig raw)
+    private object BuildPublicConfig(RawConfig raw)
         => ConfigSnapshot.Create(raw);
 
     private static void RequireExactProperties(JsonElement parameters, params string[] names)
@@ -712,6 +731,7 @@ internal sealed class MacWebBridge : IDisposable
     {
         ShellState.Recording => "listening",
         ShellState.Busy => "thinking",
+        ShellState.Writing => "writing",
         ShellState.Error => "error",
         _ => "ready",
     };
@@ -725,14 +745,14 @@ internal sealed class MacWebBridge : IDisposable
     private static string Response(string id, object result)
         => JsonSerializer.Serialize(new { version = 1, id, type = "response", ok = true, result });
 
-    private static string ErrorResponse(string? id, string code, string message)
+    private string ErrorResponse(string? id, string code)
         => JsonSerializer.Serialize(new
         {
             version = 1,
             id,
             type = "response",
             ok = false,
-            error = new { code, message },
+            error = new { code, message = new MacUiText(EffectiveUiLanguage).ErrorFor(code) },
         });
 
     private static string? GetRequestId(string json)

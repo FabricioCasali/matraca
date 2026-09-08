@@ -30,6 +30,7 @@ internal static class ObjCSelectors
     public static readonly IntPtr RemoveStatusItem = Register("removeStatusItem:");
     public static readonly IntPtr Button = Register("button");
     public static readonly IntPtr SetTitle = Register("setTitle:");
+    public static readonly IntPtr SetAccessibilityLabel = Register("setAccessibilityLabel:");
     public static readonly IntPtr SetMenu = Register("setMenu:");
     public static readonly IntPtr InitWithTitleActionKeyEquivalent =
         Register("initWithTitle:action:keyEquivalent:");

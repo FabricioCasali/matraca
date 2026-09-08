@@ -44,7 +44,8 @@ internal sealed class MacWebViewHost : IDisposable
         double width = 1200,
         double height = 820,
         string entryPath = "",
-        bool nonActivatingOverlay = false)
+        bool nonActivatingOverlay = false,
+        Func<string>? effectiveLanguage = null)
     {
         MainThread.VerifyAccess();
         ArgumentException.ThrowIfNullOrWhiteSpace(title);
@@ -62,7 +63,7 @@ internal sealed class MacWebViewHost : IDisposable
         {
             schemeHandler = new MacUrlSchemeHandler(authorizedAssetRoot);
             messageHandler = new MacScriptMessageHandler();
-            navigationDelegate = new MacWebNavigationDelegate();
+            navigationDelegate = new MacWebNavigationDelegate(effectiveLanguage);
             windowDelegate = new MacWebWindowDelegate();
             _windowDelegate = windowDelegate;
             _schemeHandler = schemeHandler;

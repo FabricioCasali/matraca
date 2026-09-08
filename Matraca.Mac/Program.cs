@@ -52,8 +52,8 @@ internal static class Program
             var application = MacApplication.Shared();
             application.ConfigureAsAccessory();
             MainThread.Initialize();
-            using var statusItem = new MacStatusItem(application);
             Matraca.Core.Config config = MacConfig.Load();
+            using var statusItem = new MacStatusItem(application, config.EffectiveUiLanguage);
             bool trusted = Accessibility.IsTrusted(prompt: true);
             using MacTrayApp? trayApp = trusted ? new MacTrayApp(config, statusItem) : null;
             using var bridge = new MacWebBridge(trayApp);
@@ -80,7 +80,8 @@ internal static class Program
             }
             else
             {
-                statusItem.SetState("Matraca !", "Acessibilidade necessaria; conceda e reinicie o Matraca.");
+                MacUiText ui = new(config.EffectiveUiLanguage);
+                statusItem.SetState("Matraca !", ui.AccessibilityRequiredMessage);
                 Logger.Warn("Permissao de Acessibilidade ausente; conceda e reinicie o Matraca.");
             }
             application.Run();

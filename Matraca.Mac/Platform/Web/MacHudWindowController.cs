@@ -14,6 +14,8 @@ internal sealed class MacHudWindowController : IDisposable
     private bool _deliveryError;
     private int _hideGeneration;
     private bool _disposed;
+    private ShellState _currentState;
+    private string _currentStateText = "";
     private string _pendingState = "ready";
     private string _pendingTitle = "Matraca";
     private string _pendingDetail = "";
@@ -23,7 +25,8 @@ internal sealed class MacHudWindowController : IDisposable
         MainThread.VerifyAccess();
         _app = app ?? throw new ArgumentNullException(nameof(app));
         _host = new MacWebViewHost(authorizedAssetRoot, "Matraca HUD",
-            width: 430, height: 92, entryPath: "hud.html", nonActivatingOverlay: true);
+            width: 430, height: 92, entryPath: "hud.html", nonActivatingOverlay: true,
+            effectiveLanguage: () => _app.CurrentConfig.EffectiveUiLanguage);
         _host.MessageReceived += OnMessageReceived;
         _app.StateChanged += OnStateChanged;
         _app.DeliveryStarted += OnDeliveryStarted;
@@ -53,7 +56,12 @@ internal sealed class MacHudWindowController : IDisposable
     }
 
     private void OnConfigChanged(Matraca.Core.Config config)
-        => MainThread.Post(() => { if (!_disposed && _ready) PublishAppearance(); });
+        => MainThread.Post(() =>
+        {
+            if (_disposed) return;
+            if (_ready) PublishAppearance();
+            ApplyState(_currentState, _currentStateText);
+        });
 
     private void PublishAppearance()
     {
@@ -67,7 +75,12 @@ internal sealed class MacHudWindowController : IDisposable
     }
 
     private void OnStateChanged(ShellState state, string text)
-        => MainThread.Post(() => ApplyState(state, text));
+        => MainThread.Post(() =>
+        {
+            _currentState = state;
+            _currentStateText = text;
+            ApplyState(state, text);
+        });
 
     private void ApplyState(ShellState state, string text)
     {
@@ -85,22 +98,32 @@ internal sealed class MacHudWindowController : IDisposable
         if (_deliveryError && !(state == ShellState.Recording && !_dictationActive)) return;
         _deliveryError = false;
         if (state == ShellState.Recording) _dictationActive = true;
-        bool writing = state == ShellState.Busy && text.Contains("escrevendo", StringComparison.OrdinalIgnoreCase);
-        string name = writing ? "writing" : state switch
+        MacUiText ui = new(_app.CurrentConfig.EffectiveUiLanguage);
+        string name = state switch
         {
             ShellState.Recording => "listening",
             ShellState.Busy => "thinking",
+            ShellState.Writing => "writing",
             ShellState.Error => "error",
             _ => "ready",
         };
-        string title = writing ? "Inserindo texto" : state switch
+        string title = state switch
         {
-            ShellState.Recording => "Ouvindo voce",
-            ShellState.Busy => "Processando texto",
-            ShellState.Error => "Atencao",
-            _ => "Matraca",
+            ShellState.Recording => ui.HudListening,
+            ShellState.Busy => ui.HudThinking,
+            ShellState.Writing => ui.HudWriting,
+            ShellState.Error => ui.HudAttention,
+            _ => ui.HudReady,
         };
-        Publish(name, title, state == ShellState.Recording ? _app.CurrentConfig.Mode : text);
+        string detail = state switch
+        {
+            ShellState.Recording => _app.CurrentConfig.Mode,
+            ShellState.Busy => ui.HudThinking,
+            ShellState.Writing => ui.HudWriting,
+            ShellState.Error => ui.HudAttention,
+            _ => text,
+        };
+        Publish(name, title, detail);
     }
 
     private void OnDeliveryCompleted(string text, TextDeliveryResult result, bool streaming)
@@ -113,7 +136,9 @@ internal sealed class MacHudWindowController : IDisposable
             _deliveryJustCompleted = false;
             Interlocked.Increment(ref _hideGeneration);
             if (_deliveryError) return;
-            Publish("writing", streaming && _dictationActive ? "Ouvindo · inserindo trecho" : "Inserindo texto", _app.CurrentConfig.Mode);
+            MacUiText ui = new(_app.CurrentConfig.EffectiveUiLanguage);
+            Publish("writing", streaming && _dictationActive ? ui.HudListeningInserting : ui.HudInserting,
+                _app.CurrentConfig.Mode);
         });
 
     private void ApplyDeliveryResult(string text, TextDeliveryResult result, bool streaming)
@@ -122,8 +147,11 @@ internal sealed class MacHudWindowController : IDisposable
         bool delivered = result == TextDeliveryResult.Delivered;
         _deliveryError = !delivered;
         _deliveryJustCompleted = !streaming || !_dictationActive;
+        MacUiText ui = new(_app.CurrentConfig.EffectiveUiLanguage);
         Publish(delivered ? "done" : "error",
-            delivered ? (streaming && _dictationActive ? "Trecho entregue · ainda ouvindo" : "Texto entregue") : "Entrega falhou · confira o histórico",
+            delivered
+                ? (streaming && _dictationActive ? ui.HudSegmentDelivered : ui.HudTextDelivered)
+                : ui.HudDeliveryFailed,
             text);
         if (!delivered) return;
         if (streaming && _dictationActive) ReturnToListeningLater();
@@ -182,7 +210,8 @@ internal sealed class MacHudWindowController : IDisposable
             _ => MainThread.Post(() =>
             {
                 if (!_disposed && generation == Volatile.Read(ref _hideGeneration) && _dictationActive)
-                    Publish("listening", "Ouvindo voce", _app.CurrentConfig.Mode);
+                    Publish("listening", new MacUiText(_app.CurrentConfig.EffectiveUiLanguage).HudListening,
+                        _app.CurrentConfig.Mode);
             }), CancellationToken.None, TaskContinuationOptions.ExecuteSynchronously, TaskScheduler.Default);
     }
 

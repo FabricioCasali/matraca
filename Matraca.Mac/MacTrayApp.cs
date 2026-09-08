@@ -39,7 +39,7 @@ internal sealed class MacTrayApp : IDisposable
         _keyboard = new MacKeyboardHook(config);
         _audio = new MacAudioCapture();
         _targets = new MacTargetWindow();
-        _shell = new MacShell(statusItem);
+        _shell = new MacShell(statusItem, config.EffectiveUiLanguage);
         _controller = new DictationController(
             config,
             _keyboard,
@@ -289,9 +289,10 @@ internal sealed class MacTrayApp : IDisposable
         {
             Interlocked.CompareExchange(ref _sleeping, 1, 0);
             Logger.Error("Falha ao recriar o event tap apos repouso", exception);
+            MacUiText ui = new(_config.EffectiveUiLanguage);
             _shell.SetState(
                 ShellState.Error,
-                "Matraca - teclado indisponivel apos repouso.");
+                ui.KeyboardUnavailableAfterSleep);
         }
     }
 
@@ -353,9 +354,8 @@ internal sealed class MacTrayApp : IDisposable
                 catch (Exception restoreException)
                 {
                     Logger.Error("Falha ao restaurar o event tap anterior", restoreException);
-                    MainThread.Post(() => _shell.SetState(
-                        ShellState.Error,
-                        "Matraca - teclado indisponivel; confira Acessibilidade."));
+                    MacUiText ui = new(_config.EffectiveUiLanguage);
+                    MainThread.Post(() => _shell.SetState(ShellState.Error, ui.KeyboardUnavailable));
                 }
                 throw;
             }
@@ -365,21 +365,29 @@ internal sealed class MacTrayApp : IDisposable
             await _controller.ApplyConfigAsync(applicable).ConfigureAwait(false);
         }
         _config = config;
+        MainThread.Post(() => _shell.SetLanguage(config.EffectiveUiLanguage));
         if (notifyChanged) ConfigChanged?.Invoke(config);
         if (notifyRestart && accelerationChanged) NotifyRestartRequired();
     }
 
     private void NotifyRestartRequired()
-        => MainThread.Post(() => _shell.ShowNotification(
-            "Reinicie o Matraca",
-            "A troca entre GPU e CPU passa a valer na proxima inicializacao.",
+    {
+        MacUiText ui = new(_config.EffectiveUiLanguage);
+        MainThread.Post(() => _shell.ShowNotification(
+            ui.RestartTitle,
+            ui.RestartMessage,
             ShellNotificationLevel.Warning));
+    }
 
     private void NotifyConfigRejected(Exception exception)
-        => MainThread.Post(() => _shell.ShowNotification(
-            "Configuracao rejeitada",
-            exception.Message,
+    {
+        Logger.Warn($"Configuracao rejeitada: {exception.Message}");
+        MacUiText ui = new(_config.EffectiveUiLanguage);
+        MainThread.Post(() => _shell.ShowNotification(
+            ui.ConfigurationRejectedTitle,
+            ui.ConfigurationRejectedMessage,
             ShellNotificationLevel.Error));
+    }
 
     private static void Observe(Task task)
         => _ = task.ContinueWith(

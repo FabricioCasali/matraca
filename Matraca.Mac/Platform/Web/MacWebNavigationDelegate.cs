@@ -12,11 +12,13 @@ internal sealed unsafe class MacWebNavigationDelegate : IDisposable
     private static readonly object CallbackGate = new();
     private static readonly Dictionary<IntPtr, MacWebNavigationDelegate> Instances = [];
     private static readonly IntPtr DelegateClass = CreateDelegateClass();
+    private readonly Func<string>? _effectiveLanguage;
     private IntPtr _native;
 
-    public MacWebNavigationDelegate()
+    public MacWebNavigationDelegate(Func<string>? effectiveLanguage = null)
     {
         MainThread.VerifyAccess();
+        _effectiveLanguage = effectiveLanguage;
         _native = ObjC.New(DelegateClass);
         if (_native == IntPtr.Zero)
             throw new InvalidOperationException("Could not create the WKNavigationDelegate.");
@@ -107,15 +109,18 @@ internal sealed unsafe class MacWebNavigationDelegate : IDisposable
         IntPtr completionHandler)
     {
         bool confirmed = false;
+        MacWebNavigationDelegate? instance;
+        lock (CallbackGate) Instances.TryGetValue(self, out instance);
         try
         {
             IntPtr alert = ObjC.New(ObjCClasses.NSAlert);
             try
             {
-                string prompt = NSStringRef.To(message) ?? "Confirmar acao?";
+                MacUiText ui = instance?.LocalizedText() ?? new MacUiText(null);
+                string prompt = NSStringRef.To(message) ?? ui.ConfirmFallback;
                 ObjC.SendVoid(alert, ObjCSelectors.SetMessageText, NSStringRef.From(prompt));
-                ObjC.Send(alert, ObjCSelectors.AddButtonWithTitle, NSStringRef.From("Continuar"));
-                ObjC.Send(alert, ObjCSelectors.AddButtonWithTitle, NSStringRef.From("Cancelar"));
+                ObjC.Send(alert, ObjCSelectors.AddButtonWithTitle, NSStringRef.From(ui.ConfirmContinue));
+                ObjC.Send(alert, ObjCSelectors.AddButtonWithTitle, NSStringRef.From(ui.ConfirmCancel));
                 confirmed = ObjC.SendNInt(alert, ObjCSelectors.RunModal) == AlertFirstButtonReturn;
             }
             finally
@@ -135,6 +140,12 @@ internal sealed unsafe class MacWebNavigationDelegate : IDisposable
         {
             Logger.Error("Falha ao concluir confirmacao do painel web", exception);
         }
+    }
+
+    private MacUiText LocalizedText()
+    {
+        try { return new MacUiText(_effectiveLanguage?.Invoke()); }
+        catch { return new MacUiText(null); }
     }
 
     private static string? GetUrl(IntPtr navigationAction)

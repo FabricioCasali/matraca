@@ -79,7 +79,10 @@ internal sealed class MacWebWindowController : IDisposable
 
     private MacWebViewHost CreateHost()
     {
-        var host = new MacWebViewHost(_assetRoot);
+        var host = new MacWebViewHost(
+            _assetRoot,
+            effectiveLanguage: () => _bridge?.EffectiveUiLanguage
+                ?? UiLanguageResolver.ResolveEffective(UiLanguageResolver.System));
         host.MessageReceived += OnMessageReceived;
         host.WindowWillClose += OnWindowWillClose;
         return host;

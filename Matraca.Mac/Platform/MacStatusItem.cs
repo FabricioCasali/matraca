@@ -10,13 +10,17 @@ internal sealed class MacStatusItem : IDisposable
     private readonly IntPtr _button;
     private readonly IntPtr _stateItem;
     private readonly MacMenuActionTarget _openTarget;
+    private IntPtr _openItem;
+    private IntPtr _quitItem;
+    private MacUiText _ui;
     private IntPtr _statusItem;
 
     public event Action? OpenRequested;
 
-    public MacStatusItem(MacApplication application)
+    public MacStatusItem(MacApplication application, string effectiveUiLanguage)
     {
         ArgumentNullException.ThrowIfNull(application);
+        _ui = new MacUiText(effectiveUiLanguage);
 
         _statusBar = ObjC.Send(ObjCClasses.NSStatusBar, ObjCSelectors.SystemStatusBar);
         _statusItem = ObjC.SendDouble(
@@ -30,9 +34,10 @@ internal sealed class MacStatusItem : IDisposable
         if (_button == IntPtr.Zero)
             throw new InvalidOperationException("NSStatusItem.button returned nil.");
         ObjC.SendVoid(_button, ObjCSelectors.SetTitle, NSStringRef.From("Matraca"));
+        SetAccessibilityLabel(_button, _ui.AccessibilityLabel);
 
         IntPtr menu = ObjC.New(ObjCClasses.NSMenu);
-        _stateItem = CreateMenuItem("Iniciando...", IntPtr.Zero, "");
+        _stateItem = CreateMenuItem(_ui.MenuStarting, IntPtr.Zero, "");
         if (menu == IntPtr.Zero || _stateItem == IntPtr.Zero)
             throw new InvalidOperationException("Failed to create the status menu.");
         ObjC.SendVoidBool(_stateItem, ObjCSelectors.SetEnabled, false);
@@ -42,31 +47,48 @@ internal sealed class MacStatusItem : IDisposable
             ObjC.Send(ObjCClasses.NSMenuItem, ObjCSelectors.SeparatorItem));
 
         _openTarget = new MacMenuActionTarget(() => OpenRequested?.Invoke());
-        IntPtr openItem = CreateMenuItem("Abrir Matraca...", ObjCSelectors.OpenMatraca, "");
-        if (openItem == IntPtr.Zero)
+        _openItem = CreateMenuItem(_ui.MenuOpen, ObjCSelectors.OpenMatraca, "");
+        if (_openItem == IntPtr.Zero)
             throw new InvalidOperationException("Failed to create the open menu item.");
-        ObjC.SendVoid(openItem, ObjCSelectors.SetTarget, _openTarget.Handle);
-        ObjC.SendVoid(menu, ObjCSelectors.AddItem, openItem);
-        ObjC.SendVoid(openItem, ObjCSelectors.Release);
+        ObjC.SendVoid(_openItem, ObjCSelectors.SetTarget, _openTarget.Handle);
+        SetAccessibilityLabel(_openItem, _ui.MenuOpen);
+        ObjC.SendVoid(menu, ObjCSelectors.AddItem, _openItem);
+        ObjC.SendVoid(_openItem, ObjCSelectors.Release);
         ObjC.SendVoid(menu, ObjCSelectors.AddItem,
             ObjC.Send(ObjCClasses.NSMenuItem, ObjCSelectors.SeparatorItem));
 
-        IntPtr quitItem = CreateMenuItem("Sair do Matraca", ObjCSelectors.Terminate, "q");
-        if (quitItem == IntPtr.Zero)
+        _quitItem = CreateMenuItem(_ui.MenuQuit, ObjCSelectors.Terminate, "q");
+        if (_quitItem == IntPtr.Zero)
             throw new InvalidOperationException("Failed to create the status menu.");
 
-        ObjC.SendVoid(quitItem, ObjCSelectors.SetTarget, application.Handle);
-        ObjC.SendVoid(menu, ObjCSelectors.AddItem, quitItem);
+        ObjC.SendVoid(_quitItem, ObjCSelectors.SetTarget, application.Handle);
+        SetAccessibilityLabel(_quitItem, _ui.MenuQuit);
+        ObjC.SendVoid(menu, ObjCSelectors.AddItem, _quitItem);
         ObjC.SendVoid(_statusItem, ObjCSelectors.SetMenu, menu);
-        ObjC.SendVoid(quitItem, ObjCSelectors.Release);
+        ObjC.SendVoid(_quitItem, ObjCSelectors.Release);
         ObjC.SendVoid(menu, ObjCSelectors.Release);
+    }
+
+    public void SetLanguage(string effectiveUiLanguage)
+    {
+        _ui = new MacUiText(effectiveUiLanguage);
+        ObjC.SendVoid(_stateItem, ObjCSelectors.SetTitle, NSStringRef.From(_ui.MenuStarting));
+        ObjC.SendVoid(_openItem, ObjCSelectors.SetTitle, NSStringRef.From(_ui.MenuOpen));
+        ObjC.SendVoid(_quitItem, ObjCSelectors.SetTitle, NSStringRef.From(_ui.MenuQuit));
+        SetAccessibilityLabel(_button, _ui.AccessibilityLabel);
+        SetAccessibilityLabel(_openItem, _ui.MenuOpen);
+        SetAccessibilityLabel(_quitItem, _ui.MenuQuit);
     }
 
     public void SetState(string title, string detail)
     {
         ObjC.SendVoid(_button, ObjCSelectors.SetTitle, NSStringRef.From(title));
         ObjC.SendVoid(_stateItem, ObjCSelectors.SetTitle, NSStringRef.From(detail));
+        SetAccessibilityLabel(_button, $"{title}: {detail}");
     }
+
+    private static void SetAccessibilityLabel(IntPtr handle, string value)
+        => ObjC.SendVoid(handle, ObjCSelectors.SetAccessibilityLabel, NSStringRef.From(value));
 
     private static IntPtr CreateMenuItem(string title, IntPtr action, string keyEquivalent)
         => ObjC.Send(

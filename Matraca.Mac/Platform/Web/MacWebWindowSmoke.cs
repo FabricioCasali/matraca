@@ -24,7 +24,9 @@ internal static class MacWebWindowSmoke
             var application = MacApplication.Shared();
             application.ConfigureAsAccessory();
             MainThread.Initialize();
-            using var statusItem = new MacStatusItem(application);
+            using var statusItem = new MacStatusItem(
+                application,
+                UiLanguageResolver.ResolveEffective(UiLanguageResolver.System));
             using var controller = new MacWebWindowController(application, statusItem, args[1]);
 
             bool startsAccessory = application.ActivationPolicy == 1;
