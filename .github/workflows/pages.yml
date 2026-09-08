@@ -36,6 +36,8 @@ jobs:
       - name: Prepare public files only
         run: |
           install -D site/index.html _site/index.html
+          install -D site/en/index.html _site/en/index.html
+          install -D site/favicon.svg _site/favicon.svg
           touch _site/.nojekyll
       - name: Configure Pages
         if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
