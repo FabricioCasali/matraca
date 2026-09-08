@@ -30,6 +30,7 @@ async function serveAsset(route) {
     await page.route('http://matraca.test/**', serveAsset);
     await page.addInitScript(() => {
       const config = { themeMode: 'light', palette: 'olive', language: 'pt', mode: 'toggle', hotkey: 'F15',
+        uiLanguage: 'pt-BR', effectiveUiLanguage: 'pt-BR',
         modelPath: 'models/ggml-small.bin', gpu: 'cpu', micSensitivity: { 'Microfone de teste': .012 },
         postProcess: false, postProcessProvider: 'deepseek', postProcessModel: 'deepseek-v4-flash', postProcessReasoning: 'off' };
       const entries = [{ id: 'test-only', at: '2026-09-07T10:30:00', text: 'Uma ideia, uma pausa.\nO texto continua inteiro: ação, café e 日本語.', characterCount: 74,
@@ -61,6 +62,20 @@ async function serveAsset(route) {
     const declaredPolicy = fs.readFileSync(path.join(web, 'index.html'), 'utf8').match(/http-equiv="Content-Security-Policy" content="([^"]+)"/)[1];
     assert.equal(await page.locator('meta[http-equiv="Content-Security-Policy"]').getAttribute('content'), declaredPolicy);
     await page.waitForFunction(() => document.querySelector('[data-save-state]').textContent === 'Configuração carregada');
+    await page.evaluate(() => { location.hash = 'settings'; });
+    await page.waitForFunction(() => !document.querySelector('[data-page="settings"]').hidden);
+    await page.locator('[data-settings-tab="appearance"]').click();
+    const recognitionLanguage = await page.locator('[data-config-field="language"]').inputValue();
+    await page.locator('[data-config-field="uiLanguage"]').selectOption('en-US');
+    await page.waitForFunction(() => document.documentElement.lang === 'en-US');
+    assert.equal(await page.locator('[data-page="settings"] h1').textContent(), 'Settings');
+    assert.equal(await page.locator('[data-config-field="language"]').inputValue(), recognitionLanguage);
+    assert.equal(await page.evaluate(() => location.hash), '#settings');
+    await page.locator('[data-config-field="uiLanguage"]').selectOption('pt-BR');
+    await page.waitForFunction(() => document.documentElement.lang === 'pt-BR');
+    assert.equal(await page.locator('[data-page="settings"] h1').textContent(), 'Configurações');
+    await page.evaluate(() => { location.hash = 'home'; });
+    await page.waitForFunction(() => !document.querySelector('[data-page="home"]').hidden);
     assert.equal(await page.locator('.titlebar [data-config-field], [data-appearance-menu]').count(), 0);
     await page.locator('[data-last-phrase-menu] summary').click();
     await page.keyboard.press('Escape');

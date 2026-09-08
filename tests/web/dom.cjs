@@ -38,6 +38,8 @@ class Element {
   set value(value) { this._value = String(value); }
   get textContent() { return this._text + this.children.map(x => x.textContent).join(''); }
   set textContent(value) { this.replaceChildren(); this._text = String(value); }
+  get innerHTML() { return this.textContent; }
+  set innerHTML(value) { this.replaceChildren(); this._text = String(value).replace(/<br\s*\/?\s*>/gi, '\n').replace(/<[^>]+>/g, ''); }
   append(...children) {
     for (let child of children) {
       if (typeof child === 'string') { const text = new Element('#text', this.ownerDocument); text._text = child; child = text; }
@@ -109,7 +111,7 @@ async function app(options = {}) {
   let history = options.history || [];
   const usage = options.usage || { providers: [] };
   const context = vm.createContext({
-    document, URL, Intl, console, Date, Set, Map, Promise,
+    document, URL, Intl, console, Date, Set, Map, Promise, navigator: { language: options.systemLanguage || 'pt-BR' },
     location: { hash: options.hash || '#home' }, confirm: () => options.confirm !== false,
     addEventListener: (type, fn) => { (events[type] ||= []).push(fn); },
     matchMedia: query => media[query] ||= { matches: false, addEventListener(_, fn) { this.callback = fn; } },
@@ -132,6 +134,9 @@ async function app(options = {}) {
       }
     }
   });
+  vm.runInContext(fs.readFileSync(path.join(root, 'i18n/catalog-pt-BR.js'), 'utf8'), context);
+  vm.runInContext(fs.readFileSync(path.join(root, 'i18n/catalog-en-US.js'), 'utf8'), context);
+  vm.runInContext(fs.readFileSync(path.join(root, 'i18n.js'), 'utf8'), context);
   vm.runInContext(fs.readFileSync(path.join(root, 'ui-model.js'), 'utf8'), context);
   vm.runInContext(fs.readFileSync(path.join(root, 'app.js'), 'utf8'), context);
   await flush();

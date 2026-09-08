@@ -3,15 +3,17 @@
 
   const root = document.documentElement;
   const UI = globalThis.MatracaUI;
+  const I18n = globalThis.MatracaI18n;
+  const t = (key, values) => I18n.t(key, values);
   const systemTheme = matchMedia("(prefers-color-scheme: dark)");
   const reducedMotion = matchMedia("(prefers-reduced-motion: reduce)");
   const pages = [...document.querySelectorAll("[data-page]")];
   const routes = [...document.querySelectorAll("[data-route]")];
   const validRoutes = new Set(pages.map(page => page.dataset.page));
   const spectrum = document.querySelector("[data-spectrum]");
-  const state = { config: null, history: [], aiUsage: null, deepSeekBalance: null, deepSeekBalanceAt: 0, devices: [], models: [], platform: null, capabilities: {}, selectedHistoryId: null, monitoredDevice: "", route: "", settingsTab: "key", runtime: { state: "unknown" } };
+  const state = { config: null, history: [], aiUsage: null, deepSeekBalance: null, deepSeekBalanceAt: 0, devices: [], models: [], platform: null, capabilities: {}, selectedHistoryId: null, monitoredDevice: "", route: "", settingsTab: "key", onboardingMessage: "", microphoneStatus: "", microphoneActive: false, vadStatus: "", permissions: {}, runtime: { state: "unknown" } };
   const configDefaults = {
-    language: "pt", hotkey: "F15", pinHotkey: "", pinDelivery: "focus",
+    language: "pt", uiLanguage: "system", effectiveUiLanguage: null, hotkey: "F15", pinHotkey: "", pinDelivery: "focus",
     mode: "live", autoEnter: false,
     beep: true, beepVolume: .8, silenceMs: 450, phraseMaxSeconds: 6,
     startSound: "", stopSound: "", vocabulary: [],
@@ -41,6 +43,35 @@
   const pendingFields = new Map();
   const fieldErrors = new Map();
   let draftSequence = 0;
+
+  function applyLocale(config) {
+    if (config?.uiLanguage || config?.effectiveUiLanguage)
+      I18n.setLocale(config.uiLanguage || I18n.requested(), config.effectiveUiLanguage);
+    I18n.apply(document);
+    if (capturingHotkey) document.querySelectorAll("[data-hotkey-capture]").forEach(button => {
+      button.textContent = t("settings.cancelCapture");
+      button.setAttribute("aria-busy", "true");
+    });
+    if (state.config) {
+      setLastPhrase(state.history[0]);
+      renderHistory();
+      renderUsageSummary();
+      applyPostProcessRuntime(state.config.postProcess === true);
+      applyRuntime(state.runtime);
+      if (state.microphoneStatus) setMicrophoneState(state.microphoneStatus, state.microphoneActive);
+      else setMicrophoneState(t("microphone.waiting"), false);
+      text("[data-vad-state]", state.vadStatus || t("microphone.noSignal"));
+      updateDeviceLabel(state.monitoredDevice || state.config.inputDevice || "");
+      const account = document.querySelector(".review-account");
+      if (account) account.querySelector("header p").textContent = t("settings.usageHeader");
+      if (state.permissions.accessibility || state.permissions.microphone) {
+        text("[data-accessibility-permission]", state.permissions.accessibility === "granted" ? t("microphone.permissionGranted") : t("microphone.permissionCheck"));
+        text("[data-microphone-permission]", state.permissions.microphone === "granted" ? t("microphone.permissionGranted") : t("microphone.permissionCheck"));
+      }
+      if (state.onboardingMessage) text("[data-onboarding-test]", state.onboardingMessage);
+    }
+    root.removeAttribute("data-i18n-pending");
+  }
 
   function announce(message, kind = "error") {
     const notice = document.querySelector("[data-announcer]");
@@ -80,6 +111,20 @@
     }
   }
 
+  function updateDeviceLabel(device) {
+    const label = device || t("microphone.unidentified");
+    text("[data-device-label]", label);
+    const paragraph = document.querySelector("[data-device-help]");
+    if (!paragraph) return;
+    const marker = "__device__";
+    const copy = t("microphone.deviceHelp", { device: marker });
+    const [before, after] = copy.split(marker);
+    const strong = document.createElement("strong");
+    strong.setAttribute("data-device-label", "");
+    strong.textContent = label;
+    paragraph.replaceChildren(document.createTextNode(before), strong, document.createTextNode(after));
+  }
+
   function showRoute(route) {
     const selected = validRoutes.has(route) ? route : "home";
     const changed = state.route !== selected;
@@ -93,7 +138,7 @@
       if (button.dataset.route === selected) button.setAttribute("aria-current", "page");
       else button.removeAttribute("aria-current");
     });
-    document.title = selected === "home" ? "Matraca" : `Matraca · ${selected}`;
+    document.title = selected === "home" ? t("app.title") : `${t("app.title")} · ${t(`nav.${selected}`)}`;
     if (changed) stopMicrophone();
     placeSharedPanels();
     if (changed) document.querySelector(".pages").scrollTop = 0;
@@ -146,6 +191,8 @@
   }
 
   function setMicrophoneState(label, active) {
+    state.microphoneStatus = label;
+    state.microphoneActive = active;
     const element = document.querySelector("[data-microphone-state]");
     if (!element) return;
     element.className = `status-pill${active ? " listening" : ""}`;
@@ -160,13 +207,14 @@
       ...Object.fromEntries(Object.entries(config).filter(([, value]) => value != null))
     };
     state.config = { ...acceptedConfig };
+    applyLocale(state.config);
     // A response for an earlier field must not roll back a later queued intent.
     for (const [field, pending] of pendingFields) state.config[field] = pending.value;
     if (previousDevice != null && previousDevice !== state.config.inputDevice) {
       stopMicrophone();
       state.monitoredDevice = "";
       updateMicrophoneControls();
-      text("[data-device-label]", "entrada ainda não identificada");
+      updateDeviceLabel("");
       text("[data-threshold-value]", "—");
     }
     applyAppearance();
@@ -177,12 +225,12 @@
     text("[data-config-pin-hotkey]",
       state.config.pinHotkey && state.config.pinHotkey !== "none"
         ? state.config.pinHotkey
-        : "Nenhuma");
+         : t("settings.none"));
     text("[data-onboarding-hotkey]", hotkey);
-    if (!downloading) text("[data-onboarding-model]", model ? `Caminho configurado: ${model}. Valide com um ditado real.` : "Modelo não configurado");
+    if (!downloading) text("[data-onboarding-model]", model ? t("units.configuredPath", { model }) : t("settings.modelNotConfigured"));
     text("[data-model-summary]", model
       ? `${model} · ${state.config.gpu}`
-      : "Modelo ainda não configurado");
+      : t("settings.modelStillNotConfigured"));
     document.querySelectorAll("[data-config-mode] [data-value]").forEach(button => {
       button.classList.toggle("active", button.dataset.value === state.config.mode);
       button.setAttribute("aria-pressed", String(button.dataset.value === state.config.mode));
@@ -197,7 +245,7 @@
     autoEnter?.setAttribute("aria-checked", String(state.config.autoEnter === true));
     autoEnter?.setAttribute(
       "aria-label",
-      `Enter automático ${state.config.autoEnter ? "ligado" : "desligado"}`);
+      `${t("settings.autoEnter")} ${state.config.autoEnter ? t("settings.on") : t("settings.off")}`);
     document.querySelectorAll("[data-config-field]").forEach(control => {
       const value = state.config[control.dataset.configField];
       if (value != null && !drafts.has(control.dataset.configField) && document.activeElement !== control)
@@ -212,8 +260,8 @@
       control.setAttribute("aria-checked", String(enabled));
     });
     text("[data-api-key-state]", state.config.postProcessApiKeyConfigured
-      ? "Configurada; digite apenas para substituir."
-      : "Não configurada; nunca é devolvida à interface.");
+      ? t("settings.apiKeySet")
+      : t("settings.apiKeyUnset"));
     const openAiCompatible = state.config.postProcessProvider === "openai-compatible";
     const deepSeek = state.config.postProcessProvider === "deepseek";
     const apiKey = document.querySelector("[data-config-secret]");
@@ -225,18 +273,18 @@
     document.querySelectorAll("[data-deepseek]")
       .forEach(element => element.hidden = !deepSeek);
     text("[data-review-provider-effect]", deepSeek
-      ? "Usa a API oficial da DeepSeek; apenas o texto transcrito é enviado."
+      ? t("settings.deepseekApi")
       : openAiCompatible
-        ? "Usa o endpoint configurado; apenas o texto transcrito é enviado."
-        : "Usa a API da Anthropic; apenas o texto transcrito é enviado.");
+        ? t("settings.configuredEndpoint")
+        : t("settings.anthropicApi"));
     text("[data-review-model-effect]", deepSeek
-      ? "Escolha DeepSeek V4 Flash ou Pro."
-      : "Nome aceito pelo provedor para revisar o texto transcrito.");
+      ? t("settings.deepseekModels")
+      : t("settings.modelAccepted"));
     const reviewModel = document.querySelector("[data-review-model]");
     if (reviewModel) {
       if (deepSeek) reviewModel.setAttribute("list", "deepseek-models");
       else reviewModel.removeAttribute("list");
-      reviewModel.placeholder = deepSeek || openAiCompatible ? "Informe um modelo" : "claude-opus-5";
+      reviewModel.placeholder = deepSeek || openAiCompatible ? t("settings.modelInput") : "claude-opus-5";
     }
     const reviewReady = Boolean(state.config.postProcessModel?.trim())
       && (!deepSeek || Boolean(state.config.postProcessReasoning));
@@ -266,20 +314,20 @@
     state.devices = devices || [];
     const select = document.querySelector("[data-device-select]");
     if (!select) return;
-    select.replaceChildren(new Option("Padrão do sistema", ""));
+    select.replaceChildren(new Option(t("microphone.systemDefault"), ""));
     for (const device of state.devices) select.append(new Option(device, device));
     if (state.config) {
       if (state.config.inputDevice && !state.devices.includes(state.config.inputDevice))
-        select.append(new Option(`${state.config.inputDevice} · indisponível`, state.config.inputDevice));
+        select.append(new Option(`${state.config.inputDevice} · ${t("microphone.unavailable").toLocaleLowerCase(I18n.locale())}`, state.config.inputDevice));
       select.value = state.config.inputDevice || "";
     }
     if (state.monitoredDevice && !state.devices.includes(state.monitoredDevice)) {
-      microphoneFailure = "A entrada foi desconectada. Escolha um dispositivo e teste novamente.";
+      microphoneFailure = t("microphone.disconnectedHelp");
       stopMicrophone();
       state.monitoredDevice = "";
-      setMicrophoneState("DESCONECTADO", false);
-      text("[data-vad-explanation]", "A entrada foi desconectada. Escolha um dispositivo e teste novamente.");
-      announce("Microfone desconectado. Escolha uma entrada e teste novamente.");
+      setMicrophoneState(t("microphone.disconnected"), false);
+      text("[data-vad-explanation]", t("microphone.disconnectedHelp"));
+      announce(t("microphone.disconnectedHelp"));
       updateMicrophoneControls();
     }
   }
@@ -290,7 +338,7 @@
     if (!select) return;
     const selected = select.value;
     select.replaceChildren(...state.models.map(model => new Option(
-      `${model.label} · ${formatTokens(Math.round(model.bytes / 1048576))} MB${model.downloaded ? " · baixado" : ""}`,
+       `${model.label} · ${formatTokens(Math.round(model.bytes / 1048576))} MB${model.downloaded ? ` · ${t("settings.downloaded")}` : ""}`,
       model.id)));
     const preferred = state.models.find(model => model.id === selected)
       || state.models.find(model => model.downloaded)
@@ -298,14 +346,14 @@
       || state.models[0];
     if (preferred) select.value = preferred.id;
     const button = document.querySelector("[data-model-download]");
-    if (button && preferred && !downloading) button.textContent = preferred.downloaded ? "Usar" : "Baixar";
+    if (button && preferred && !downloading) button.textContent = preferred.downloaded ? t("settings.useModel") : t("settings.downloadModel");
   }
 
   function updateConfigEffects() {
     const value = field => Number(document.querySelector(`[data-config-field="${field}"]`)?.value);
-    text("[data-config-effect=\"beepVolume\"]", `${Math.round(value("beepVolume") * 100)}% do volume máximo.`);
-    text("[data-config-effect=\"focusBorderThickness\"]", `${value("focusBorderThickness")} pixels ao redor do destino.`);
-    text("[data-config-effect=\"focusBorderOpacity\"]", `${Math.round(value("focusBorderOpacity") * 100)}% de opacidade.`);
+    text("[data-config-effect=\"beepVolume\"]", t("units.percentMax", { value: Math.round(value("beepVolume") * 100) }));
+    text("[data-config-effect=\"focusBorderThickness\"]", t("units.pixelsAround", { value: value("focusBorderThickness") }));
+    text("[data-config-effect=\"focusBorderOpacity\"]", t("units.opacity", { value: Math.round(value("focusBorderOpacity") * 100) }));
   }
 
   function applyRuntime(runtime) {
@@ -313,48 +361,42 @@
     state.runtime = runtime;
     const value = runtime.state || "ready";
     const labels = {
-      ready: "PRONTO",
-      listening: "OUVINDO",
-      thinking: "PROCESSANDO",
-      writing: "INSERINDO", done: "ENTREGA CONCLUÍDA", unknown: "SEM CONEXÃO",
-      error: "ATENÇÃO"
+      ready: t("runtime.ready"), listening: t("runtime.listening"), thinking: t("runtime.thinking"),
+      writing: t("runtime.writing"), done: t("runtime.done"), unknown: t("runtime.unknown"), error: t("runtime.error")
     };
     const pill = document.querySelector("[data-runtime-state]");
     if (pill) {
       pill.className = `status-pill ${value === "listening" ? "listening" : value === "error" ? "error" : value === "ready" || value === "done" ? "ready" : ""}`;
       pill.replaceChildren(document.createElement("i"), document.createTextNode(` ${labels[value] || value}`));
     }
-    text("[data-home-heading]", runtime.text || runtime.title || (value === "ready" ? "Fale. Siga com seu dia." : labels[value] || value));
+    text("[data-home-heading]", runtime.text || runtime.title || (value === "ready" ? t("runtime.defaultTitle") : labels[value] || value));
     text("[data-dictation-help]", state.config?.mode === "toggle"
-      ? "Inicie e encerre pelo botão ou pelo atalho no aplicativo de destino."
-      : `Use o atalho no destino. Modo ${state.config?.mode || "ainda não informado"}; o botão inicia apenas o modo toggle.`);
+      ? t("runtime.toggleHelp")
+      : t("runtime.modeHelp", { mode: state.config?.mode || t("misc.noInformation") }));
     applyAppearance();
     const toggle = document.querySelector("[data-dictation-toggle]");
     if (toggle) {
       const recording = value === "listening";
       toggle.disabled = state.config?.mode !== "toggle" || !["ready", "listening", "done", "error"].includes(value);
       toggle.setAttribute("aria-pressed", String(recording));
-      toggle.setAttribute("aria-label", recording ? "Encerrar gravação" : "Iniciar gravação");
-      text("[data-dictation-label]", recording ? "Encerrar ditado" : "Iniciar ditado");
+      toggle.setAttribute("aria-label", recording ? t("home.stopRecording") : t("home.startRecording"));
+      text("[data-dictation-label]", recording ? t("home.stopDictation") : t("home.startDictation"));
     }
   }
 
   function applyPostProcessRuntime(active) {
     text("[data-post-process-state]", !state.config?.postProcess
-      ? "Desligado; nenhuma chamada de rede será feita."
+      ? t("settings.postProcessOff")
       : active
-        ? "Ativo para os próximos ditados."
-        : "Inativo; revise provedor, endpoint, modelo e chave.");
+        ? t("settings.postProcessActive")
+        : t("settings.postProcessInactive"));
   }
 
   function setLastPhrase(entry) {
-    text("[data-last-phrase]", entry?.text || "O histórico local aparecerá aqui.");
+    text("[data-last-phrase]", entry?.text || t("home.historyPlaceholder"));
     text("[data-last-phrase-time]", entry
-      ? `ÚLTIMA FRASE · ${new Date(entry.at).toLocaleTimeString([], {
-          hour: "2-digit",
-          minute: "2-digit"
-        })}`
-      : "SEM DITADOS");
+      ? t("units.lastPhrase", { time: entry.at ? I18n.time(entry.at) : "—" })
+      : t("home.noDictations"));
   }
 
   function setHistory(entries, updateLastPhrase = true) {
@@ -384,8 +426,8 @@
     text("[data-ai-estimated-cost]", formatEstimatedCost(deepSeek?.estimatedCostUsd));
     const costLabel = document.querySelector("[data-ai-estimated-cost]")?.parentElement.querySelector("small");
     if (costLabel) costLabel.textContent = UI.usageSummary(state.aiUsage.providers, "deepseek").complete
-      ? "CUSTO ESTIMADO USD" : "SUBTOTAL CONHECIDO USD";
-    text("[data-ai-pricing-version]", deepSeek?.pricingVersions?.join(", ") || "não informada");
+      ? t("history.costLabelComplete") : t("history.costLabelPartial");
+    text("[data-ai-pricing-version]", deepSeek?.pricingVersions?.join(", ") || t("history.notReported"));
     updateProviderOptions();
     renderUsageSummary();
   }
@@ -399,16 +441,13 @@
     try {
       applyAiUsage(await globalThis.matraca.request("ai.usage.get"));
     } catch (error) {
-      announce(error?.message || "Não foi possível ler o consumo local.");
+      announce(error?.message || t("errors.reviewRead"));
     }
   }
 
   function formatBalance(balance) {
     try {
-      return new Intl.NumberFormat(undefined, {
-        style: "currency",
-        currency: balance.currency
-      }).format(balance.totalBalance);
+      return new Intl.NumberFormat(I18n.locale(), { style: "currency", currency: balance.currency }).format(balance.totalBalance);
     } catch {
       return `${balance.totalBalance} ${balance.currency}`;
     }
@@ -418,15 +457,11 @@
     const balances = result?.balances || [];
     text("[data-deepseek-balance]", balances.length
       ? balances.map(formatBalance).join(" · ")
-      : result?.isAvailable ? "Sem saldo informado" : "Saldo indisponível");
-    const checkedAt = new Date(state.deepSeekBalanceAt).toLocaleTimeString([], {
-      hour: "2-digit",
-      minute: "2-digit",
-      second: "2-digit"
-    });
+      : result?.isAvailable ? t("settings.noBalance") : t("settings.unavailableBalance"));
+    const checkedAt = I18n.time(state.deepSeekBalanceAt, { hour: "2-digit", minute: "2-digit", second: "2-digit" });
     text("[data-deepseek-balance-detail]", result?.isAvailable
-      ? `Saldo atual da conta · consultado às ${checkedAt}${cached ? " · cache recente" : ""}.`
-      : "A DeepSeek informou que o saldo não está disponível.");
+      ? t("settings.balanceAt", { time: checkedAt, cached: cached ? t("settings.recentCache") : "" }) + "."
+      : t("settings.balanceNotAvailable"));
   }
 
   async function refreshDeepSeekBalance(button) {
@@ -437,8 +472,8 @@
     }
     button.disabled = true;
     button.setAttribute("aria-busy", "true");
-    button.textContent = "Consultando…";
-    text("[data-deepseek-balance-detail]", "Consultando a DeepSeek agora.");
+    button.textContent = t("settings.queryingBalance");
+    text("[data-deepseek-balance-detail]", t("settings.queryingDeepseek"));
     try {
       await saveQueue;
       const result = await globalThis.matraca.request("deepseek.balance.get");
@@ -446,19 +481,19 @@
       state.deepSeekBalanceAt = Date.now();
       applyDeepSeekBalance(result);
     } catch (error) {
-      text("[data-deepseek-balance]", "Consulta falhou");
-      text("[data-deepseek-balance-detail]", error?.message || "A DeepSeek não respondeu.");
+      text("[data-deepseek-balance]", t("errors.balanceQuery"));
+      text("[data-deepseek-balance-detail]", error?.message || t("errors.balanceResponse"));
     } finally {
       button.disabled = false;
       button.setAttribute("aria-busy", "false");
-      button.textContent = "Atualizar saldo";
+      button.textContent = t("settings.refresh");
     }
   }
 
   function reviewProviderLabel(provider) {
-    if (provider === "deepseek") return "DeepSeek";
-    if (provider === "anthropic") return "Anthropic";
-    return provider === "openai-compatible" ? "API compatível com OpenAI" : provider || "Não informado";
+    if (provider === "deepseek") return t("providers.deepseek");
+    if (provider === "anthropic") return t("providers.anthropic");
+    return provider === "openai-compatible" ? t("providers.openai") : provider || t("providers.unknown");
   }
 
   function updateProviderOptions() {
@@ -466,7 +501,7 @@
     const selected = select.value;
     const providers = [...new Set([...(state.aiUsage?.providers || []).map(x => x.provider),
       ...state.history.map(x => x.reviewUsage?.provider).filter(Boolean)])];
-    select.replaceChildren(new Option("Todos os provedores", "all"),
+    select.replaceChildren(new Option(t("history.allProviders"), "all"),
       ...providers.map(provider => new Option(reviewProviderLabel(provider), provider)));
     select.value = providers.includes(selected) ? selected : "all";
   }
@@ -477,28 +512,23 @@
       panel.replaceChildren();
       const total = UI.usageSummary(state.aiUsage?.providers, provider);
       const title = document.createElement("h2");
-      title.textContent = total.complete ? "Custo estimado registrado" : "Subtotal estimado conhecido";
+      title.textContent = total.complete ? t("history.costRegistered") : t("history.knownSubtotal");
       const metrics = document.createElement("div");
       metrics.className = "usage-metrics";
-      for (const [label, value] of [["Estimativa em USD", formatEstimatedCost(total.estimatedCostUsd)],
-        ["Chamadas com consumo informado", formatTokens(total.requests)], ["Tokens informados", formatTokens(total.totalTokens)]]) {
+      for (const [label, value] of [[t("history.estimatedUsd"), formatEstimatedCost(total.estimatedCostUsd)],
+        [t("history.reportedCalls"), formatTokens(total.requests)], [t("history.reportedTokens"), formatTokens(total.totalTokens)]]) {
         const metric = document.createElement("div");
         const caption = document.createElement("small"); caption.textContent = label;
         const number = document.createElement("strong"); number.textContent = value;
         metric.append(caption, number); metrics.append(metric);
       }
       const detail = document.createElement("p");
-      detail.textContent = `${formatTokens(total.requests)} chamadas com consumo informado · ${formatTokens(total.totalTokens)} tokens. ` +
-        `Com preço: ${formatTokens(total.pricedRequests)}; sem preço: ${formatTokens(total.unpricedRequests)}. ` +
-        (total.complete ? "Estimativa em USD, não é uma fatura." : "Cobertura parcial ou desconhecida; não representa todo o gasto.");
+      detail.textContent = t("history.callsDetail", { requests: formatTokens(total.requests), tokens: formatTokens(total.totalTokens), priced: formatTokens(total.pricedRequests), unpriced: formatTokens(total.unpricedRequests) }) +
+        (total.complete ? t("history.completeCost") : t("history.partialCost"));
       panel.append(title, metrics, detail);
       for (const item of (state.aiUsage?.providers || []).filter(x => provider === "all" || x.provider === provider)) {
         const row = document.createElement("p");
-        row.textContent = `${reviewProviderLabel(item.provider)}: ${formatTokens(item.requests)} chamadas; ` +
-          `entrada ${formatTokens(item.promptTokens)}, cache ${formatTokens(item.promptCacheHitTokens)}, ` +
-          `sem cache ${formatTokens(item.promptCacheMissTokens)}, saída ${formatTokens(item.completionTokens)}, ` +
-          `raciocínio ${formatTokens(item.reasoningTokens)} (incluído na saída), total ${formatTokens(item.totalTokens)}; ` +
-          `${formatEstimatedCost(item.estimatedCostUsd)}. Tabelas: ${item.pricingVersions?.join(", ") || "não informadas"}.`;
+        row.textContent = t("history.providerRow", { provider: reviewProviderLabel(item.provider), requests: formatTokens(item.requests), prompt: formatTokens(item.promptTokens), hit: formatTokens(item.promptCacheHitTokens), miss: formatTokens(item.promptCacheMissTokens), completion: formatTokens(item.completionTokens), reasoning: formatTokens(item.reasoningTokens), total: formatTokens(item.totalTokens), cost: formatEstimatedCost(item.estimatedCostUsd), versions: item.pricingVersions?.join(", ") || t("history.notReported") });
         panel.append(row);
       }
     });
@@ -515,14 +545,14 @@
 
     const heading = document.createElement("div");
     heading.className = "day";
-    heading.textContent = "DITADOS";
+    heading.textContent = t("history.heading");
     const count = document.createElement("span");
-    count.textContent = `${entries.length} itens`;
+    count.textContent = I18n.plural("history.count", entries.length);
     heading.append(count);
     list.append(heading);
     if (!entries.length) {
       const empty = document.createElement("p");
-      empty.textContent = state.history.length ? "Nenhum ditado encontrado. Ajuste os filtros; o consumo não muda com a busca." : "Ainda não há ditados no histórico local.";
+      empty.textContent = state.history.length ? t("history.emptyFiltered") : t("history.empty");
       list.append(empty);
     }
 
@@ -532,17 +562,14 @@
       button.className = `history-item${entry.id === state.selectedHistoryId ? " active" : ""}`;
       button.setAttribute("aria-pressed", String(entry.id === state.selectedHistoryId));
       const time = document.createElement("time");
-      time.textContent = new Date(entry.at).toLocaleTimeString([], {
-        hour: "2-digit",
-        minute: "2-digit"
-      });
+      time.textContent = I18n.time(entry.at);
       const content = document.createElement("span");
       const summary = document.createElement("strong");
       summary.textContent = entry.text;
       const meta = document.createElement("small");
       meta.textContent = entry.reviewUsage
-        ? `${entry.characterCount} caracteres · ${formatTokens(entry.reviewUsage.totalTokens)} tokens`
-        : `${entry.characterCount} caracteres`;
+        ? t("units.characterTokens", { characters: I18n.number(entry.characterCount), tokens: formatTokens(entry.reviewUsage.totalTokens) })
+        : t("units.characterCount", { count: I18n.number(entry.characterCount) });
       content.append(summary, meta);
       button.append(time, content);
       button.addEventListener("click", () => {
@@ -554,12 +581,12 @@
 
     const selected = entries.find(entry => entry.id === state.selectedHistoryId);
     text("[data-history-time]", selected
-      ? new Date(selected.at).toLocaleString()
-      : "SELECIONE UM DITADO");
-    text("[data-history-text]", selected?.text || "O histórico local aparecerá aqui.");
-    text("[data-history-mode]", selected?.mode || "Não informado");
-    text("[data-history-language]", selected?.language || "Não informado");
-    text("[data-history-length]", String(selected?.characterCount ?? 0));
+      ? I18n.dateTime(selected.at)
+      : t("history.select"));
+    text("[data-history-text]", selected?.text || t("home.historyPlaceholder"));
+    text("[data-history-mode]", selected?.mode || t("history.notInformed"));
+    text("[data-history-language]", selected?.language || t("history.notInformed"));
+    text("[data-history-length]", I18n.number(selected?.characterCount ?? 0));
     const usage = selected?.reviewUsage;
     const usagePanel = document.querySelector("[data-history-review-usage]");
     if (usagePanel) usagePanel.hidden = !usage;
@@ -573,39 +600,38 @@
     text("[data-history-total-tokens]", formatTokens(usage?.totalTokens));
     text("[data-history-estimated-cost]", formatEstimatedCost(usage?.estimatedCostUsd));
     text("[data-history-cache-miss-tokens]", formatTokens(usage?.promptCacheMissTokens));
-    text("[data-history-pricing-version]", usage?.pricingVersion || "Não informada");
-    text("[data-history-usage-note]", usage ? "Raciocínio já integra a saída. Estimativa em USD, não é uma fatura."
-      : "Consumo não informado. Isso não confirma ausência de revisão ou cobrança.");
+    text("[data-history-pricing-version]", usage?.pricingVersion || t("history.notReported"));
+    text("[data-history-usage-note]", usage ? t("history.usageNote") : t("history.unknownUsage"));
     document.querySelectorAll("[data-history-detail] button")
       .forEach(button => button.disabled = !selected || historyBusy);
   }
 
   async function saveConfig(patch) {
-    if (!state.config || !globalThis.matraca) { announce("Configuração indisponível: aguarde a conexão com o aplicativo."); return false; }
+    if (!state.config || !globalThis.matraca) { announce(t("settings.configUnavailable")); return false; }
     const ticket = ++draftSequence;
     const revisions = new Map(Object.keys(patch).map(field => [field, drafts.get(field)?.revision]));
     for (const [field, value] of Object.entries(patch)) pendingFields.set(field, { ticket, value });
-    text("[data-save-state]", "Salvando…");
+    text("[data-save-state]", t("settings.saving"));
     let saved = false;
     saveQueue = saveQueue.then(async () => {
       try {
         const result = await globalThis.matraca.request("config.set", { patch });
-        if (!result?.config) throw new Error("O host não confirmou a configuração.");
+        if (!result?.config) throw new Error(t("settings.hostNotConfirmed"));
         for (const field of Object.keys(patch)) {
           if (pendingFields.get(field)?.ticket === ticket) pendingFields.delete(field);
           if (drafts.get(field)?.revision === revisions.get(field)) drafts.delete(field);
         }
-        applyConfig(result.config);
+        applyConfig({ ...result.config, effectiveUiLanguage: result.effectiveUiLanguage || result.config.effectiveUiLanguage });
         applyPostProcessRuntime(result.postProcessActive === true);
         text(
           "[data-save-state]",
-          result.restartRequired ? "Salvo · reinicie para GPU/CPU" : "Tudo salvo");
+           result.restartRequired ? t("settings.restart") : t("settings.saved"));
         saved = true;
       } catch (error) {
         for (const field of Object.keys(patch)) if (pendingFields.get(field)?.ticket === ticket) pendingFields.delete(field);
         if (acceptedConfig) applyConfig(acceptedConfig);
-        text("[data-save-state]", `Não salvo · ${error?.message || error?.code || "erro"}`);
-        announce(`Não salvo. ${error?.message || "Tente novamente."}`);
+        text("[data-save-state]", t("settings.saveError", { error: error?.message || error?.code || t("settings.error") }));
+        announce(`${t("settings.saveError", { error: "" }).replace(" · ", ". ")} ${error?.message || t("errors.retry")}`);
       }
     });
     await saveQueue;
@@ -622,37 +648,37 @@
     state.monitoredDevice = "";
     zeroMicrophone();
     updateMicrophoneControls();
-    setMicrophoneState("INICIANDO", false);
+    setMicrophoneState(t("microphone.starting"), false);
     microphoneQueue = microphoneQueue.then(async () => {
       try {
-      await saveQueue;
-      if (generation !== microphoneGeneration) return;
-      const result = await globalThis.matraca.request("mic.monitor.start", {
-        device: state.config?.inputDevice || ""
-      });
-      if (generation !== microphoneGeneration) return;
-      if (result.started !== true || !result.currentDevice?.trim() ||
-        !Number.isFinite(result.threshold) || result.threshold < .001 || result.threshold > .5)
-        throw new Error("O host não iniciou o teste com identidade e ajuste válidos. Confira a entrada e tente novamente.");
-      state.monitoredDevice = result.currentDevice;
-      if (Array.isArray(result.devices)) applyDevices(result.devices);
-      microphoneStarting = false;
-      setMicrophoneState("TESTANDO", true);
-      text("[data-microphone-permission]", "Permitido");
-      text("[data-device-label]", result.currentDevice);
-      setThreshold(result.threshold);
-      updateMicrophoneControls();
-    } catch (error) {
-      if (generation !== microphoneGeneration) return;
-      microphoneFailure = error?.message || "Microfone indisponível.";
-      try { await globalThis.matraca.request("mic.monitor.stop"); microphoneRequested = false; }
-      catch { announce("Não foi possível confirmar o encerramento. Tente Encerrar teste novamente."); }
-      microphoneStarting = false;
-      setMicrophoneState("INDISPONÍVEL", false);
-      text("[data-vad-explanation]", error?.message || "Microfone indisponível.");
-      announce(error?.message || "Microfone indisponível.");
-      updateMicrophoneControls();
-    }
+        await saveQueue;
+        if (generation !== microphoneGeneration) return;
+        const result = await globalThis.matraca.request("mic.monitor.start", {
+          device: state.config?.inputDevice || ""
+        });
+        if (generation !== microphoneGeneration) return;
+        if (result.started !== true || !result.currentDevice?.trim() ||
+          !Number.isFinite(result.threshold) || result.threshold < .001 || result.threshold > .5)
+          throw new Error(t("errors.invalidIdentity"));
+        state.monitoredDevice = result.currentDevice;
+        if (Array.isArray(result.devices)) applyDevices(result.devices);
+        microphoneStarting = false;
+        setMicrophoneState(t("microphone.testing"), true);
+        text("[data-microphone-permission]", t("microphone.permissionGranted"));
+        updateDeviceLabel(result.currentDevice);
+        setThreshold(result.threshold);
+        updateMicrophoneControls();
+      } catch (error) {
+        if (generation !== microphoneGeneration) return;
+        microphoneFailure = error?.message || t("errors.microphone");
+        try { await globalThis.matraca.request("mic.monitor.stop"); microphoneRequested = false; }
+        catch { announce(t("errors.stopMicrophone")); }
+        microphoneStarting = false;
+        setMicrophoneState(t("microphone.unavailable"), false);
+        text("[data-vad-explanation]", error?.message || t("errors.microphone"));
+        announce(error?.message || t("errors.microphone"));
+        updateMicrophoneControls();
+      }
     });
     return microphoneQueue;
   }
@@ -663,17 +689,17 @@
     microphoneStopping = true;
     microphoneStarting = false;
     zeroMicrophone();
-    setMicrophoneState("ENCERRANDO", false);
+    setMicrophoneState(t("microphone.closing"), false);
     updateMicrophoneControls();
     microphoneQueue = microphoneQueue.then(async () => {
       try {
         await globalThis.matraca.request("mic.monitor.stop");
         microphoneRequested = false;
-        setMicrophoneState(microphoneFailure ? "FALHA" : "ENCERRADO", false);
-        text("[data-vad-explanation]", microphoneFailure || "Teste encerrado. Nenhum áudio está sendo capturado pelo monitor.");
+        setMicrophoneState(microphoneFailure ? t("microphone.failed") : t("microphone.closed"), false);
+        text("[data-vad-explanation]", microphoneFailure || t("microphone.startedHelp"));
       } catch (error) {
-        setMicrophoneState("FALHA AO ENCERRAR", false);
-        announce(error?.message || "Não foi possível encerrar o teste. Tente novamente.");
+        setMicrophoneState(t("microphone.closeFailed"), false);
+        announce(error?.message || t("errors.stopTest"));
       } finally {
         microphoneStopping = false;
         updateMicrophoneControls();
@@ -688,7 +714,8 @@
     if (level) level.style.width = "0%";
     text("[data-current-level]", "— dB");
     text("[data-peak-level]", "— dB");
-    text("[data-vad-state]", "Sem sinal medido");
+    state.vadStatus = t("microphone.noSignal");
+    text("[data-vad-state]", state.vadStatus);
     document.querySelector(".threshold")?.classList.remove("voice-detected");
     document.querySelector("[data-vad-state]")?.classList.remove("active");
   }
@@ -708,7 +735,7 @@
     if (document.activeElement !== input && !thresholdEditing) input.value = String(threshold);
     const value = Number(input.value);
     text("[data-threshold-value]", value.toFixed(3));
-    input.setAttribute("aria-valuetext", `${value.toFixed(3)}; menor capta voz mais baixa, maior ignora mais ruído`);
+    input.setAttribute("aria-valuetext", `${value.toFixed(3)}; ${t("microphone.lowerVoice")}, ${t("microphone.moreNoise")}`);
     document.querySelector("[data-threshold-mark]").style.left = `${levelPosition(value)}%`;
   }
 
@@ -716,9 +743,9 @@
     if (!microphoneRequested || microphoneStarting || microphoneStopping || !Number.isFinite(frame?.rms) || !Number.isFinite(frame?.threshold)) return;
     const frameDevice = frame.device || frame.currentDevice;
     if (frameDevice && frameDevice !== state.monitoredDevice) {
-      microphoneFailure = "A entrada mudou durante o teste. Inicie novamente para carregar o ajuste correto.";
+      microphoneFailure = t("microphone.changedHelp");
       stopMicrophone();
-      announce("A entrada mudou durante o teste. Inicie novamente para carregar o ajuste correto.");
+      announce(t("microphone.changedHelp"));
       state.monitoredDevice = "";
       return;
     }
@@ -726,10 +753,11 @@
     text("[data-current-level]", db(frame.rms));
     text("[data-peak-level]", db(frame.peak));
     setThreshold(frame.threshold);
-    text("[data-vad-state]", speech ? "● voz detectada" : "○ ruído ignorado");
+    state.vadStatus = speech ? t("microphone.detected") : t("microphone.ignored");
+    text("[data-vad-state]", state.vadStatus);
     text("[data-vad-explanation]", speech
-      ? "Sua voz está acima do limiar e será capturada."
-      : "O ambiente está abaixo do limiar e será ignorado.");
+      ? t("microphone.detectedHelp")
+      : t("microphone.ignoredHelp"));
     document.querySelector(".threshold")?.classList.toggle("voice-detected", speech);
     document.querySelector("[data-vad-state]")?.classList.toggle("active", speech);
     const level = document.querySelector("[data-live-level]");
@@ -754,24 +782,25 @@
     if (!globalThis.matraca) return;
     try {
       const snapshot = await globalThis.matraca.request("app.get");
-      if (!snapshot?.config?.config) throw new Error("O host não devolveu a configuração do Matraca.");
+      if (!snapshot?.config?.config) throw new Error(t("errors.nativeConfig"));
       applyCapabilities(snapshot.platform, snapshot.capabilities);
       applyDevices(snapshot.devices);
       applyModels(snapshot.models);
-      applyConfig(snapshot.config.config);
+      state.permissions = snapshot.permissions || {};
+      applyConfig({ ...snapshot.config.config, uiLanguage: snapshot.config.uiLanguage || snapshot.config.config.uiLanguage, effectiveUiLanguage: snapshot.config.effectiveUiLanguage || snapshot.config.config.effectiveUiLanguage });
       applyPostProcessRuntime(snapshot.config.runtime?.postProcessActive === true);
       setHistory(snapshot.history?.entries);
       applyAiUsage(snapshot.aiUsage);
       applyRuntime(snapshot.state);
       text("[data-save-state]", snapshot.config.runtime?.restartRequired
-        ? `Reinicie: usando ${snapshot.config.runtime.gpu}, salvo ${snapshot.config.runtime.desiredGpu}`
-        : "Configuração carregada");
+         ? t("settings.restartGpu", { gpu: snapshot.config.runtime.gpu, desiredGpu: snapshot.config.runtime.desiredGpu })
+        : t("settings.loaded"));
       text(
         "[data-accessibility-permission]",
-        snapshot.permissions?.accessibility === "granted" ? "Permitido" : "Abrir Ajustes");
+        snapshot.permissions?.accessibility === "granted" ? t("microphone.permissionGranted") : t("microphone.permissionOpen"));
       text(
         "[data-microphone-permission]",
-        snapshot.permissions?.microphone === "granted" ? "Permitido" : "Verificar nos Ajustes");
+        snapshot.permissions?.microphone === "granted" ? t("microphone.permissionGranted") : t("microphone.permissionCheck"));
       globalThis.matraca.notify("ui.dataReady", {
         historyCount: state.history.length,
         hotkey: state.config.hotkey || "F15",
@@ -787,8 +816,9 @@
             .every(option => option.textContent && !option.textContent.includes("undefined"))
       });
     } catch (error) {
-      text("[data-home-heading]", error?.message || "A interface nativa não respondeu.");
-      announce(error?.message || "A interface nativa não respondeu.");
+      text("[data-home-heading]", error?.message || t("errors.nativeUnavailable"));
+      announce(error?.message || t("errors.nativeUnavailable"));
+      applyLocale();
     }
   }
 
@@ -821,16 +851,16 @@
   const historyText = document.querySelector("[data-history-text]");
   const fullText = document.createElement("textarea");
   fullText.setAttribute("data-history-text", "");
-  fullText.setAttribute("aria-label", "Texto integral do ditado");
+  fullText.setAttribute("aria-label", t("history.fullText"));
   fullText.className = "field wide";
   fullText.readOnly = true;
   fullText.rows = 8;
   fullText.value = historyText.textContent;
   historyText.replaceWith(fullText);
-  document.querySelector("[data-history-copy]").textContent = "Copiar mensagem";
+  document.querySelector("[data-history-copy]").textContent = t("history.copy");
   document.querySelector("[data-history-repaste]").classList.remove("primary");
   const usagePanel = document.querySelector("[data-history-review-usage]");
-  for (const [name, label] of [["cache-miss-tokens", "ENTRADA SEM CACHE"], ["pricing-version", "VERSÃO DA TABELA"]]) {
+  for (const [name, label] of [["cache-miss-tokens", t("history.cacheMiss")], ["pricing-version", t("history.pricingVersion")]]) {
     const item = document.createElement("span");
     const caption = document.createElement("small"); caption.textContent = label;
     const value = document.createElement("b"); value.setAttribute(`data-history-${name}`, "");
@@ -843,7 +873,7 @@
   reviewSummary.setAttribute("data-usage-summary", "");
   document.querySelector('[data-settings-panel="review"]').append(reviewSummary);
   const account = document.querySelector(".review-account");
-  account.querySelector("header p").textContent = "Consumo local informado. Custo estimado conhecido em USD; registros legados podem ter cobertura desconhecida.";
+  account.querySelector("header p").textContent = t("settings.usageHeader");
 
   function closeMenu(menu, restoreFocus = true) {
     if (!menu.open) return;
@@ -853,7 +883,7 @@
   document.addEventListener("keydown", event => {
     if (event.key !== "Escape") return;
     document.querySelectorAll("details[open]").forEach(menu => closeMenu(menu));
-    if (capturingHotkey) globalThis.matraca.request("hotkey.capture.cancel").catch(error => announce(error?.message || "Não foi possível cancelar a captura."));
+    if (capturingHotkey) globalThis.matraca.request("hotkey.capture.cancel").catch(error => announce(error?.message || t("errors.cancelCapture")));
   });
   document.addEventListener("click", event => {
     document.querySelectorAll("details[open]").forEach(menu => {
@@ -918,7 +948,7 @@
       const runtime = await globalThis.matraca.request("dictation.toggle");
       applyRuntime(runtime);
     } catch (error) {
-      text("[data-home-heading]", error?.message || "Não foi possível alternar a gravação.");
+      text("[data-home-heading]", error?.message || t("errors.dictationToggle"));
       applyRuntime(state.runtime);
     }
   });
@@ -934,7 +964,7 @@
   document.querySelector("[data-model-choice]")?.addEventListener("change", event => {
     const model = state.models.find(item => item.id === event.currentTarget.value);
     const button = document.querySelector("[data-model-download]");
-    if (button && model) button.textContent = model.downloaded ? "Usar" : "Baixar";
+    if (button && model) button.textContent = model.downloaded ? t("settings.useModel") : t("settings.downloadModel");
   });
   document.querySelector("[data-model-download]")?.addEventListener("click", async event => {
     if (!globalThis.matraca || event.currentTarget.disabled) return;
@@ -944,7 +974,7 @@
     downloading = true;
     button.disabled = true;
     button.setAttribute("aria-busy", "true");
-    button.textContent = "Preparando…";
+    button.textContent = t("settings.prepareDownload");
     select.disabled = true;
     document.querySelector("[data-model-cancel]").hidden = false;
     if (progress) {
@@ -955,10 +985,10 @@
       const result = await globalThis.matraca.request("model.download.start", { id: select.value });
       applyModels(result.models);
       applyConfig(result.config);
-      text("[data-onboarding-model]", `${result.path.split(/[\\/]/).pop()} selecionado. Valide o reconhecimento com um ditado real.`);
+      text("[data-onboarding-model]", t("units.modelSelected", { model: result.path.split(/[\\/]/).pop() }));
     } catch (error) {
-      text("[data-onboarding-model]", error?.message || "Não foi possível baixar o modelo.");
-      announce(error?.message || "Download interrompido.");
+      text("[data-onboarding-model]", error?.message || t("errors.noModel"));
+      announce(error?.message || t("errors.downloadInterrupted"));
     } finally {
       downloading = false;
       button.disabled = false;
@@ -967,14 +997,14 @@
       document.querySelector("[data-model-cancel]").hidden = true;
       if (progress) progress.hidden = true;
       const selected = state.models.find(model => model.id === select.value);
-      button.textContent = selected?.downloaded ? "Usar" : "Baixar";
+      button.textContent = selected?.downloaded ? t("settings.useModel") : t("settings.downloadModel");
     }
   });
   document.querySelector("[data-model-cancel]").addEventListener("click", async event => {
     const button = event.currentTarget;
     button.disabled = true;
     try { await globalThis.matraca.request("model.download.cancel"); }
-    catch (error) { announce(error?.message || "Não foi possível cancelar o download."); }
+    catch (error) { announce(error?.message || t("errors.cancelDownload")); }
     finally { button.disabled = false; }
   });
   document.querySelectorAll("[data-config-field]").forEach(control => {
@@ -989,7 +1019,7 @@
       fieldError(control, error);
       if (error) return;
       if (field === "postProcessProvider" && value !== state.config?.postProcessProvider) {
-        if (!confirm("Trocar o provedor desliga a revisão, redefine modelo e raciocínio e remove a credencial anterior. Continuar?")) {
+        if (!confirm(t("settings.reviewProviderConfirm"))) {
           drafts.delete(field);
           control.value = state.config?.postProcessProvider || "anthropic";
           return;
@@ -1031,7 +1061,7 @@
       const enabled = state.config?.[field] !== true;
       if (field === "postProcess" && enabled && [...fieldErrors.keys(), ...drafts.keys()]
         .some(name => name.startsWith("postProcess"))) {
-        announce("Corrija ou salve os campos de revisão antes de ativar.");
+        announce(t("settings.fixReviewFields"));
         return;
       }
       control.disabled = true;
@@ -1051,7 +1081,7 @@
       if (!globalThis.matraca) return;
       if (capturingHotkey) {
         try { await globalThis.matraca.request("hotkey.capture.cancel"); }
-        catch (error) { announce(error?.message || "Não foi possível cancelar a captura."); }
+        catch (error) { announce(error?.message || t("errors.cancelCapture")); }
         return;
       }
       const field = event.currentTarget.dataset.hotkeyCapture;
@@ -1059,23 +1089,23 @@
       const button = event.currentTarget;
       const originalLabel = button.textContent;
       capturingHotkey = true;
-      button.textContent = "Cancelar captura";
+      button.textContent = t("settings.cancelCapture");
       button.setAttribute("aria-busy", "true");
-      text(help, "O próximo atalho será capturado sem iniciar um ditado.");
+      text(help, t("settings.nextCapture"));
       try {
         const result = await globalThis.matraca.request("hotkey.capture.start");
         if (field === "pinHotkey" && result?.hotkey === state.config?.hotkey)
-          throw new Error("Use uma tecla diferente da tecla de ditado.");
+          throw new Error(t("errors.differentDictationKey"));
         if (field === "hotkey"
           && state.config?.pinHotkey
           && state.config.pinHotkey !== "none"
           && result?.hotkey === state.config.pinHotkey)
-          throw new Error("Use uma tecla diferente da tecla que fixa o destino.");
-        if (result?.hotkey && await saveConfig({ [field]: result.hotkey })) text(help, "Atalho aplicado a quente.");
-        else text(help, "Nenhum novo atalho aplicado.");
+          throw new Error(t("errors.differentPinKey"));
+        if (result?.hotkey && await saveConfig({ [field]: result.hotkey })) text(help, t("settings.appliedHotkey"));
+        else text(help, t("settings.noHotkey"));
       } catch (error) {
         if (error?.code !== "canceled")
-          text(help, error?.message || "Não foi possível capturar o atalho.");
+          text(help, error?.message || t("errors.capture"));
       } finally {
         capturingHotkey = false;
         button.textContent = originalLabel;
@@ -1094,7 +1124,7 @@
         });
         if (result?.path) await saveConfig({ [button.dataset.filePick]: result.path });
       } catch (error) {
-        text("[data-save-state]", `Não selecionado · ${error?.message || error?.code || "erro"}`);
+        text("[data-save-state]", t("settings.notSelected", { error: error?.message || error?.code || t("settings.error") }));
       }
     });
   });
@@ -1107,7 +1137,7 @@
           path: document.querySelector(`[data-config-field="${field}"]`)?.value || ""
         });
       } catch (error) {
-        text("[data-save-state]", `Não foi possível ouvir · ${error?.message || error?.code || "erro"}`);
+        text("[data-save-state]", t("settings.soundError", { error: error?.message || error?.code || t("settings.error") }));
       }
     });
   });
@@ -1119,7 +1149,7 @@
   });
   document.querySelector("[data-threshold-input]")?.addEventListener("change", async event => {
     const threshold = Number(event.currentTarget.value);
-    if (!Number.isFinite(threshold) || threshold < .001 || threshold > .5) { announce("O ajuste precisa estar entre 0.001 e 0.5."); return; }
+    if (!Number.isFinite(threshold) || threshold < .001 || threshold > .5) { announce(t("errors.threshold")); return; }
     if (state.monitoredDevice) {
       const sensitivity = { ...(state.config?.micSensitivity || {}) };
       for (const key of Object.keys(sensitivity)) if (key.toLocaleLowerCase() === state.monitoredDevice.toLocaleLowerCase()) delete sensitivity[key];
@@ -1130,13 +1160,13 @@
         }
       });
       if (saved && Number(document.querySelector("[data-threshold-input]").value) === threshold) thresholdEditing = false;
-    } else announce("Inicie o teste para identificar a entrada antes de ajustar.");
+    } else announce(t("errors.adjustAfterStart"));
   });
   document.querySelector("[data-microphone-start]").addEventListener("click", startMicrophone);
   document.querySelector("[data-microphone-stop]").addEventListener("click", stopMicrophone);
   document.querySelector("[data-microphone-reset]").addEventListener("click", async () => {
     const device = state.monitoredDevice;
-    if (!device || !confirm(`Redefinir somente o ajuste de ${device}?`)) return;
+    if (!device || !confirm(t("errors.resetConfirm", { device }))) return;
     await stopMicrophone();
     if (microphoneRequested) return;
     const sensitivity = { ...(state.config?.micSensitivity || {}) };
@@ -1145,12 +1175,12 @@
       state.monitoredDevice = "";
       updateMicrophoneControls();
       text("[data-threshold-value]", "—");
-      text("[data-vad-explanation]", "Ajuste removido apenas desta entrada. Teste novamente para carregar o valor inicial do host.");
+      text("[data-vad-explanation]", t("microphone.removedHelp"));
     }
   });
   document.querySelector("[data-history-delete]")?.addEventListener("click", async () => {
     if (historyBusy) return;
-    if (!state.selectedHistoryId || !confirm("Apagar este ditado do histórico local?")) return;
+    if (!state.selectedHistoryId || !confirm(t("errors.deleteConfirm"))) return;
     const deletingId = state.selectedHistoryId;
     historyBusy = true;
     renderHistory();
@@ -1159,23 +1189,23 @@
       const result = await globalThis.matraca?.request("history.list");
       setHistory(result?.entries);
     } catch (error) {
-      text("[data-history-time]", error?.message || "Não foi possível apagar.");
-      announce(error?.message || "Não foi possível apagar.");
+      text("[data-history-time]", error?.message || t("errors.deleteFailed"));
+      announce(error?.message || t("errors.deleteFailed"));
     } finally {
       historyBusy = false; renderHistory();
     }
   });
   document.querySelector("[data-history-clear]")?.addEventListener("click", async () => {
     if (historyBusy) return;
-    if (!state.history.length || !confirm("Limpar todo o histórico local? Esta ação não pode ser desfeita.")) return;
+    if (!state.history.length || !confirm(t("errors.clearConfirm"))) return;
     historyBusy = true;
     renderHistory();
     try {
       await globalThis.matraca?.request("history.clear");
       setHistory([]);
     } catch (error) {
-      text("[data-history-time]", error?.message || "Não foi possível limpar o histórico.");
-      announce(error?.message || "Não foi possível limpar o histórico.");
+      text("[data-history-time]", error?.message || t("errors.clearFailed"));
+      announce(error?.message || t("errors.clearFailed"));
     } finally {
       historyBusy = false; renderHistory();
     }
@@ -1185,10 +1215,10 @@
     historyBusy = true;
     try {
       await globalThis.matraca?.request("history.copy", { id: state.selectedHistoryId });
-      text("[data-history-time]", "COPIADO PARA O CLIPBOARD");
-      announce("Mensagem copiada.", "success");
+      text("[data-history-time]", t("history.copied"));
+      announce(t("history.messageCopied"), "success");
     } catch (error) {
-      announce(`${error?.message || "Não foi possível copiar."} Selecione o texto completo no detalhe e copie manualmente.`);
+      announce(`${error?.message || t("errors.copyFailed")} ${t("errors.copyFallback")}`);
       location.hash = "history";
       document.querySelector("[data-history-search]").value = "";
       document.querySelector("[data-history-provider]").value = "all";
@@ -1207,8 +1237,8 @@
     try {
       await globalThis.matraca?.request("history.repaste", { id: state.selectedHistoryId });
     } catch (error) {
-      text("[data-history-time]", error?.message || "Não foi possível recolar.");
-      announce(error?.message || "Não foi possível recolar.");
+      text("[data-history-time]", error?.message || t("errors.repasteFailed"));
+      announce(error?.message || t("errors.repasteFailed"));
     } finally {
       historyBusy = false;
     }
@@ -1231,15 +1261,16 @@
   document.querySelectorAll("[data-open-permission]").forEach(button => {
     button.addEventListener("click", async () => {
       try { await globalThis.matraca.request("permissions.open-settings", { name: button.dataset.openPermission }); }
-      catch (error) { announce(error?.message || "Não foi possível abrir os ajustes do sistema."); }
+      catch (error) { announce(error?.message || t("errors.permissionFailed")); }
     });
   });
   document.querySelector("[data-permissions-refresh]").addEventListener("click", async () => {
     try {
       const snapshot = await globalThis.matraca.request("app.get");
-      text("[data-accessibility-permission]", snapshot.permissions?.accessibility === "granted" ? "Permitido" : "Conferir no sistema");
-      text("[data-microphone-permission]", snapshot.permissions?.microphone === "granted" ? "Permitido" : "Conferir no sistema");
-    } catch (error) { announce(error?.message || "Não foi possível verificar as permissões."); }
+      state.permissions = snapshot.permissions || {};
+      text("[data-accessibility-permission]", snapshot.permissions?.accessibility === "granted" ? t("microphone.permissionGranted") : t("microphone.permissionCheck"));
+      text("[data-microphone-permission]", snapshot.permissions?.microphone === "granted" ? t("microphone.permissionGranted") : t("microphone.permissionCheck"));
+    } catch (error) { announce(error?.message || t("errors.permissionsFailed")); }
   });
   document.querySelector(".onboarding-footer button")?.addEventListener("click", () => {
     location.hash = "home";
@@ -1247,11 +1278,11 @@
   globalThis.matraca?.subscribe(message => {
     if (message.type === "mic.frame") applyMicrophone(message.payload);
     if (message.type === "mic.error" || message.type === "mic.monitor.error") {
-      microphoneFailure = message.payload?.message || "Microfone indisponível. Confira a conexão e teste novamente.";
+      microphoneFailure = message.payload?.message || t("errors.microphone");
       stopMicrophone();
       state.monitoredDevice = "";
-      text("[data-vad-explanation]", message.payload?.message || "Microfone indisponível. Confira a conexão e teste novamente.");
-      announce(message.payload?.message || "Falha no microfone.");
+      text("[data-vad-explanation]", message.payload?.message || t("errors.microphone"));
+      announce(message.payload?.message || t("errors.microphone"));
     }
     if (message.type === "devices.changed") applyDevices(message.payload?.devices || []);
     if (message.type === "window.opened") {
@@ -1263,11 +1294,14 @@
       setHistory(message.payload.history?.entries, false);
       setLastPhrase(message.payload);
       refreshAiUsage();
-      if (message.payload?.text) text("[data-onboarding-test]", message.payload.delivered === true
-        ? "Entrega real confirmada pelo aplicativo nesta sessão. Confira o texto no destino."
-        : message.payload.delivered === false
-          ? "A entrega falhou. Confira o destino antes de reinserir para não duplicar um trecho; o texto está no histórico quando habilitado."
-          : "Ditado processado nesta sessão. Confira a inserção no destino; este evento não informa o resultado da entrega.");
+      if (message.payload?.text) {
+        state.onboardingMessage = message.payload.delivered === true
+          ? t("onboarding.deliveryConfirmed")
+          : message.payload.delivered === false
+            ? t("onboarding.deliveryFailed")
+            : t("onboarding.processed");
+        text("[data-onboarding-test]", state.onboardingMessage);
+      }
     }
     if (message.type === "model.download.progress") {
       if (!downloading) return;
@@ -1280,10 +1314,10 @@
       const percent = measured
         ? Math.round(message.payload.done / message.payload.total * 100)
         : null;
-      text("[data-onboarding-model]", percent == null ? "Baixando modelo local · tamanho total não informado" : `Baixando modelo local · ${percent}%`);
+      text("[data-onboarding-model]", percent == null ? t("settings.downloadingUnknown") : t("settings.downloading", { percent: I18n.number(percent) }));
     }
     if (message.type === "config.changed" && message.payload?.config) {
-      applyConfig(message.payload.config);
+      applyConfig({ ...message.payload.config, effectiveUiLanguage: message.payload.effectiveUiLanguage || message.payload.config.effectiveUiLanguage });
       applyPostProcessRuntime(message.payload.postProcessActive === true);
     }
   });
@@ -1291,6 +1325,7 @@
   showSettingsTab("key");
   updateMicrophoneControls();
   applyAppearance();
+  applyLocale(state.config || { uiLanguage: "system", effectiveUiLanguage: I18n.resolve("system") });
   showRoute(location.hash.slice(1));
   loadSnapshot();
   globalThis.matraca?.notify("ui.ready", {

@@ -273,3 +273,4 @@ kbd { padding: var(--space-2) var(--space-3); border: 1px solid var(--control-bo
   .spectrum-bars i { background: Highlight; }
   :focus-visible, .threshold:focus-within { outline-color: Highlight; }
 }
+html[data-i18n-pending] body { visibility: hidden; }

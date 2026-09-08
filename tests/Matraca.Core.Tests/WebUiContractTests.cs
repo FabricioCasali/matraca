@@ -40,7 +40,9 @@ public sealed class WebUiContractTests
         Assert.Contains("data-history-total-tokens", html);
         Assert.Contains("data-deepseek-balance-refresh", html);
         Assert.Contains("request(\"deepseek.balance.get\")", script);
-        Assert.Contains("confirm(\"Limpar todo o histórico local?", script);
+        Assert.Contains("confirm(t(\"errors.clearConfirm\"))", script);
+        Assert.Contains("data-config-field=\"uiLanguage\"", html);
+        Assert.Contains("uiLanguage: [\"system\", \"pt-BR\", \"en-US\"]", ReadProjectFile("Matraca.Web", "wwwroot", "ui-model.js"));
     }
 
     [Fact]

@@ -10,7 +10,7 @@
   const choices = Object.freeze({
     mode: ["toggle", "hold", "live", "push"], gpu: ["auto", "gpu", "cpu"],
     pasteMethod: ["unicode", "clipboard"], pinDelivery: ["focus", "nofocus"],
-    themeMode: ["system", "light", "dark"], palette: ["olive", "ochre", "terracotta", "plum", "teal"],
+    themeMode: ["system", "light", "dark"], palette: ["olive", "ochre", "terracotta", "plum", "teal"], uiLanguage: ["system", "pt-BR", "en-US"],
     postProcessProvider: ["anthropic", "deepseek", "openai-compatible"],
     postProcessReasoning: ["", "off", "low", "high", "max"]
   });
@@ -20,32 +20,44 @@
       const [min, max, integer] = ranges[field];
       value = Number(raw);
       if (String(raw).trim() === "" || !Number.isFinite(value) || value < min || value > max)
-        error = `Informe um valor entre ${min} e ${max}.`;
-      else if (integer && !Number.isInteger(value)) error = "Informe um número inteiro.";
+         error = message("validation.range", { min, max });
+       else if (integer && !Number.isInteger(value)) error = message("validation.integer");
     }
-    if (choices[field] && !choices[field].includes(raw)) error = "Selecione uma opção válida.";
-    if (field.startsWith("focusBorderColor") && !/^#[0-9a-f]{6}$/i.test(raw)) error = "Use #RRGGBB.";
+    if (choices[field] && !choices[field].includes(raw)) error = message("validation.choice");
+    if (field.startsWith("focusBorderColor") && !/^#[0-9a-f]{6}$/i.test(raw)) error = message("validation.color");
     if (field === "vocabulary") value = [...new Map(String(raw).split(/[\n,]/)
-      .map(x => x.trim()).filter(Boolean).map(x => [x.toLocaleLowerCase("pt-BR"), x])).values()];
+      .map(x => x.trim()).filter(Boolean).map(x => [x.toLowerCase(), x])).values()];
     if (field === "postProcessEndpoint" && raw) {
       try {
         const url = new URL(raw);
         if (url.username || url.password || !(url.protocol === "https:" ||
           (url.protocol === "http:" && ["localhost", "127.0.0.1", "[::1]"].includes(url.hostname))))
-          error = "Use HTTPS remoto ou HTTP local, sem credenciais na URL.";
-      } catch { error = "Informe uma URL completa válida."; }
+           error = message("validation.endpointProtocol");
+       } catch { error = message("validation.endpoint"); }
     }
     if (field === "postProcessModel" && config.postProcessProvider !== "anthropic" && !String(raw).trim())
-      error = "Informe o modelo aceito pelo provedor.";
+       error = message("validation.model");
     return { value, error };
   }
-  const tokens = value => value == null ? "Não informado" : new Intl.NumberFormat("pt-BR").format(value);
-  const cost = value => value == null ? "Não calculado" : "US$ " + new Intl.NumberFormat("pt-BR", {
+  function message(key, values) {
+    values ||= {};
+    const translated = globalThis.MatracaI18n?.t(key, values);
+    if (translated && translated !== key) return translated;
+    return ({
+      "validation.range": `Informe um valor entre ${values.min} e ${values.max}.`,
+      "validation.integer": "Informe um número inteiro.", "validation.choice": "Selecione uma opção válida.",
+      "validation.color": "Use #RRGGBB.", "validation.endpointProtocol": "Use HTTPS remoto ou HTTP local, sem credenciais na URL.",
+      "validation.endpoint": "Informe uma URL completa válida.", "validation.model": "Informe o modelo aceito pelo provedor.",
+      "misc.noInformation": "Não informado", "history.noCost": "Não calculado"
+    }[key] || key);
+  }
+  const tokens = value => value == null ? message("misc.noInformation") : new Intl.NumberFormat(globalThis.MatracaI18n?.locale() || "pt-BR").format(value);
+  const cost = value => value == null ? message("history.noCost") : (globalThis.MatracaI18n?.currency(value) || "US$ " + new Intl.NumberFormat("pt-BR", {
     minimumFractionDigits: value < .01 ? 6 : 4, maximumFractionDigits: value < .01 ? 6 : 4
-  }).format(value);
+  }).format(value));
   function filterHistory(entries, query, provider) {
     return entries.filter(entry => (provider === "all" || entry.reviewUsage?.provider === provider) &&
-      String(entry.text || "").toLocaleLowerCase("pt-BR").includes(query.trim().toLocaleLowerCase("pt-BR")));
+      String(entry.text || "").toLowerCase().includes(query.trim().toLowerCase()));
   }
   function usageSummary(providers, provider = "all") {
     const selected = (providers || []).filter(x => provider === "all" || x.provider === provider);

@@ -23,11 +23,12 @@ function harness() {
   }
   const media = new Map();
   const events = new Map();
-  const document = { documentElement: { dataset: {} }, querySelector: selector => elements.get(selector), addEventListener: (name, fn) => events.set(name, fn) };
+  const document = { documentElement: { dataset: {} }, title: '', querySelectorAll: () => [], querySelector: selector => elements.get(selector), addEventListener: (name, fn) => events.set(name, fn) };
   let receive;
   const notifications = [];
-  vm.runInNewContext(read('Matraca.Web/wwwroot/hud.js'), {
+  const context = {
     document,
+    navigator: { language: 'pt-BR' }, Intl, Date, Set, Map,
     matraca: { subscribe: fn => { receive = fn; }, notify: (...args) => notifications.push(args) },
     matchMedia(query) {
       const item = { matches: false, addEventListener(name, fn) { this.change = fn; } };
@@ -35,7 +36,11 @@ function harness() {
       return item;
     },
     getComputedStyle: () => ({ getPropertyValue: key => key === '--motion-state' ? '160ms' : 'cubic-bezier(.2,.8,.2,1)' })
-  });
+  };
+  vm.runInNewContext(read('Matraca.Web/wwwroot/i18n/catalog-pt-BR.js'), context);
+  vm.runInNewContext(read('Matraca.Web/wwwroot/i18n/catalog-en-US.js'), context);
+  vm.runInNewContext(read('Matraca.Web/wwwroot/i18n.js'), context);
+  vm.runInNewContext(read('Matraca.Web/wwwroot/hud.js'), context);
   return { elements, media, document, notifications, events, receive,
     state: (state, generation, title = state, detail = '') => receive({ version: 1, type: 'hud.state', payload: { state, generation, title, detail } }) };
 }
@@ -108,6 +113,15 @@ test('native appearance supports all families, modes and live system changes', (
   assert.equal(h.document.documentElement.dataset.theme, 'dark');
   assert.equal(h.elements.get('[data-brand]').writes, writes);
   assert.match(h.elements.get('[data-hud]').className, /state-listening/);
+});
+
+test('HUD follows the effective interface locale while preserving native message text', () => {
+  const h = harness();
+  h.receive({ version: 1, type: 'hud.appearance', payload: { uiLanguage: 'en-US', effectiveUiLanguage: 'en-US' } });
+  assert.equal(h.document.documentElement.lang, 'en-US');
+  const detail = 'Texto original do host: ação e 日本語.';
+  h.state('error', 1, 'Entrega falhou', detail);
+  assert.equal(h.elements.get('[data-detail]').textContent, detail);
 });
 
 test('reduced motion selects a complete static brand and cancels active motion', () => {

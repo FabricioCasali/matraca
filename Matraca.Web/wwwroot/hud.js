@@ -2,6 +2,7 @@
   "use strict";
 
   const hud = document.querySelector("[data-hud]");
+  const I18n = globalThis.MatracaI18n;
   const title = document.querySelector("[data-title]");
   const detail = document.querySelector("[data-detail]");
   const brand = document.querySelector("[data-brand]");
@@ -22,6 +23,11 @@
       document.documentElement.dataset.palette = appearance.palette;
     document.documentElement.dataset.themeMode = themeMode;
     document.documentElement.dataset.theme = themeMode === "system" ? (darkMode.matches ? "dark" : "light") : themeMode;
+    if (appearance.uiLanguage || appearance.effectiveUiLanguage)
+      I18n.setLocale(appearance.uiLanguage || I18n.requested(), appearance.effectiveUiLanguage);
+    I18n.apply(document);
+    document.title = I18n.t("app.hudTitle");
+    document.documentElement.removeAttribute?.("data-i18n-pending");
   }
 
   function updateBrand() {
@@ -41,7 +47,7 @@
       generation = payload.generation;
     }
     applyAppearance(payload.appearance);
-    const nextTitle = payload.title ?? "Matraca";
+    const nextTitle = payload.title ?? I18n.t("app.title");
     const nextDetail = payload.detail ?? "";
     const changed = currentState !== payload.state || title.textContent !== nextTitle || detail.textContent !== nextDetail;
     const wasVisible = visible;

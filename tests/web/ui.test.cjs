@@ -6,6 +6,24 @@ const path = require('node:path');
 const UI = require('../../Matraca.Web/wwwroot/ui-model.js');
 const { app, flush, deferred, root } = require('./dom.cjs');
 
+test('i18n catalogs have parity, explicit formatting, and safe locale fallback', async () => {
+  const ui = await app({ systemLanguage: 'fr-FR' });
+  const i18n = ui.context.MatracaI18n;
+  const flatten = (value, prefix = '') => Object.keys(value).flatMap(key => value[key] && typeof value[key] === 'object' && !Array.isArray(value[key])
+    ? flatten(value[key], `${prefix}${key}.`) : [`${prefix}${key}`]);
+  assert.deepEqual(flatten(i18n.catalogs['pt-BR']).sort(), flatten(i18n.catalogs['en-US']).sort());
+  assert.deepEqual(Array.from(i18n.supported), ['pt-BR', 'en-US']);
+  assert.equal(i18n.resolve('fr-FR'), 'en-US');
+  assert.equal(i18n.resolve('system'), 'en-US');
+  i18n.setLocale('en-US');
+  assert.equal(ui.document.documentElement.lang, 'en-US');
+  assert.match(i18n.dateTime('2026-01-02T15:04:00Z'), /26/);
+  assert.notEqual(i18n.number(1234567), '1.234.567');
+  assert.match(i18n.currency(.00002), /USD/);
+  assert.equal(i18n.plural('history.count', 1), '1 item');
+  assert.equal(i18n.plural('history.count', 2), '2 items');
+});
+
 test('bridge fails without host and accepts a synchronous native response', async () => {
   const code = fs.readFileSync(path.join(root, 'bridge.js'), 'utf8');
   const context = vm.createContext({ document: { addEventListener() {} } });
@@ -60,10 +78,28 @@ test('five routes, seven sections, one microphone panel and no initial fake audi
   assert.equal(ui.q('[data-route="home"]').getAttribute('aria-current'), 'page');
   assert.equal(ui.q('[data-config-toggle="history"]').getAttribute('role'), 'switch');
   assert.equal(ui.q('[data-config-field="language"]').tagName, 'INPUT');
+  assert.equal(ui.q('[data-config-field="uiLanguage"]').tagName, 'SELECT');
   for (const control of ui.document.querySelectorAll('[data-config-field]')) {
     assert.ok(control.getAttribute('aria-describedby'));
     assert.ok(control.closest('label') || control.getAttribute('aria-labelledby'), control.dataset.configField);
   }
+});
+
+test('locale changes use the effective host locale without changing route, focus, or recognition language', async () => {
+  const ui = await app({ config: { language: 'pt', uiLanguage: 'pt-BR', effectiveUiLanguage: 'pt-BR' } });
+  await ui.route('settings');
+  await ui.q('[data-settings-tab="appearance"]').click();
+  const uiLanguage = ui.q('[data-config-field="uiLanguage"]');
+  const recognition = ui.q('[data-config-field="language"]');
+  recognition.focus();
+  uiLanguage.value = 'en-US';
+  await ui.emit('config.changed', { config: { uiLanguage: 'en-US', effectiveUiLanguage: 'en-US' } });
+  assert.equal(ui.document.documentElement.lang, 'en-US');
+  assert.equal(ui.context.location.hash, '#settings');
+  assert.equal(ui.document.activeElement, recognition);
+  assert.equal(recognition.value, 'pt');
+  assert.equal(ui.q('[data-config-field="language"]').closest('.setting').querySelector('strong').textContent, 'Recognition language');
+  assert.equal(ui.q('[data-config-field="uiLanguage"]').value, 'en-US');
 });
 
 test('route changes reveal navigation without resetting scroll on appearance updates', async () => {
