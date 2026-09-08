@@ -11,7 +11,7 @@ O desenho da frente 2.0 está em [`PLANO-2.0.md`](PLANO-2.0.md).
 
 ## 🔄 Fazendo
 
-- **MT-038** **Internacionalizar a interface sem misturar reconhecimento** — fatia de contrato e design: UI pt-BR/en-US; preferência `system`, `pt-BR` ou `en-US`; instalação nova usa `system`; sistema `pt-*` resolve pt-BR e qualquer outro sistema resolve en-US. Configuração legada sem `uiLanguage` preserva pt-BR; `language` continua sendo o idioma do reconhecimento. Seletor em Configurações > Aparência, aplicado a quente sem perder foco ou seção. DS 1.1.0, VER-001, I18N-001, CMP-002/003/004 e A11Y-001; sem alteração de código de produção fora de `design/`. · `[design-system]` · P · importante
+- **MT-038** **Internacionalizar a interface sem misturar reconhecimento** — contrato DS 1.1.0 e implementação pt-BR/en-US integrados no Core, painel Web, HUD e superfícies nativas Windows/macOS. `uiLanguage` aceita `system`, `pt-BR` e `en-US`; instalação nova usa `system`, configuração legada preserva pt-BR e `language` continua exclusivo do reconhecimento. Troca a quente preserva foco, seção, conteúdo e estados explícitos; menus, diálogos, erros seguros e recursos de permissão do macOS acompanham o locale efetivo. Provas automatizadas, navegador Chromium, builds cruzados e bundle macOS assinado estão verdes. Restam confirmação assistida em WebView2/WKWebView, permissões e acessibilidade nativas, além da execução em Windows físico. VER-001, I18N-001, CMP-002/003/004 e A11Y-001. · `[design-system]` · P · importante
 - **MT-037** **Fixar navegacao e ampliar janela inicial** — usuario esclareceu que
   Aparencia caia na linha seguinte das abas e nao parecia menu; rolagem herdada era
   hipotese anterior, nao causa confirmada. Escopo: navegacao principal fora da
