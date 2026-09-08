@@ -5,12 +5,12 @@ const fs = require('node:fs');
 const path = require('node:path');
 const assert = require('node:assert/strict');
 const root = path.resolve(__dirname, '../..');
-const web = path.join(root, 'Matraca.Web/wwwroot');
+const web = path.resolve(process.env.MATRACA_WEB_ROOT || path.join(root, 'Matraca.Web/wwwroot'));
 const output = process.env.MATRACA_SCREENSHOTS;
 async function serveAsset(route) {
   const pathname = new URL(route.request().url()).pathname;
   if (pathname === '/favicon.ico') { await route.fulfill({ status: 204 }); return; }
-  const base = pathname.startsWith('/assets/brand/') ? path.join(root, 'design') : web;
+  const base = !process.env.MATRACA_WEB_ROOT && pathname.startsWith('/assets/brand/') ? path.join(root, 'design') : web;
   const file = path.resolve(base, '.' + (pathname === '/' ? '/index.html' : pathname));
   if (!file.startsWith(base + path.sep) || !fs.existsSync(file) || !fs.statSync(file).isFile()) {
     await route.fulfill({ status: 404 }); return;
@@ -79,6 +79,42 @@ async function serveAsset(route) {
       'window.minimize', 'window.toggleMaximize', 'window.close'
     ]);
     let checks = 0;
+    // Measure before click(): Playwright would scroll a hidden navigation into view.
+    for (const width of [1120, 840, 360, 760, 1280]) {
+      await page.setViewportSize({ width, height: 760 });
+      await page.evaluate(() => { location.hash = 'settings'; });
+      await page.waitForFunction(() => !document.querySelector('[data-page="settings"]').hidden);
+      await page.locator('[data-settings-tab="review"]').click();
+      await page.locator('.pages').evaluate(layout => { layout.scrollTop = layout.scrollHeight; });
+      await page.evaluate(() => { location.hash = 'home'; });
+      await page.waitForFunction(() => !document.querySelector('[data-page="home"]').hidden);
+      await page.evaluate(() => { location.hash = 'settings'; });
+      await page.waitForFunction(() => !document.querySelector('[data-page="settings"]').hidden);
+      const navigation = await page.locator('[data-settings-tab="appearance"]').evaluate(tab => {
+        const rect = tab.getBoundingClientRect();
+        const bar = document.querySelector('.titlebar').getBoundingClientRect();
+        return { top: rect.top, bottom: rect.bottom, barBottom: bar.bottom, height: innerHeight,
+          reachable: !!document.elementFromPoint(rect.x + rect.width / 2, rect.y + rect.height / 2)?.closest('[data-settings-tab="appearance"]') };
+      });
+      assert.ok(navigation.top >= navigation.barBottom && navigation.bottom <= navigation.height && navigation.reachable,
+        `appearance navigation hidden after returning to settings at ${width}: ${JSON.stringify(navigation)}`);
+      await page.locator('[data-settings-tab="appearance"]').click();
+      assert.equal(await page.locator('[data-config-field="palette"]').count(), 1);
+      assert.equal(await page.locator('[data-config-field="themeMode"]').count(), 1);
+      for (const palette of ['olive', 'ochre', 'terracotta', 'plum', 'teal']) {
+        await page.locator('[data-config-field="palette"]').selectOption(palette);
+        for (const themeMode of ['light', 'dark', 'system']) {
+          await page.locator('[data-config-field="themeMode"]').focus();
+          await page.locator('[data-config-field="themeMode"]').selectOption(themeMode);
+          await page.waitForFunction(({ palette, themeMode }) => document.documentElement.dataset.palette === palette &&
+            document.documentElement.dataset.theme === (themeMode === 'system' ? (matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light') : themeMode), { palette, themeMode });
+          assert.equal(await page.locator('[data-config-field="palette"]').inputValue(), palette);
+          assert.equal(await page.locator('[data-config-field="themeMode"]').evaluate(control => control === document.activeElement), true);
+          checks++;
+        }
+      }
+      if (output && width === 1120) await page.screenshot({ path: path.join(output, 'matraca-appearance-mt037.png') });
+    }
     for (const width of [360, 760, 1280]) {
       await page.setViewportSize({ width, height: 900 });
       for (const palette of ['olive', 'ochre', 'terracotta', 'plum', 'teal']) {
@@ -89,10 +125,10 @@ async function serveAsset(route) {
             await page.waitForFunction(route => !document.querySelector(`[data-page="${route}"]`).hidden, route);
             const overflow = await page.evaluate(() => ({ width: innerWidth, actual: document.documentElement.scrollWidth }));
              assert.ok(overflow.actual <= width + 1, `${route}/${palette}/${themeMode}/${width}: horizontal overflow ${overflow.actual}`);
-             await page.locator('.app-layout').evaluate(layout => { layout.scrollTop = layout.scrollHeight; });
+             await page.locator('.pages').evaluate(layout => { layout.scrollTop = layout.scrollHeight; });
              const frame = await page.evaluate(() => {
                const bar = document.querySelector('.titlebar').getBoundingClientRect();
-               const content = document.querySelector('.app-layout');
+               const content = document.querySelector('.pages');
                const rect = content.getBoundingClientRect();
                const close = document.querySelector('[data-window-close]').getBoundingClientRect();
                return { top: bar.top, bottom: bar.bottom, contentTop: rect.top, scroll: content.scrollTop,
@@ -103,7 +139,7 @@ async function serveAsset(route) {
              assert.ok(frame.contentTop >= frame.bottom);
              assert.ok(frame.closeReachable);
              if (frame.maxScroll > 0) assert.ok(frame.scroll > 0);
-             await page.locator('.app-layout').evaluate(layout => { layout.scrollTop = 0; });
+             await page.locator('.pages').evaluate(layout => { layout.scrollTop = 0; });
             const smallTargets = await page.locator('button:visible, select:visible, input:visible, summary:visible').evaluateAll(controls => controls.filter(control => {
               const bounds = control.getBoundingClientRect();
               return bounds.width < 44 || bounds.height < 44;
@@ -119,16 +155,74 @@ async function serveAsset(route) {
     await page.setViewportSize({ width: 1280, height: 900 });
     await page.evaluate(() => window.testAppearance({ themeMode: 'light', palette: 'olive' }));
     for (const zoom of [1, 1.5, 2]) {
-      await page.evaluate(zoom => { document.body.style.zoom = zoom; location.hash = 'settings'; }, zoom);
+      // Browser zoom reduces the CSS viewport; body.style.zoom does not and gives a false dvh result.
+      await page.setViewportSize({ width: Math.round(1280 / zoom), height: Math.round(900 / zoom) });
+      await page.evaluate(() => { location.hash = 'settings'; });
       await page.waitForFunction(() => !document.querySelector('[data-page="settings"]').hidden);
       for (const tab of ['key', 'model', 'audio', 'delivery', 'review', 'history', 'appearance']) {
         await page.locator(`[data-settings-tab="${tab}"]`).click();
         const overflow = await page.evaluate(() => document.documentElement.scrollWidth);
-        assert.ok(overflow <= 1281, `settings/${tab}/${zoom}: overflow ${overflow}`);
+        assert.ok(overflow <= Math.round(1280 / zoom) + 1, `settings/${tab}/${zoom}: overflow ${overflow}`);
         checks++;
       }
     }
-    await page.evaluate(() => { document.body.style.zoom = 1; });
+    for (const viewport of [{ width: 1200, height: 820 }, { width: 1280, height: 320 },
+      { width: 360, height: 640 }, { width: 360, height: 320 },
+      { width: 853, height: 600 }, { width: 640, height: 450 }]) {
+      await page.setViewportSize(viewport);
+      await page.evaluate(() => { location.hash = 'settings'; });
+      await page.waitForFunction(() => !document.querySelector('[data-page="settings"]').hidden);
+      await page.locator('[data-settings-tab="review"]').click();
+      await page.locator('.sidebar').evaluate(nav => { nav.scrollTop = 0; });
+      const before = await page.locator('.sidebar').boundingBox();
+      await page.locator('.pages').evaluate(content => { content.scrollTop = 0; });
+      const contentBox = await page.locator('.pages').boundingBox();
+      await page.mouse.move(contentBox.x + contentBox.width / 2, contentBox.y + contentBox.height / 2);
+      await page.mouse.wheel(0, 10000);
+      await page.waitForFunction(() => {
+        const content = document.querySelector('.pages');
+        return content.scrollTop >= content.scrollHeight - content.clientHeight - 1;
+      });
+      const geometry = await page.evaluate(() => {
+        const content = document.querySelector('.pages');
+        const title = document.querySelector('.titlebar').getBoundingClientRect();
+        const nav = document.querySelector('.sidebar').getBoundingClientRect();
+        const rect = content.getBoundingClientRect();
+        return { titleTop: title.top, titleBottom: title.bottom, navTop: nav.top, navBottom: nav.bottom,
+          contentTop: rect.top, contentBottom: rect.bottom, scroll: content.scrollTop,
+          documentScroll: document.scrollingElement.scrollTop, documentHeight: document.scrollingElement.scrollHeight,
+          layoutScroll: document.querySelector('.app-layout').scrollTop, height: innerHeight };
+      });
+      assert.deepEqual(await page.locator('.sidebar').boundingBox(), before, `navigation moved: ${JSON.stringify(viewport)}`);
+      assert.equal(geometry.titleTop, 0);
+      assert.ok(geometry.navTop >= geometry.titleBottom && geometry.navBottom <= geometry.height);
+      assert.ok(geometry.contentTop >= geometry.titleBottom && geometry.contentBottom <= geometry.height + 1);
+      if (viewport.width <= 760) assert.ok(geometry.contentTop >= geometry.navBottom);
+      assert.ok(geometry.scroll > 0, 'long settings content must actually scroll');
+      assert.equal(geometry.documentScroll, 0);
+      assert.equal(geometry.layoutScroll, 0);
+      assert.ok(geometry.documentHeight <= geometry.height + 1);
+      if (output && (viewport.width === 1200 || viewport.width === 360 && viewport.height === 320)) {
+        await page.screenshot({ path: path.join(output, `matraca-fixed-nav-${viewport.width}x${viewport.height}.png`) });
+      }
+      const contentScroll = geometry.scroll;
+      // Real tab sequence must reveal clipped navigation without moving the content or title.
+      await page.locator('.sidebar [data-route="home"]').focus();
+      for (const route of ['home', 'microphone', 'history', 'settings', 'onboarding']) {
+        const reachable = await page.locator(`.sidebar [data-route="${route}"]`).evaluate(button => {
+          const rect = button.getBoundingClientRect();
+          return button === document.activeElement && document.elementFromPoint(rect.x + rect.width / 2, rect.y + rect.height / 2)?.closest('button') === button;
+        });
+        assert.ok(reachable, `keyboard navigation ${route}: ${JSON.stringify(viewport)}`);
+        if (route !== 'onboarding') await page.keyboard.press('Tab');
+      }
+      assert.equal(await page.locator('.pages').evaluate(content => content.scrollTop), contentScroll);
+      if (viewport.height === 320) assert.ok(await page.locator('.sidebar').evaluate(nav => nav.scrollHeight > nav.clientHeight && nav.scrollTop > 0));
+      await page.keyboard.press('Enter');
+      await page.waitForFunction(() => !document.querySelector('[data-page="onboarding"]').hidden);
+      checks++;
+    }
+    await page.setViewportSize({ width: 1280, height: 900 });
     if (output) {
       assert.ok(fs.statSync(output).isDirectory(), 'Screenshot destination must exist');
       for (const route of ['home', 'microphone', 'history', 'settings', 'onboarding']) {

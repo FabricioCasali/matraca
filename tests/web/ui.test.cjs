@@ -66,6 +66,23 @@ test('five routes, seven sections, one microphone panel and no initial fake audi
   }
 });
 
+test('route changes reveal navigation without resetting scroll on appearance updates', async () => {
+  const ui = await app();
+  const layout = ui.q('.pages');
+  await ui.route('settings');
+  layout.scrollTop = 600;
+  await ui.route('home');
+  assert.equal(layout.scrollTop, 0);
+  layout.scrollTop = 200;
+  await ui.route('settings');
+  assert.equal(layout.scrollTop, 0);
+  await ui.q('[data-settings-tab="appearance"]').click();
+  layout.scrollTop = 100;
+  await ui.emit('config.changed', { config: { themeMode: 'dark', palette: 'teal' } });
+  assert.equal(layout.scrollTop, 100);
+  assert.equal(ui.q('[data-settings-panel="appearance"]').hidden, false);
+});
+
 test('invalid drafts and newer typing survive config events and delayed responses', async () => {
   const waiting = deferred();
   const ui = await app({ request: method => method === 'config.set' ? waiting.promise : undefined });

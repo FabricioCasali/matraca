@@ -76,6 +76,8 @@ Título → explicação curta → tarefa → ajuda/recuperação. Formulários 
 
 Referências atuais de adaptação: 760 px para reorganização principal; componentes compostos podem empilhar antes, em 960/1000 px. Confirmar em janelas de 360, 760 e 1280 px e em escala de interface de 100%, 150% e 200%. Esses são critérios de verificação, não resultados já comprovados.
 
+MT-037: tamanho inicial de referencia 1200 x 820 unidades logicas (tokens `window`), limitado pela area util do monitor, incluindo a moldura nativa. No Windows, o host converte o tamanho cliente por DPI; no macOS, usa pontos AppKit. Aplicar somente na criacao, sem substituir tamanho escolhido durante a sessao ou preferencias persistidas caso existam.
+
 ## BRD-001 — Marca e ícones
 
 A variante explicitamente confirmada pelo usuário é **03A, “m que fala” (`monogram-speech`)**. Os [SVGs exportados](../assets/brand/README.md) são a referência para empacotamento. O estudo conserva as outras variantes apenas para histórico. A terminação diagonal pertence à marca; a remoção da “perninha” dizia respeito somente ao prolongamento extra da animação de escuta. Não reabrir conceitos ou trocar a variante por iniciativa do implementador.
@@ -105,6 +107,8 @@ Usar select para escolhas finitas; controles de tema mantêm modo e família ind
 `.panel` agrupa uma tarefa relacionada. Navegação principal usa estado atual identificável; subseções de configuração não substituem a navegação de página. Menus fecham com Escape e clique fora; ao fechar, o foco volta ao acionador quando ainda existir. Nenhum menu deve ficar inacessível fora da área útil em janelas pequenas.
 
 No aplicativo, a barra de titulo permanece fora da area rolavel, com controles de janela acessiveis sem sobrepor o conteudo. Duplo clique alterna maximizar/restaurar no Windows; arraste exige movimento, sem consumir os cliques. Modo e familia de cor ficam somente em Configuracoes/Aparencia (MT-033/034/035), nao na barra superior. Os tokens 1.0.1 de cor, geometria e movimento permanecem inalterados.
+
+MT-037: navegacao principal tambem fica fora da rolagem do conteudo, em trilha propria abaixo do titulo. Janela baixa permite rolagem independente da navegacao e acesso por teclado. Em largura estreita, conservar a composicao compacta existente, limitada a 40% da altura disponivel para nao expulsar o conteudo. As abas de configuracao continuam no conteudo e podem quebrar linha; nao ha redesign de abas ou tema.
 
 ### CMP-005 — Estado e aviso
 

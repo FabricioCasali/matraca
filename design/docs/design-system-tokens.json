@@ -10,6 +10,7 @@
     "--radius-control": "10px", "--radius-card": "14px", "--control-height": "46px", "--focus-width": "3px", "--focus-offset": "4px"
   },
   "typeScalePx": {"caption": 12, "body": 15, "subheading": 18, "section": 23, "metric": 24, "page": 30, "display": 38, "heroMax": 60},
+  "window": {"defaultWidth": 1200, "defaultHeight": 820, "unit": "logical", "clampToWorkArea": true},
   "motion": {"--motion-fast": "120ms", "--motion-enter": "180ms", "--motion-state": "160ms", "--motion-exit": "140ms", "--ease-out": "cubic-bezier(.2,.8,.2,1)"},
   "brandMotion": {"listeningCycleMs": 1400, "listeningStrokeUnits": 11, "loadingCycleMs": 2400, "completionMs": 1100, "pencilTip": false, "extraExitStroke": false},
   "families": [

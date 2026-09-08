@@ -64,6 +64,29 @@ public sealed class WindowsNativeShellContractTests
     }
 
     [Fact]
+    public void PanelDefaultsMatchDesignAndClampToNativeWorkArea()
+    {
+        using var tokens = System.Text.Json.JsonDocument.Parse(
+            ReadProjectFile("design", "docs", "design-system-tokens.json"));
+        var size = tokens.RootElement.GetProperty("window");
+        int width = size.GetProperty("defaultWidth").GetInt32();
+        int height = size.GetProperty("defaultHeight").GetInt32();
+        string windows = ReadProjectFile("Matraca.Windows", "WindowsWebViewWindow.cs");
+        string mac = ReadProjectFile("Matraca.Mac", "Platform", "Web", "MacWebViewHost.cs");
+        Assert.Contains($"DefaultClientWidth = {width};", windows);
+        Assert.Contains($"DefaultClientHeight = {height};", windows);
+        Assert.Contains($"double width = {width},", mac);
+        Assert.Contains($"double height = {height},", mac);
+        Assert.Contains("Math.Min(bounds.Width, workArea.Width)", windows);
+        Assert.Contains("Math.Min(bounds.Height, workArea.Height)", windows);
+        Assert.Contains("Math.Min(info.MinimumTrackSize.X, monitorInfo.WorkArea.Width)", windows);
+        Assert.Contains("Math.Min(info.MinimumTrackSize.Y, monitorInfo.WorkArea.Height)", windows);
+        Assert.Contains("Math.Min(frame.Size.Width, visible.Size.Width)", mac);
+        Assert.Contains("Math.Min(frame.Size.Height, visible.Size.Height)", mac);
+        Assert.Contains("ObjC.sel_registerName(\"visibleFrame\")", mac);
+    }
+
+    [Fact]
     public void PinnedTargetsPreserveTheFocusedChildControl()
     {
         string target = ReadProjectFile("Matraca.Windows", "WindowsTargetWindow.cs");

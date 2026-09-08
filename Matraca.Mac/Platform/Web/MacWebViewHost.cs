@@ -41,8 +41,8 @@ internal sealed class MacWebViewHost : IDisposable
     public MacWebViewHost(
         string authorizedAssetRoot,
         string title = "Matraca",
-        double width = 1040,
-        double height = 720,
+        double width = 1200,
+        double height = 820,
         string entryPath = "",
         bool nonActivatingOverlay = false)
     {
@@ -302,6 +302,19 @@ internal sealed class MacWebViewHost : IDisposable
         ObjC.SendVoid(_contentView, ObjCSelectors.AddSubview, _dragView.Handle);
         ObjC.SendVoid(_window, ObjCSelectors.SetContentView, _contentView);
         ObjC.SendVoid(_window, ObjCSelectors.Center);
+        IntPtr screen = ObjC.Send(_window, ObjC.sel_registerName("screen"));
+        if (screen != IntPtr.Zero)
+        {
+            // Clamp the outer frame, including native chrome, without touching HUD sizing.
+            CGRect visible = ObjC.SendRect(screen, ObjC.sel_registerName("visibleFrame"));
+            CGRect frame = ObjC.SendRect(_window, ObjCSelectors.Frame);
+            double frameWidth = Math.Min(frame.Size.Width, visible.Size.Width);
+            double frameHeight = Math.Min(frame.Size.Height, visible.Size.Height);
+            ObjC.SendVoidRectBool(_window, ObjCSelectors.SetFrameDisplay,
+                new CGRect(visible.Origin.X + (visible.Size.Width - frameWidth) / 2,
+                    visible.Origin.Y + (visible.Size.Height - frameHeight) / 2,
+                    frameWidth, frameHeight), true);
+        }
     }
 
     private void CreateOverlayWindow(double width, double height)

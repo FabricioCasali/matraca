@@ -11,6 +11,20 @@ O desenho da frente 2.0 está em [`PLANO-2.0.md`](PLANO-2.0.md).
 
 ## 🔄 Fazendo
 
+- **MT-037** **Fixar navegacao e ampliar janela inicial** — usuario esclareceu que
+  Aparencia caia na linha seguinte das abas e nao parecia menu; rolagem herdada era
+  hipotese anterior, nao causa confirmada. Escopo: navegacao principal fora da
+  rolagem do conteudo, overflow proprio em janela baixa e tamanho inicial 1200 x 820
+  logico nos dois hosts, limitado pela area util. Sem redesign das abas ou temas;
+  reset de rolagem anterior preservado no novo conteiner. DS 1.0.1, FND-001/003,
+  CMP-003/004 e A11Y-001. Implementado e verificado por browser, contratos e build
+  cruzado; resta prova assistida em WebView2/WKWebView, DPI/monitores e leitor de tela.
+  Regressões em
+  `tests/web/browser.cjs` (aceita `MATRACA_WEB_ROOT`), `ui.test.cjs` e
+  `tests/windows-window-layout.ps1` (calculo Win32 real, sem abrir janela).
+  Lacuna documental: inventário de configurações ainda declara tema/família sem
+  campos nativos, mas `RawConfig`/`ConfigSnapshot` já os possuem; reconciliar no
+  MT-032, sem alterar preferências pessoais. · `[design-system]` · P · importante
 - **MT-032** **Adotar Design System 1.0.1** — UI, tokens, aparencia persistida, microfone,
   consumo e HUD integrados; marca 03A de `design/assets/brand/` incluida nos assets Web
   dos dois hosts. CMP-001 a CMP-010, FND-001/002/003, BRD-001, MOT-001 e A11Y-001;
@@ -18,8 +32,8 @@ O desenho da frente 2.0 está em [`PLANO-2.0.md`](PLANO-2.0.md).
   sem descartar texto. Restam provas reais de audio/entrega, foco/cliques, monitores,
   Dock/DPI, leitor de tela e animacoes no Windows/macOS. Nomes de microfone ambiguos
   atualmente impedem captura em vez de associar ajuste ao dispositivo errado; falta
-  resolver identidades duplicadas pelas APIs nativas. ICO/ICNS e troca dos icones
-  nativos de bandeja seguem no empacotamento MT-007. Verificacao Web em
+  resolver identidades duplicadas pelas APIs nativas. ICO Windows 03A integrado;
+  provas assistidas e ICNS seguem no empacotamento MT-007. Verificacao Web em
   `tests/web/ui.test.cjs`, `tests/web/browser.cjs` e `tests/hud-ds101-exclusive.test.cjs`;
   navegador usa bridge exclusiva de teste, nao comprova o host. Tokens gerados por
   `node Matraca.Web/export-design.cjs` e conferidos com `--check`.
@@ -84,8 +98,14 @@ O desenho da frente 2.0 está em [`PLANO-2.0.md`](PLANO-2.0.md).
   por ação do usuário, com cache de 30 segundos. Restam a prova de um ditado real e a
   confirmação visual do saldo. · `[2.0]` · M · melhoria
 - **MT-007** **Fase 5 — empacotamento** — o instalador Windows voltou a publicar as
-  variantes standard e uiAccess sem propagar o manifest para o Core. Restam `.app` +
-  `.dmg` no Mac, `macos-14` na matriz do CI e a validação dos artefatos finais. · `[2.0]`
+  variantes standard e uiAccess sem propagar o manifest para o Core. Icones Windows
+  derivados exclusivamente dos SVGs oficiais 03A (DS 1.0.1, BRD-001/FND-001/A11Y-001):
+  EXE/instalador, janela por tema/familia e bandeja monocromatica com quatro estados.
+  Gerador e contrato em `tools/icons/README.md`; testes em `tests/windows-icons*`.
+  Restam prova assistida na bandeja/taskbar, tema/DPI/alto contraste, artefatos finais,
+  ICNS, `.app` + `.dmg` no Mac e `macos-14` na matriz do CI. Prova local deve usar
+  build isolado, sem substituir a instalacao nem interromper o aplicativo em uso.
+  · `[2.0]`
   · M · importante
 
 ## 📋 A fazer

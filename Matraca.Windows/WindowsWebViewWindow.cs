@@ -5,13 +5,15 @@ namespace Matraca;
 
 internal sealed class WindowsWebViewWindow : IDisposable
 {
-    private const int DefaultClientWidth = 1120;
-    private const int DefaultClientHeight = 760;
+    private const int DefaultClientWidth = 1200;
+    private const int DefaultClientHeight = 820;
     private const int MinimumWindowWidth = 840;
     private const int MinimumWindowHeight = 620;
     private const uint DefaultDpi = 96;
 
     private readonly WindowsWebBridge _bridge;
+    private readonly WindowsIconSet _icons;
+    private Config _appearance;
     private readonly WindowsDispatcher _dispatcher;
     private readonly WindowsNativeWindow _window;
     private readonly WindowsWebViewHost _host;
@@ -19,9 +21,11 @@ internal sealed class WindowsWebViewWindow : IDisposable
     private bool _visible;
     private int _disposed;
 
-    public WindowsWebViewWindow(WindowsWebBridge bridge)
+    public WindowsWebViewWindow(WindowsWebBridge bridge, WindowsIconSet icons, Config appearance)
     {
         _bridge = bridge ?? throw new ArgumentNullException(nameof(bridge));
+        _icons = icons;
+        _appearance = appearance;
         _dispatcher = new WindowsDispatcher();
         WindowsRectangle bounds = InitialBounds();
         try
@@ -36,6 +40,7 @@ internal sealed class WindowsWebViewWindow : IDisposable
                 bounds.Top,
                 bounds.Width,
                 bounds.Height);
+            ApplyAppearance(appearance);
             _host = new WindowsWebViewHost(
                 _window.Handle,
                 Path.Combine(AppContext.BaseDirectory, "Web"),
@@ -58,6 +63,22 @@ internal sealed class WindowsWebViewWindow : IDisposable
     }
 
     public nint Handle => _window.Handle;
+
+    public void ApplyAppearance(Config config)
+    {
+        _window.VerifyAccess();
+        if (Volatile.Read(ref _disposed) != 0) return;
+        _appearance = config;
+        string theme = WindowsIconSet.ApplicationTheme(config.ThemeMode);
+        uint dpi = WindowsNativeMethods.GetDpiForWindow(_window.Handle);
+        if (dpi == 0) dpi = DefaultDpi;
+        // WM_SETICON borrows these cached handles; WindowsApplication disposes them
+        // only after this window and the tray have been destroyed.
+        WindowsNativeMethods.SendMessageW(_window.Handle, 0x0080, 0,
+            _icons.Application(config.Palette, theme, Scale(16, dpi)));
+        WindowsNativeMethods.SendMessageW(_window.Handle, 0x0080, 1,
+            _icons.Application(config.Palette, theme, Scale(32, dpi)));
+    }
 
     public void Open(string route)
     {
@@ -165,6 +186,7 @@ internal sealed class WindowsWebViewWindow : IDisposable
                 return HitTestResizeBorder(window, lParam);
             case WindowsNativeMethods.WmDpiChanged:
                 ApplyDpiBounds(window, lParam);
+                ApplyAppearance(_appearance);
                 return nint.Zero;
         }
 
@@ -273,8 +295,8 @@ internal sealed class WindowsWebViewWindow : IDisposable
             };
         }
 
-        int width = bounds.Width;
-        int height = bounds.Height;
+        int width = Math.Min(bounds.Width, workArea.Width);
+        int height = Math.Min(bounds.Height, workArea.Height);
         int x = workArea.Left + Math.Max(0, (workArea.Width - width) / 2);
         int y = workArea.Top + Math.Max(0, (workArea.Height - height) / 2);
         return new WindowsRectangle { Left = x, Top = y, Right = x + width, Bottom = y + height };
@@ -288,6 +310,14 @@ internal sealed class WindowsWebViewWindow : IDisposable
         if (dpi == 0) dpi = DefaultDpi;
         info.MinimumTrackSize.X = Scale(MinimumWindowWidth, dpi);
         info.MinimumTrackSize.Y = Scale(MinimumWindowHeight, dpi);
+        nint monitor = WindowsNativeMethods.MonitorFromWindow(window, WindowsNativeMethods.MonitorDefaultToNearest);
+        var monitorInfo = new WindowsMonitorInfo { Size = (uint)Marshal.SizeOf<WindowsMonitorInfo>() };
+        if (monitor != nint.Zero && WindowsNativeMethods.GetMonitorInfo(monitor, ref monitorInfo))
+        {
+            // The minimum must not undo the initial work-area clamp on small/high-DPI screens.
+            info.MinimumTrackSize.X = Math.Min(info.MinimumTrackSize.X, monitorInfo.WorkArea.Width);
+            info.MinimumTrackSize.Y = Math.Min(info.MinimumTrackSize.Y, monitorInfo.WorkArea.Height);
+        }
         Marshal.StructureToPtr(info, parameter, false);
     }
 

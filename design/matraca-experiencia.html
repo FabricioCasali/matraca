@@ -477,6 +477,15 @@ button,summary { transition:background-color var(--motion-fast) ease,border-colo
 :root[data-motion="reduce"] button:active { transform:none!important; }
 @media(prefers-reduced-motion:reduce) { *,*::before,*::after { animation:none!important;transition:none!important; } button:active { transform:none!important; } }
 @media(max-width:760px) { .frame-intro { flex-direction:column; } .frame-stage { padding:20px 16px 140px; } .motion-grid { grid-template-columns:1fr; } }
+/* MT-037: independent navigation and content tracks, including compact windows. */
+#app { height:100dvh; display:grid; grid-template-rows:auto minmax(0,1fr); overflow:hidden; }
+#app > .welcome, #app > .ds-main { min-height:0; overflow:auto; }
+.app-layout { min-height:0; overflow:hidden; grid-template-columns:222px minmax(0,1fr); }
+.sidebar { min-height:0; overflow:auto; }
+.sidebar > * { flex-shrink:0; }
+.app-layout > .main { min-width:0; min-height:0; overflow:auto; }
+@media (min-width:761px) and (max-width:1060px) { .app-layout { grid-template-columns:190px minmax(0,1fr); } }
+@media (max-width:760px) { .app-layout { display:grid; grid-template-columns:minmax(0,1fr); grid-template-rows:fit-content(40%) minmax(0,1fr); } }
 </style>
 </head>
 <body>

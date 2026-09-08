@@ -1,0 +1,55 @@
+const assert = require('node:assert/strict');
+const fs = require('node:fs');
+const path = require('node:path');
+const { sources, sizes, render, generate } = require('../tools/icons/make-icons.cjs');
+const root = path.resolve(__dirname, '..');
+generate(true);
+assert.equal(Object.keys(sources).length, 19);
+const states = { light: new Set(), dark: new Set() };
+for (const [file, source] of Object.entries(sources)) {
+  const ico = fs.readFileSync(path.join(root, 'Matraca.Windows', file));
+  const svg = fs.readFileSync(path.join(root, 'design/assets/brand', source));
+  assert.equal(ico.readUInt16LE(0), 0);
+  assert.equal(ico.readUInt16LE(2), 1);
+  assert.equal(ico.readUInt16LE(4), sizes.length);
+  let end = 6 + sizes.length * 16;
+  sizes.forEach((size, i) => {
+    const entry = 6 + i * 16;
+    assert.equal(ico[entry] || 256, size);
+    assert.equal(ico[entry + 1] || 256, size);
+    assert.equal(ico.readUInt16LE(entry + 6), 32);
+    const length = ico.readUInt32LE(entry + 8);
+    assert.equal(ico.readUInt32LE(entry + 12), end);
+    const png = ico.subarray(end, end + length);
+    assert.equal(png.subarray(0, 8).toString('hex'), '89504e470d0a1a0a');
+    assert.equal(png.readUInt32BE(16), size);
+    assert.equal(png.readUInt32BE(20), size);
+    assert.deepEqual(png, render(svg, size), `${file} ${size}px preserves official SVG`);
+    end += length;
+    if (size === 16 && !file.includes('app'))
+      states[file.includes('-dark') ? 'dark' : 'light'].add(png.toString('base64'));
+  });
+  assert.equal(end, ico.length);
+}
+for (const theme of ['light', 'dark']) assert.equal(states[theme].size, 4, `Four distinct ${theme} states at 16px`);
+const read = file => fs.readFileSync(path.join(root, file), 'utf8');
+const icons = read('Matraca.Windows/WindowsIconSet.cs');
+assert.match(icons, /ShellState.Error => "error"/);
+assert.match(icons, /AppsUseLightTheme/);
+assert.match(icons, /SystemUsesLightTheme/);
+assert.match(icons, /"light" => "light"/);
+assert.match(icons, /"dark" => "dark"/);
+assert.match(icons, /DestroyIcon\(icon\)/);
+assert.doesNotMatch(icons, /LrShared|LoadImageResource/);
+const window = read('Matraca.Windows/WindowsWebViewWindow.cs');
+assert.match(window, /0x0080, 0,/);
+assert.match(window, /0x0080, 1,/);
+assert.match(window, /ApplyAppearance\(_appearance\)/);
+const app = read('Matraca.Windows/WindowsApplication.cs');
+assert.ok(app.indexOf('TryDispose(_webWindow.Shutdown') < app.indexOf('TryDispose(_icons.Dispose'));
+assert.ok(app.indexOf('TryDispose(_tray.Dispose') < app.indexOf('TryDispose(_icons.Dispose'));
+assert.match(app, /_webWindow.ApplyAppearance\(next\)/);
+assert.match(read('Matraca.Windows/Matraca.Windows.csproj'), /ApplicationIcon>app.ico/);
+assert.match(read('Matraca.Windows/Matraca.Windows.csproj'), /Icons\/\*\*\/\*.ico/);
+assert.match(read('installer/matraca.iss'), /SetupIconFile=.*Matraca.Windows\\app.ico/);
+console.log('171 PNG frames, official geometry, four states, theme/ownership/packaging contracts: OK');

@@ -25,6 +25,10 @@ assert.equal(ruleIds.filter(id=>id.startsWith('CMP-')).length,10);
 assert.equal(tokens.families.length,5);
 const source=read('matraca-experiencia.html');
 const css=source.match(/<style>([\s\S]*?)<\/style>/)[1];
+assert.deepEqual(tokens.window, {defaultWidth:1200, defaultHeight:820, unit:'logical', clampToWorkArea:true});
+assert.match(css, /\.app-layout > \.main \{[^}]*min-height:0; overflow:auto;/);
+assert.match(css, /\.sidebar \{ min-height:0; overflow:auto;/);
+assert.match(css, /grid-template-rows:fit-content\(40%\) minmax\(0,1fr\)/);
 const rules=[...css.matchAll(/:root([^{}]*)\{([^{}]+)\}/g)];
 const normalize=value=>value.replace(/\s+/g,'').replace(/(^|[^\d])\.(\d)/g,'$10.$2');
 for(const mode of ['light','dark'])for(const family of tokens.families){

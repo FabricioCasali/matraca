@@ -44,8 +44,9 @@ kbd { padding: var(--space-2) var(--space-3); border: 1px solid var(--control-bo
 :root[data-platform="windows"] .window-controls { display: flex; }
 .window-controls button { width: 46px; border: none; border-radius: 0; background: transparent; padding: 0; }
 .window-controls .window-close:hover { background: var(--danger-bg); color: var(--danger); }
-.app-layout { display: grid; grid-template-columns: 204px minmax(0, 1fr); min-height: 0; overflow: auto; }
-.sidebar { display: flex; flex-direction: column; border-right: 1px solid var(--border); background: var(--surface); padding: var(--space-8) var(--space-4); gap: var(--space-8); }
+.app-layout { display: grid; grid-template-columns: 204px minmax(0, 1fr); min-height: 0; overflow: hidden; }
+.sidebar { display: flex; flex-direction: column; min-height: 0; overflow: auto; border-right: 1px solid var(--border); background: var(--surface); padding: var(--space-8) var(--space-4); gap: var(--space-8); }
+.sidebar > * { flex-shrink: 0; }
 .logo { display: flex; align-items: center; gap: var(--space-3); margin: 0; }
 .sidebar .logo::after { content: "Matraca"; font-size: var(--type-subheading); font-weight: 600; letter-spacing: -.02em; }
 .sidebar .logo img { width: 36px; height: 36px; }
@@ -57,7 +58,7 @@ kbd { padding: var(--space-2) var(--space-3); border: 1px solid var(--control-bo
 .privacy { margin-top: auto; display: flex; align-items: center; gap: var(--space-2); color: var(--subtle); font-size: var(--type-caption); line-height: 1.5; }
 .privacy i, .local-note i { width: 6px; height: 6px; border-radius: 50%; background: var(--success); flex: 0 0 auto; }
 .privacy b { color: var(--fg); font-weight: 500; }
-.pages { min-width: 0; }
+.pages { min-width: 0; min-height: 0; overflow: auto; }
 .page { display: none; max-width: 1180px; margin-inline: auto; padding: var(--space-8); }
 .page.active { display: block; }
 .page-heading { display: flex; justify-content: space-between; align-items: flex-start; gap: var(--space-4); margin-bottom: var(--space-8); }
@@ -228,7 +229,7 @@ kbd { padding: var(--space-2) var(--space-3); border: 1px solid var(--control-bo
   .setting > .toggle, .number-control { justify-self: start; }
 }
 @media (max-width: 760px) {
-  .app-layout { display: block; }
+  .app-layout { grid-template-columns: minmax(0, 1fr); grid-template-rows: fit-content(40%) minmax(0, 1fr); }
   .sidebar { padding: var(--space-3) var(--space-4); border-right: 0; border-bottom: 1px solid var(--border); }
   .sidebar .logo, .sidebar .privacy { display: none; }
   .sidebar nav { display: flex; flex-wrap: wrap; gap: var(--space-1); }

@@ -96,6 +96,7 @@
     document.title = selected === "home" ? "Matraca" : `Matraca · ${selected}`;
     if (changed) stopMicrophone();
     placeSharedPanels();
+    if (changed) document.querySelector(".pages").scrollTop = 0;
     if (selected === "history") refreshAiUsage();
   }
 

@@ -14,6 +14,18 @@ Variante confirmada pelo usuario: **03A, m que fala** (`monogram-speech`). A ter
 
 ## Animacoes
 
+### Qual arquivo usar em cada estado
+
+| Estado | Icone estatico da bandeja | Animacao para UI/HUD |
+| --- | --- | --- |
+| Pronto | `matraca-03a-symbol-{light|dark}.svg` | Sem animacao |
+| Gravando / ouvindo | `matraca-03a-tray-recording-{light|dark}.svg` | `matraca-03a-listening-{light|dark}.svg` |
+| Pensando / processando | `matraca-03a-tray-busy-{light|dark}.svg` | `matraca-03a-loading-{light|dark}.svg` |
+| Atencao / erro | `matraca-03a-tray-error-{light|dark}.svg` | Estado estatico, sem piscar |
+| Concluido | Retornar ao icone pronto | `matraca-03a-done-{light|dark}.svg` |
+
+Os arquivos foram reexportados da variante 03A confirmada, sem criar copias das variantes descartadas. O shell nativo do Windows consome icones rasterizados/ICO, nao executa CSS dentro de SVG. Esta entrega disponibiliza os vetores; nao substitui os icones em execucao no aplicativo.
+
 - Ouvindo: traco continuo de 11 unidades, sem lapis ou extensao extra; ciclo de 1400 ms.
 - Carregando: formacao em ciclo de 2400 ms.
 - Concluido: formacao unica de 1100 ms.

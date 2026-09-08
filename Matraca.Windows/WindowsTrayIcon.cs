@@ -9,9 +9,7 @@ internal sealed class WindowsTrayIcon : IDisposable
     private const uint IconId = 1;
     private const uint CallbackMessage = WindowsNativeMethods.WmApp + 0x32;
 
-    private readonly nint _idleIcon;
-    private readonly nint _recordingIcon;
-    private readonly nint _busyIcon;
+    private readonly WindowsIconSet _icons;
     private readonly Dictionary<uint, Action> _menuActions = new();
     private readonly WindowsNativeWindow _window;
     private readonly nint _menu;
@@ -20,15 +18,9 @@ internal sealed class WindowsTrayIcon : IDisposable
     private bool _visible;
     private int _disposed;
 
-    public WindowsTrayIcon(nint idleIcon, nint recordingIcon, nint busyIcon, string toolTip = "Matraca")
+    public WindowsTrayIcon(WindowsIconSet icons, string toolTip = "Matraca")
     {
-        if (idleIcon == nint.Zero) throw new ArgumentException("O icone ocioso e obrigatorio.", nameof(idleIcon));
-        if (recordingIcon == nint.Zero) throw new ArgumentException("O icone de gravacao e obrigatorio.", nameof(recordingIcon));
-        if (busyIcon == nint.Zero) throw new ArgumentException("O icone ocupado e obrigatorio.", nameof(busyIcon));
-
-        _idleIcon = idleIcon;
-        _recordingIcon = recordingIcon;
-        _busyIcon = busyIcon;
+        _icons = icons ?? throw new ArgumentNullException(nameof(icons));
         ToolTip = Truncate(toolTip, 127);
         _taskbarCreatedMessage = WindowsNativeMethods.RegisterWindowMessage("TaskbarCreated");
         if (_taskbarCreatedMessage == 0)
@@ -44,6 +36,8 @@ internal sealed class WindowsTrayIcon : IDisposable
     }
 
     public event Action? Activated;
+
+    public event Action? AppearanceChanged;
 
     public Func<bool>? MenuOpening { get; set; }
 
@@ -140,6 +134,11 @@ internal sealed class WindowsTrayIcon : IDisposable
 
     private nint WindowProcedure(nint window, uint message, nint wParam, nint lParam)
     {
+        if (message is 0x001A or 0x031A or 0x007E) // WM_SETTINGCHANGE / THEMECHANGED / DISPLAYCHANGE
+        {
+            SetState(CurrentState, ToolTip);
+            AppearanceChanged?.Invoke();
+        }
         if (message == _taskbarCreatedMessage)
         {
             if (_visible && !AddIcon())
@@ -241,13 +240,8 @@ internal sealed class WindowsTrayIcon : IDisposable
             Id = IconId,
             Flags = flags,
             CallbackMessage = CallbackMessage,
-            Icon = CurrentState switch
-            {
-                ShellState.Recording => _recordingIcon,
-                ShellState.Busy => _busyIcon,
-                ShellState.Error => _busyIcon,
-                _ => _idleIcon,
-            },
+            Icon = _icons.Tray(CurrentState, WindowsIconSet.TaskbarTheme(),
+                WindowsNativeMethods.GetSystemMetrics(49)), // SM_CXSMICON
             Tip = ToolTip,
             Info = string.Empty,
             InfoTitle = string.Empty,
@@ -272,6 +266,7 @@ internal sealed class WindowsTrayIcon : IDisposable
         WindowsNativeMethods.DestroyMenu(_menu);
         _menuActions.Clear();
         Activated = null;
+        AppearanceChanged = null;
         MenuOpening = null;
         MenuClosed = null;
         _window.Dispose();

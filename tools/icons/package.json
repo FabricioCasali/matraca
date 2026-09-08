@@ -1,0 +1,8 @@
+{
+  "name": "matraca-native-icons",
+  "private": true,
+  "version": "1.0.0",
+  "engines": { "node": ">=18" },
+  "dependencies": { "@resvg/resvg-js": "2.6.2" },
+  "scripts": { "build": "node make-icons.cjs", "test": "node ../../tests/windows-icons.test.cjs" }
+}

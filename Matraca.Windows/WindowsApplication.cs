@@ -54,9 +54,7 @@ internal sealed class WindowsApplication : IWindowsWebBridgeApp, IDisposable
         _dispatcher = new WindowsDispatcher();
         _icons = new WindowsIconSet();
         _tray = new WindowsTrayIcon(
-            _icons.Idle,
-            _icons.Recording,
-            _icons.Busy,
+            _icons,
             "Matraca - iniciando...");
         _shell = new WindowsNativeShell(_tray);
         _targets = new WindowsTargetWindow();
@@ -79,7 +77,8 @@ internal sealed class WindowsApplication : IWindowsWebBridgeApp, IDisposable
             new AiUsageLedger(WindowsConfig.Paths));
 
         _webBridge = new WindowsWebBridge(this, _shell);
-        _webWindow = new WindowsWebViewWindow(_webBridge);
+        _webWindow = new WindowsWebViewWindow(_webBridge, _icons, _config);
+        _tray.AppearanceChanged += () => _webWindow.ApplyAppearance(_config);
         _hud = new WindowsHudWindow(Path.Combine(AppContext.BaseDirectory, "Web"));
         _powerMonitor = new WindowsPowerMonitor(_dispatcher);
         _shutdown = new BoundedShutdownCoordinator(ShutdownResourcesAsync, ShutdownGracePeriod);
@@ -512,6 +511,11 @@ internal sealed class WindowsApplication : IWindowsWebBridgeApp, IDisposable
             await _controller.ApplyConfigAsync(applicable).ConfigureAwait(false);
         }
         _config = next;
+        await OnDispatcherAsync(() =>
+        {
+            _webWindow.ApplyAppearance(next);
+            return true;
+        }).ConfigureAwait(false);
     }
 
     private void PromptForRestart()

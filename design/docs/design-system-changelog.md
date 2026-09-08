@@ -1,5 +1,11 @@
 # Histórico de versões do Matraca Design System
 
+## Nao lancado — Navegacao e janela MT-037
+
+- CMP-004: navegacao principal fixa com rolagem independente em viewport baixo; somente conteudo acompanha a rolagem principal. Composicao compacta existente preservada.
+- FND-003: tokens `window` registram referencia inicial 1200 x 820 logica, limitada pela area util nativa; nao altera tamanho escolhido na sessao.
+- Mock compartilhado e regressao de layout reconciliados. Abas continuam podendo quebrar linha, conforme escopo aprovado; nenhuma mudanca de tema, paleta ou movimento.
+
 ## Nao lancado — Barra de titulo MT-033/034/035
 
 - CMP-004 explicita barra fora da rolagem e duplo clique separado do arraste no Windows.
