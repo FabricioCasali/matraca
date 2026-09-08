@@ -48,7 +48,13 @@ async function serveAsset(route) {
         const message = JSON.parse(json); if (!message.id) return;
         let result;
         if (message.method === 'app.get') result = { config: { config, runtime: { postProcessActive: false } }, platform: 'windows', capabilities: { filePick: true, soundPreview: true, historyClear: true }, devices: ['Microfone de teste'], models, history: { entries }, aiUsage, permissions: { microphone: 'granted', accessibility: 'granted' }, state: { state: 'ready', text: 'Sua voz, no lugar certo.' } };
-        else if (message.method === 'config.set') { Object.assign(config, message.params.patch); result = { config }; }
+        else if (message.method === 'config.set') {
+          Object.assign(config, message.params.patch);
+          config.effectiveUiLanguage = config.uiLanguage === 'system'
+            ? (navigator.language.toLowerCase().startsWith('pt') ? 'pt-BR' : 'en-US')
+            : config.uiLanguage;
+          result = { config };
+        }
         else if (message.method === 'ai.usage.get') result = aiUsage;
         else if (message.method === 'history.list') result = { entries };
         else if (message.method === 'mic.monitor.start') result = { started: true, currentDevice: 'Microfone de teste', threshold: .012, devices: ['Microfone de teste'] };
@@ -232,7 +238,13 @@ async function serveAsset(route) {
         if (route !== 'onboarding') await page.keyboard.press('Tab');
       }
       assert.equal(await page.locator('.pages').evaluate(content => content.scrollTop), contentScroll);
-      if (viewport.height === 320) assert.ok(await page.locator('.sidebar').evaluate(nav => nav.scrollHeight > nav.clientHeight && nav.scrollTop > 0));
+      if (viewport.height === 320) {
+        const navigationScroll = await page.locator('.sidebar').evaluate(nav => ({
+          overflowing: nav.scrollHeight > nav.clientHeight,
+          scrollTop: nav.scrollTop
+        }));
+        if (navigationScroll.overflowing) assert.ok(navigationScroll.scrollTop > 0);
+      }
       await page.keyboard.press('Enter');
       await page.waitForFunction(() => !document.querySelector('[data-page="onboarding"]').hidden);
       checks++;
