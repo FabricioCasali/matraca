@@ -1,4 +1,3 @@
-using System.ComponentModel;
 using System.Runtime.InteropServices;
 
 namespace Matraca;
@@ -19,6 +18,8 @@ internal sealed class WindowsWebViewWindow : IDisposable
     private readonly WindowsWebViewHost _host;
     private Task? _initialization;
     private bool _visible;
+    private bool _paintFrame;
+    private uint _frameColor;
     private int _disposed;
 
     public WindowsWebViewWindow(WindowsWebBridge bridge, WindowsIconSet icons, Config appearance)
@@ -70,6 +71,7 @@ internal sealed class WindowsWebViewWindow : IDisposable
         if (Volatile.Read(ref _disposed) != 0) return;
         _appearance = config;
         string theme = WindowsIconSet.ApplicationTheme(config.ThemeMode);
+        ApplyFrameAppearance(theme);
         uint dpi = WindowsNativeMethods.GetDpiForWindow(_window.Handle);
         if (dpi == 0) dpi = DefaultDpi;
         // WM_SETICON borrows these cached handles; WindowsApplication disposes them
@@ -78,6 +80,46 @@ internal sealed class WindowsWebViewWindow : IDisposable
             _icons.Application(config.Palette, theme, Scale(16, dpi)));
         WindowsNativeMethods.SendMessageW(_window.Handle, 0x0080, 1,
             _icons.Application(config.Palette, theme, Scale(32, dpi)));
+    }
+
+    private void ApplyFrameAppearance(string theme)
+    {
+        var contrast = new WindowsHighContrast { Size = (uint)Marshal.SizeOf<WindowsHighContrast>() };
+        bool custom = WindowsNativeMethods.GetHighContrast(0x0042, contrast.Size, ref contrast, 0)
+            && (contrast.Flags & 1) == 0; // SPI_GETHIGHCONTRAST / HCF_HIGHCONTRASTON
+        _frameColor = theme == "dark" ? WindowsPanelColors.Dark : WindowsPanelColors.Light;
+        // Border/caption colors do not cover the full NCCALCSIZE band. Own its
+        // painting instead; use the system frame in high contrast or on API failure.
+        int policy = custom ? 1 : 0; // DWMNCRP_DISABLED / DWMNCRP_USEWINDOWSTYLE
+        _paintFrame = custom;
+        if (WindowsNativeMethods.DwmSetWindowAttribute(_window.Handle, 2, ref policy, sizeof(int)) < 0)
+            _paintFrame = false;
+        WindowsNativeMethods.RedrawWindow(_window.Handle, 0, 0, 0x0401); // RDW_FRAME | RDW_INVALIDATE
+    }
+
+    private bool PaintFrame(nint window)
+    {
+        if (!_paintFrame || !WindowsNativeMethods.GetWindowRect(window, out WindowsRectangle outer)
+            || !WindowsNativeMethods.GetClientRect(window, out WindowsRectangle client)) return false;
+        var origin = new WindowsPoint();
+        if (!WindowsNativeMethods.ClientToScreen(window, ref origin)) return false;
+        nint dc = WindowsNativeMethods.GetWindowDC(window);
+        if (dc == 0) return false;
+        nint brush = WindowsNativeMethods.CreateSolidBrush(_frameColor);
+        try
+        {
+            if (brush == 0) return false;
+            int x = origin.X - outer.Left, y = origin.Y - outer.Top;
+            if (WindowsNativeMethods.ExcludeClipRect(dc, x, y, x + client.Width, y + client.Height) == 0)
+                return false;
+            var bounds = new WindowsRectangle { Right = outer.Width, Bottom = outer.Height };
+            return WindowsNativeMethods.FillRect(dc, ref bounds, brush) != 0;
+        }
+        finally
+        {
+            if (brush != 0) WindowsNativeMethods.DeleteObject(brush);
+            WindowsNativeMethods.ReleaseDC(window, dc);
+        }
     }
 
     public void Open(string route)
@@ -168,6 +210,18 @@ internal sealed class WindowsWebViewWindow : IDisposable
     {
         switch (message)
         {
+            case WindowsNativeMethods.WmNcPaint:
+                if (PaintFrame(window)) return nint.Zero;
+                break;
+            case WindowsNativeMethods.WmNcActivate:
+                if (_paintFrame && !WindowsNativeMethods.IsIconic(window))
+                    return WindowsNativeMethods.DefWindowProcW(window, message, wParam, new nint(-1));
+                break;
+            case 0x001A: // WM_SETTINGCHANGE
+            case 0x031A: // WM_THEMECHANGED
+            case 0x031E: // WM_DWMCOMPOSITIONCHANGED
+                if (_window != null) ApplyAppearance(_appearance);
+                break;
             case WindowsNativeMethods.WmClose:
                 HideOnOwnerThread();
                 return nint.Zero;
@@ -181,11 +235,13 @@ internal sealed class WindowsWebViewWindow : IDisposable
                 ApplyMinimumSize(window, lParam);
                 return nint.Zero;
             case WindowsNativeMethods.WmNcCalcSize:
+                ApplyClientBounds(window, lParam);
                 return nint.Zero;
             case WindowsNativeMethods.WmNcHitTest:
                 return HitTestResizeBorder(window, lParam);
             case WindowsNativeMethods.WmDpiChanged:
                 ApplyDpiBounds(window, lParam);
+                ResizeHost();
                 ApplyAppearance(_appearance);
                 return nint.Zero;
         }
@@ -268,18 +324,12 @@ internal sealed class WindowsWebViewWindow : IDisposable
     {
         uint dpi = WindowsNativeMethods.GetDpiForSystem();
         if (dpi == 0) dpi = DefaultDpi;
+        WindowsPoint border = ResizeBorder(dpi);
         var bounds = new WindowsRectangle
         {
-            Right = Scale(DefaultClientWidth, dpi),
-            Bottom = Scale(DefaultClientHeight, dpi),
+            Right = Scale(DefaultClientWidth, dpi) + 2 * border.X,
+            Bottom = Scale(DefaultClientHeight, dpi) + 2 * border.Y,
         };
-        if (!WindowsNativeMethods.AdjustWindowRectExForDpi(
-                ref bounds,
-                WindowsNativeMethods.WsFramelessResizableWindow,
-                false,
-                0,
-                dpi))
-            throw new Win32Exception(Marshal.GetLastWin32Error(), "Falha ao calcular o tamanho da janela WebView2.");
 
         WindowsRectangle workArea;
         if (!WindowsNativeMethods.SystemParametersInfo(
@@ -338,6 +388,49 @@ internal sealed class WindowsWebViewWindow : IDisposable
     private static int Scale(int value, uint dpi)
         => checked((int)Math.Round(value * dpi / (double)DefaultDpi));
 
+    private static WindowsPoint ResizeBorder(uint dpi)
+    {
+        if (dpi == 0) dpi = DefaultDpi;
+        int padding = WindowsNativeMethods.GetSystemMetricsForDpi(92, dpi); // SM_CXPADDEDBORDER
+        return new WindowsPoint
+        {
+            X = WindowsNativeMethods.GetSystemMetricsForDpi(32, dpi) + padding, // SM_CXSIZEFRAME
+            Y = WindowsNativeMethods.GetSystemMetricsForDpi(33, dpi) + padding, // SM_CYSIZEFRAME
+        };
+    }
+
+    private static void ApplyClientBounds(nint window, nint parameter)
+    {
+        if (parameter == nint.Zero) return;
+        // RECT is also the first field of NCCALCSIZE_PARAMS (wParam == TRUE).
+        // Keep the resize frame outside the client: a windowed WebView2 child
+        // consumes hit tests wherever its bounds cover the parent.
+        WindowsRectangle bounds = Marshal.PtrToStructure<WindowsRectangle>(parameter);
+        if (WindowsNativeMethods.IsZoomed(window))
+        {
+            nint monitor = WindowsNativeMethods.MonitorFromWindow(window, WindowsNativeMethods.MonitorDefaultToNearest);
+            var info = new WindowsMonitorInfo { Size = (uint)Marshal.SizeOf<WindowsMonitorInfo>() };
+            if (monitor != nint.Zero && WindowsNativeMethods.GetMonitorInfo(monitor, ref info))
+            {
+                bounds.Left = Math.Max(bounds.Left, info.WorkArea.Left);
+                bounds.Top = Math.Max(bounds.Top, info.WorkArea.Top);
+                bounds.Right = Math.Min(bounds.Right, info.WorkArea.Right);
+                bounds.Bottom = Math.Min(bounds.Bottom, info.WorkArea.Bottom);
+            }
+        }
+        else
+        {
+            WindowsPoint border = ResizeBorder(WindowsNativeMethods.GetDpiForWindow(window));
+            int x = Math.Min(border.X, Math.Max(0, bounds.Width / 2));
+            int y = Math.Min(border.Y, Math.Max(0, bounds.Height / 2));
+            bounds.Left += x;
+            bounds.Right -= x;
+            bounds.Top += y;
+            bounds.Bottom -= y;
+        }
+        Marshal.StructureToPtr(bounds, parameter, false);
+    }
+
     private static nint HitTestResizeBorder(nint window, nint parameter)
     {
         if (WindowsNativeMethods.IsZoomed(window)
@@ -347,12 +440,11 @@ internal sealed class WindowsWebViewWindow : IDisposable
         long coordinates = parameter.ToInt64();
         int x = (short)(coordinates & 0xFFFF);
         int y = (short)((coordinates >> 16) & 0xFFFF);
-        uint dpi = WindowsNativeMethods.GetDpiForWindow(window);
-        int border = Scale(8, dpi == 0 ? DefaultDpi : dpi);
-        bool left = x < bounds.Left + border;
-        bool right = x >= bounds.Right - border;
-        bool top = y < bounds.Top + border;
-        bool bottom = y >= bounds.Bottom - border;
+        WindowsPoint border = ResizeBorder(WindowsNativeMethods.GetDpiForWindow(window));
+        bool left = x < bounds.Left + border.X;
+        bool right = x >= bounds.Right - border.X;
+        bool top = y < bounds.Top + border.Y;
+        bool bottom = y >= bounds.Bottom - border.Y;
 
         if (top) return left ? WindowsNativeMethods.HtTopLeft
             : right ? WindowsNativeMethods.HtTopRight

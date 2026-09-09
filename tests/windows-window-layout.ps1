@@ -28,6 +28,8 @@ foreach ($size in @(@(1120, 760), @(1200, 820))) {
 }
 $areaWidth = $area.Right - $area.Left
 $areaHeight = $area.Bottom - $area.Top
+$border = $window.GetMethod('ResizeBorder', $flags).Invoke($null, @($dpi))
+$sizes[1] = @{ width = [int][Math]::Round(1200 * $dpi / 96.0) + 2 * $border.X; height = [int][Math]::Round(820 * $dpi / 96.0) + 2 * $border.Y }
 if ($bounds.Right - $bounds.Left -ne [Math]::Min($sizes[1].width, $areaWidth) -or
     $bounds.Bottom - $bounds.Top -ne [Math]::Min($sizes[1].height, $areaHeight) -or
     $bounds.Left -lt $area.Left -or $bounds.Top -lt $area.Top -or

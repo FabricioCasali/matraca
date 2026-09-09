@@ -64,6 +64,44 @@ public sealed class WindowsNativeShellContractTests
     }
 
     [Fact]
+    public void WebViewChildCannotCoverTheNativeResizeFrame()
+    {
+        string window = ReadProjectFile("Matraca.Windows", "WindowsWebViewWindow.cs");
+        string host = ReadProjectFile("Matraca.Windows", "WindowsWebViewHost.cs");
+        Assert.Contains("ApplyClientBounds(window, lParam);", window);
+        Assert.Contains("WindowsPoint border = ResizeBorder(WindowsNativeMethods.GetDpiForWindow(window));", window);
+        Assert.Contains("Scale(DefaultClientWidth, dpi) + 2 * border.X", window);
+        Assert.Contains("bounds.Left += x;", window);
+        Assert.Contains("bounds.Top += y;", window);
+        Assert.Contains("bounds.Right -= x;", window);
+        Assert.Contains("bounds.Bottom -= y;", window);
+        Assert.Contains("bounds.Top = Math.Max(bounds.Top, info.WorkArea.Top);", window);
+        Assert.Contains("bounds.Bottom = Math.Min(bounds.Bottom, info.WorkArea.Bottom);", window);
+        Assert.Contains("ApplyDpiBounds(window, lParam);\n                ResizeHost();", window.Replace("\r\n", "\n"));
+        Assert.Contains("_host.Resize(client.Width, client.Height);", window);
+        Assert.Contains("new Rectangle(0, 0, width, height)", host);
+    }
+
+    [Fact]
+    public void ResizeFrameOwnsPaintingWithSystemFallbackAndHotAppearance()
+    {
+        string window = ReadProjectFile("Matraca.Windows", "WindowsWebViewWindow.cs");
+        Assert.Contains("ApplyFrameAppearance(theme);", window);
+        Assert.Contains("WindowsPanelColors.Dark : WindowsPanelColors.Light", window);
+        Assert.Contains("WindowsNativeMethods.GetHighContrast", window);
+        Assert.Contains("(contrast.Flags & 1) == 0", window);
+        Assert.Contains("custom ? 1 : 0", window);
+        Assert.Contains("DwmSetWindowAttribute(_window.Handle, 2, ref policy, sizeof(int)) < 0", window);
+        Assert.Contains("case WindowsNativeMethods.WmNcPaint:", window);
+        Assert.Contains("ExcludeClipRect(dc, x, y, x + client.Width, y + client.Height)", window);
+        Assert.Contains("WindowsNativeMethods.DeleteObject(brush)", window);
+        Assert.Contains("WindowsNativeMethods.ReleaseDC(window, dc)", window);
+        Assert.Contains("case 0x001A:", window);
+        Assert.Contains("case 0x031A:", window);
+        Assert.Contains("case 0x031E:", window);
+    }
+
+    [Fact]
     public void PanelDefaultsMatchDesignAndClampToNativeWorkArea()
     {
         using var tokens = System.Text.Json.JsonDocument.Parse(

@@ -16,6 +16,8 @@ internal static class WindowsNativeMethods
     internal const uint WmGetMinMaxInfo = 0x0024;
     internal const uint WmNcCalcSize = 0x0083;
     internal const uint WmNcHitTest = 0x0084;
+    internal const uint WmNcPaint = 0x0085;
+    internal const uint WmNcActivate = 0x0086;
     internal const uint WmNcLButtonDown = 0x00A1;
     internal const uint WmTimer = 0x0113;
     internal const uint WmDpiChanged = 0x02E0;
@@ -222,6 +224,9 @@ internal static class WindowsNativeMethods
     [DllImport("user32.dll")]
     internal static extern int GetSystemMetrics(int index);
 
+    [DllImport("user32.dll")]
+    internal static extern int GetSystemMetricsForDpi(int index, uint dpi);
+
     [DllImport("user32.dll", SetLastError = true)]
     [return: MarshalAs(UnmanagedType.Bool)]
     internal static extern bool SetWindowPos(
@@ -257,6 +262,24 @@ internal static class WindowsNativeMethods
 
     [DllImport("user32.dll")]
     internal static extern nint BeginPaint(nint window, out WindowsPaintStruct paint);
+
+    [DllImport("user32.dll")]
+    internal static extern nint GetWindowDC(nint window);
+
+    [DllImport("user32.dll")]
+    internal static extern int ReleaseDC(nint window, nint deviceContext);
+
+    [DllImport("user32.dll")]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    internal static extern bool ClientToScreen(nint window, ref WindowsPoint point);
+
+    [DllImport("user32.dll")]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    internal static extern bool RedrawWindow(nint window, nint rectangle, nint region, uint flags);
+
+    [DllImport("user32.dll", EntryPoint = "SystemParametersInfoW")]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    internal static extern bool GetHighContrast(uint action, uint size, ref WindowsHighContrast value, uint flags);
 
     [DllImport("user32.dll")]
     [return: MarshalAs(UnmanagedType.Bool)]
@@ -393,6 +416,12 @@ internal static class WindowsNativeMethods
 
     [DllImport("gdi32.dll")]
     internal static extern nint CreateSolidBrush(uint color);
+
+    [DllImport("gdi32.dll")]
+    internal static extern int ExcludeClipRect(nint deviceContext, int left, int top, int right, int bottom);
+
+    [DllImport("dwmapi.dll")]
+    internal static extern int DwmSetWindowAttribute(nint window, int attribute, ref int value, int valueSize);
 
     [DllImport("gdi32.dll")]
     internal static extern nint CreateRectRgn(int left, int top, int right, int bottom);

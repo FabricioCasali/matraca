@@ -63,6 +63,8 @@ O desenho da frente 2.0 está em [`PLANO-2.0.md`](PLANO-2.0.md).
   lifecycle e clipboard já usam Win32/WebView2 nativos; a paridade funcional foi reposta e
   o WinForms saiu do bootstrap, do código e do publish. Restam os checkpoints físicos no
   Windows para painel, bandeja/overlays, áudio, hotkeys, ditado completo e sleep/wake.
+  No painel, seguem arraste real, DPI entre monitores, Windows 10, alto contraste
+  e acessibilidade assistidos; limites do probe em `tests/WindowsResizeProbe/README.md`.
   Contrato em [`PLANO-2.0.md`](PLANO-2.0.md). · `[2.0]` · G · importante
 - **MT-019** **Ditado grava, mas não entrega texto no Mac** — correção aplicada ao par
   Unicode `keyDown`/`keyUp`, com smoke passando pela fila real e pelo event tap. Resta a
