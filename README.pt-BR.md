@@ -15,14 +15,14 @@ O áudio permanece na memória da máquina e nunca é enviado ou gravado em disc
 | Canal | Plataforma | Estado |
 |---|---|---|
 | [Última release](https://github.com/FabricioCasali/matraca/releases/latest) | Windows x64 | Instalador self-contained publicado pelo GitHub Actions. |
-| `main` / 2.0.0 | Windows x64 e macOS Apple Silicon | Interface compartilhada com Design System 1.0.1. Distribuição macOS e outras provas nativas continuam pendentes. |
+| `main` / 2.0.1 | Windows x64 e macOS Apple Silicon | Interface compartilhada com Design System 1.0.1. Distribuição macOS e outras provas nativas continuam pendentes. |
 
 Para instalar a versão pública no Windows, baixe
 [o instalador da última release](https://github.com/FabricioCasali/matraca/releases/latest).
 Confira o estado da assinatura nas notas da release. Instaladores sem assinatura podem gerar
 um aviso do Windows.
 
-As seções abaixo descrevem a linha de código 2.0.0. Não há `.dmg` nem
+As seções abaixo descrevem a linha de código 2.0.1. Não há `.dmg` nem
 release pública para macOS ainda.
 
 ## O que existe na 2.0
@@ -30,6 +30,7 @@ release pública para macOS ainda.
 - Whisper local com Vulkan no Windows e Metal no macOS, com fallback para CPU.
 - Interface compartilhada para Windows e Mac: cinco famílias de cor, modos claro/escuro/sistema e aparência persistida.
 - Barra de título fixa na rolagem; duplo clique maximiza/restaura no Windows sem iniciar arraste. Aparência fica somente em Configurações / Aparência.
+- Navegação principal fixa e janela inicial de 1200 x 820 unidades lógicas, limitada à área útil do monitor. O resize nativo Windows usa moldura própria na cor do tema, sem sombra ou cantos arredondados do DWM.
 - Quatro modos de ditado: `toggle`, `hold`, `live` e `push`.
 - HUD de gravação, medidor de microfone e limiar visual para detecção de voz.
 - Entrega Unicode direta, sem alterar o clipboard, ou colagem com restauração do conteúdo anterior.
@@ -115,7 +116,7 @@ Configurações / Aparência é o único lugar para alterar estas preferências,
 | `palette` | `olive` | `olive`, `ochre`, `terracotta`, `plum`, `teal` |
 
 Interface e HUD usam os SVGs da marca 03A aprovada e respeitam movimento reduzido.
-A substituição dos ícones nativos de bandeja/instalador continua pendente.
+Executável, instalador, janela e bandeja Windows, além do bundle macOS, usam derivados 03A. As provas nativas no shell, de DPI e de acessibilidade continuam pendentes.
 
 ### Entrega e armazenamento
 
@@ -202,7 +203,7 @@ Para gerar o instalador self-contained x64, instale também o
 
 ```powershell
 .\installer\build-installer.ps1
-# usa a versão do projeto Windows; saída: installer\output\matraca-setup-2.0.0.exe
+# usa a versão do projeto Windows; saída: installer\output\matraca-setup-2.0.1.exe
 # versão explícita de CI: .\installer\build-installer.ps1 -Version 0.0.0
 ```
 
@@ -213,7 +214,7 @@ assinar o executável instalado.
 ### Publicar uma versão
 
 Depois dos testes e do push autorizado para `main`, crie a tag `v<versão>` no commit desejado
-e envie somente essa tag, por exemplo `git push origin v2.0.0`. O workflow `build` verifica o
+e envie somente essa tag, por exemplo `git push origin v2.0.1`. O workflow `build` verifica o
 código, publica as duas variantes de manifest Windows, gera o instalador Inno Setup, assina
 quando configurado e cria a release no GitHub. Push normal na `main` gera artefato de CI, não
 release pública. Confirme o run do Actions e o instalador anexado antes de anunciar publicação.

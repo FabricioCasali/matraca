@@ -15,13 +15,13 @@ Audio stays in memory on your computer. It is never uploaded or written to disk.
 | Channel | Platform | Status |
 |---|---|---|
 | [Latest release](https://github.com/FabricioCasali/matraca/releases/latest) | Windows x64 | Self-contained installer published by GitHub Actions. |
-| `main` / 2.0.0 | Windows x64 and Apple Silicon macOS | Shared interface with Design System 1.0.1. macOS distribution and further native checks remain pending. |
+| `main` / 2.0.1 | Windows x64 and Apple Silicon macOS | Shared interface with Design System 1.0.1. macOS distribution and further native checks remain pending. |
 
 To install the public Windows release, download
 [the installer from the latest release](https://github.com/FabricioCasali/matraca/releases/latest).
 Check the release notes for signing status. Unsigned installers may trigger a Windows warning.
 
-The sections below describe the 2.0.0 code line. There is no
+The sections below describe the 2.0.1 code line. There is no
 public macOS release or `.dmg` yet.
 
 ## What is in 2.0
@@ -29,6 +29,7 @@ public macOS release or `.dmg` yet.
 - Local Whisper transcription using Vulkan on Windows and Metal on macOS, with a CPU fallback.
 - One shared interface for Windows and Mac: five color families, light/dark/system modes, and persisted appearance preferences.
 - A fixed title bar while scrolling; Windows double-click maximizes/restores without starting a drag. Appearance controls live only in Settings / Appearance.
+- Fixed main navigation and an initial 1200 x 820 logical window, limited to the monitor work area. Windows native resizing uses a theme-colored custom frame, without DWM shadows or rounded corners.
 - Four dictation modes: `toggle`, `hold`, `live`, and `push`.
 - A recording HUD, microphone meter, and a visible voice detection threshold.
 - Direct Unicode delivery without changing the clipboard, or paste with clipboard restoration.
@@ -114,7 +115,7 @@ Settings / Appearance is the single place to change these preferences; changes a
 | `palette` | `olive` | `olive`, `ochre`, `terracotta`, `plum`, `teal` |
 
 The interface and recording HUD use the approved 03A SVG brand and respect reduced motion.
-Native tray/installer icon replacement is still pending.
+Windows executable, installer, window and tray icons, plus the macOS bundle icon, now use 03A derivatives. Native shell, DPI and accessibility checks remain pending.
 
 ### Delivery and storage
 
@@ -200,7 +201,7 @@ installer:
 
 ```powershell
 .\installer\build-installer.ps1
-# defaults to the Windows project version; output: installer\output\matraca-setup-2.0.0.exe
+# defaults to the Windows project version; output: installer\output\matraca-setup-2.0.1.exe
 # explicit CI version: .\installer\build-installer.ps1 -Version 0.0.0
 ```
 
@@ -211,7 +212,7 @@ executable.
 ### Release process
 
 After tests and an authorized push to `main`, tag the intended commit with `v<version>` and push
-that tag explicitly, for example `git push origin v2.0.0`. The `build` workflow runs checks,
+that tag explicitly, for example `git push origin v2.0.1`. The `build` workflow runs checks,
 publishes both Windows manifest variants, builds the Inno Setup installer, optionally signs it,
 and creates the GitHub Release. A normal `main` push creates a CI artifact, not a public release.
 Confirm the Actions run and attached installer before reporting publication. There is no automatic

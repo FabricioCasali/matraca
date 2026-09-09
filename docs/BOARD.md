@@ -100,6 +100,10 @@ O desenho da frente 2.0 está em [`PLANO-2.0.md`](PLANO-2.0.md).
   por ação do usuário, com cache de 30 segundos. Restam a prova de um ditado real e a
   confirmação visual do saldo. · `[2.0]` · M · melhoria
 - **MT-007** **Fase 5 — empacotamento** — o instalador Windows voltou a publicar as
+  variantes standard e uiAccess. Publicacao autorizada da v2.0.1 em andamento:
+  validar testes, pipeline oficial por tag e SHA-256 do instalador, sem instalar
+  ou reiniciar o app local. DS 1.0.1, BRD-001, FND-001/003, CMP-004 e A11Y-001.
+  O processo publica as
   variantes standard e uiAccess sem propagar o manifest para o Core. Icones Windows
   derivados exclusivamente dos SVGs oficiais 03A (DS 1.0.1, BRD-001/FND-001/A11Y-001):
   EXE/instalador, janela por tema/familia, bandeja monocromatica com quatro estados e
