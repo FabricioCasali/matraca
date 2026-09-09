@@ -9,6 +9,7 @@ const english=fs.readFileSync(path.join(__dirname,'en/index.html'),'utf8');
 const code=html.match(/<script>([\s\S]*?)<\/script>/)[1];new vm.Script(code);
 const englishCode=english.match(/<script>([\s\S]*?)<\/script>/)[1];new vm.Script(englishCode);
 for(const [page,label]of [[html,'Portuguese'],[english,'English']]){
+ assert.equal((page.match(/<link\b[^>]*\brel="icon"[^>]*>/g)||[]).length,1,label+' single favicon link');
  const ids=[...page.matchAll(/\sid="([^"]+)"/g)].map(x=>x[1]);assert.equal(ids.length,new Set(ids).size,label+' IDs');
  for(const [,ref]of page.matchAll(/href="#([^"]+)"/g))assert.ok(ids.includes(ref),label+' local anchor '+ref);
  assert.equal((page.match(/class="primary"/g)||[]).length,1,label+' primary download CTA');
@@ -36,7 +37,9 @@ assert.ok(english.includes('<link rel="icon" type="image/svg+xml" href="../favic
 assert.ok(english.includes('From thought<br><em>to text.</em>'));
 assert.ok(english.includes('Your next idea can start out loud.'));
 assert.ok(!english.match(/>Da ideia<br>|>Seu raciocínio<br>|>O Matraca é gratuito/));
-assert.deepEqual(fs.readFileSync(path.join(__dirname,'favicon.svg')),fs.readFileSync(path.join(__dirname,'../design/assets/brand/matraca-03a-app-olive-light.svg')));
+const favicon=fs.readFileSync(path.join(__dirname,'favicon.svg'));
+assert.deepEqual(favicon,fs.readFileSync(path.join(__dirname,'../design/assets/brand/matraca-03a-app-olive-light.svg')));
+assert.ok(!/<script\b|\bhref\s*=|var\s*\(/i.test(favicon.toString('utf8')),'Standalone favicon');
 const workflow=fs.readFileSync(path.join(__dirname,'../.github/workflows/pages.yml'),'utf8');
 assert.ok(workflow.includes('site/en/index.html _site/en/index.html'));
 assert.ok(workflow.includes('site/favicon.svg _site/favicon.svg'));

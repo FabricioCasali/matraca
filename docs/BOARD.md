@@ -62,8 +62,13 @@ O desenho da frente 2.0 está em [`PLANO-2.0.md`](PLANO-2.0.md).
   para repaste. Resta validação manual do conjunto nos dois sistemas. · `[2.0]` · G · importante
 - **MT-006** **Fase 4 — o Windows muda de casa** — casco, painel, HUD, moldura, bandeja,
   lifecycle e clipboard já usam Win32/WebView2 nativos; a paridade funcional foi reposta e
-  o WinForms saiu do bootstrap, do código e do publish. Restam os checkpoints físicos no
+  o WinForms saiu do bootstrap, do código e do publish. Resize e moldura nativa aceitos
+  pelo usuario apos compilar e reabrir o app local; entrega na main autorizada, sem nova
+  tag, release ou deploy. Esse aceite nao cobre as provas especificas abaixo.
+  Restam os checkpoints físicos no
   Windows para painel, bandeja/overlays, áudio, hotkeys, ditado completo e sleep/wake.
+  No painel, seguem arraste real, DPI entre monitores, Windows 10, alto contraste
+  e acessibilidade assistidos; limites do probe em `tests/WindowsResizeProbe/README.md`.
   Contrato em [`PLANO-2.0.md`](PLANO-2.0.md). · `[2.0]` · G · importante
 - **MT-019** **Ditado grava, mas não entrega texto no Mac** — correção aplicada ao par
   Unicode `keyDown`/`keyUp`, com smoke passando pela fila real e pelo event tap. Resta a
@@ -98,13 +103,15 @@ O desenho da frente 2.0 está em [`PLANO-2.0.md`](PLANO-2.0.md).
   diários sem texto. A tela Revisão consolida o consumo e consulta `/user/balance` somente
   por ação do usuário, com cache de 30 segundos. Restam a prova de um ditado real e a
   confirmação visual do saldo. · `[2.0]` · M · melhoria
-- **MT-007** **Fase 5 — empacotamento** — o instalador Windows voltou a publicar as
-  variantes standard e uiAccess sem propagar o manifest para o Core. Icones Windows
+- **MT-007** **Fase 5 — empacotamento** — instalador Windows publico para testes:
+  [v2.0.1](https://github.com/FabricioCasali/matraca/releases/tag/v2.0.1), sem assinatura,
+  com variantes standard e uiAccess e SHA-256 conferido; sem instalacao local.
+  O manifest nao se propaga para o Core. Icones Windows
   derivados exclusivamente dos SVGs oficiais 03A (DS 1.0.1, BRD-001/FND-001/A11Y-001):
   EXE/instalador, janela por tema/familia, bandeja monocromatica com quatro estados e
   ICNS olive-light do bundle macOS, com representacoes de 16 a 1024 px.
   Gerador e contrato em `tools/icons/README.md`; testes em `tests/windows-icons*`.
-  Restam prova assistida na bandeja/taskbar/Dock, tema/DPI/alto contraste, artefatos finais,
+  Restam prova assistida do instalador e na bandeja/taskbar/Dock, tema/DPI/alto contraste,
   `.app` + `.dmg` no Mac e `macos-14` na matriz do CI. Prova local deve usar
   build isolado, sem substituir a instalacao nem interromper o aplicativo em uso.
   · `[2.0]`

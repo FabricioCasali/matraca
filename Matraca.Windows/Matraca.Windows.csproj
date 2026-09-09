@@ -16,7 +16,7 @@
   <!-- Metadados do executavel: aparecem no Explorer e sao exigidos pelo SignPath
        (file metadata attributes) na assinatura de release. -->
   <PropertyGroup>
-    <Version>2.0.0</Version>
+    <Version>2.0.1</Version>
     <Product>Matraca</Product>
     <Company>Fabricio Casali</Company>
     <Authors>Fabricio Casali</Authors>
