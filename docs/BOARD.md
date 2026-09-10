@@ -71,14 +71,13 @@ O desenho da frente 2.0 está em [`PLANO-2.0.md`](PLANO-2.0.md).
   e acessibilidade assistidos; limites do probe em `tests/WindowsResizeProbe/README.md`.
   Contrato em [`PLANO-2.0.md`](PLANO-2.0.md). · `[2.0]` · G · importante
 - **MT-019** **Ditado grava, mas não entrega texto no Mac** — correção aplicada ao par
-  Unicode `keyDown`/`keyUp`, com smoke passando pela fila real e pelo event tap. Resta a
-  prova assistida de entrega em aplicativos reais. · `[2.0]` · P · importante
-- **MT-020** **Onboarding mostra modelos como `undefined`** — o contrato das bridges e o
-  smoke cobrem rótulo e tamanho do catálogo. Resta confirmar o seletor na UI real. · `[2.0]`
-  · P · importante
+  Unicode `keyDown`/`keyUp`. Resta a prova assistida de entrega em aplicativos reais. ·
+  `[2.0]` · P · importante
+- **MT-020** **Onboarding mostra modelos como `undefined`** — o contrato das bridges cobre
+  rótulo e tamanho do catálogo. Resta confirmar o seletor na UI real. · `[2.0]` · P · importante
 - **MT-021** **Título duplicado na barra superior do Mac** — o título nativo continua como
-  metadado, mas fica oculto por `titleVisibility`; o smoke cobre a propriedade. Resta a
-  confirmação visual. · `[2.0]` · P · melhoria
+  metadado, mas fica oculto por `titleVisibility`. Resta a confirmação visual. · `[2.0]` · P ·
+  melhoria
 - **MT-022** **Permitir outros modelos de IA na revisão** — Anthropic e OpenAI-compatible
   estão configuráveis a quente, com credenciais isoladas, HTTPS remoto obrigatório e
   fallback para a transcrição original. Resta a prova assistida da configuração na UI. ·

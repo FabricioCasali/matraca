@@ -239,7 +239,8 @@ O bridge Windows permanece específico nesta fase; deduplicá-lo com o bridge Ma
 pré-requisito para mudar o casco. A detecção do WebView2 Runtime no instalador e a matriz
 `macos-14` continuam na Fase 5. Cada fatia termina com `dotnet test Matraca.sln` e
 `dotnet build Matraca.sln -p:EnableWindowsTargeting=true`; a remoção do legado só ocorre
-depois dos smokes e dos checkpoints manuais de painel, bandeja/overlays e ditado completo.
+depois dos testes automatizados e dos checkpoints manuais de painel, bandeja/overlays e
+ditado completo.
 
 **Fase 5 — empacotamento.**
 Mac: bundle `.app` + `.dmg`, `LSUIElement`, `NSMicrophoneUsageDescription`, assinatura e
