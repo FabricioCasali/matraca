@@ -12,6 +12,30 @@ O desenho da frente 2.0 está em [`PLANO-2.0.md`](PLANO-2.0.md).
 ## 🔄 Fazendo
 
 - **MT-038** **Internacionalizar a interface sem misturar reconhecimento** — contrato DS 1.1.0 e implementação pt-BR/en-US integrados no Core, painel Web, HUD e superfícies nativas Windows/macOS. `uiLanguage` aceita `system`, `pt-BR` e `en-US`; instalação nova usa `system`, configuração legada preserva pt-BR e `language` continua exclusivo do reconhecimento. Troca a quente preserva foco, seção, conteúdo e estados explícitos; menus, diálogos, erros seguros e recursos de permissão do macOS acompanham o locale efetivo. Provas automatizadas, navegador Chromium, builds cruzados e bundle macOS assinado estão verdes. Restam confirmação assistida em WebView2/WKWebView, permissões e acessibilidade nativas, além da execução em Windows físico. VER-001, I18N-001, CMP-002/003/004 e A11Y-001. · `[design-system]` · P · importante
+- **MT-039** **Atualizador automatico Windows e macOS** — plano aprovado e execucao
+  iniciada em 2026-09-10; sem novos custos. Renumerado de MT-038 ao integrar com
+  o remoto, que ja reservou esse ID para internacionalizacao; identificadores MT038
+  dos probes/evidencias existentes permanecem inalterados. Buscar e baixar automaticamente, instalar
+  somente por confirmacao, sem interromper ditado/entrega. Opcao marcada por padrao
+  no primeiro uso e nos parametros; apresentacao unica da novidade para instalacoes
+  existentes antes da primeira consulta. NetSparkle + Inno Setup no Windows e Sparkle
+  nativo no Mac; GitHub para distribuicao, pacotes assinados com Ed25519 e chave
+  privada no 1Password. Probes isolados implementados em
+  [`tests/WindowsUpdateProbe`](../tests/WindowsUpdateProbe/README.md) e
+  [`tests/MacUpdateProbe`](../tests/MacUpdateProbe/README.md). Windows ja comprovou
+  download/assinatura, veto, autoatualizacao v1 -> v2 pelo helper original e reabertura
+  com dados sinteticos preservados. Restam UAC/uiAccess/startup e drenagem real.
+  Mac tem fontes .NET/Objective-C e roteiro; compilacao/atualizacao nativas,
+  relaunch, Gatekeeper e permissoes dependem de executar em Mac. No probe Mac,
+  pre-download separado nao e validado e Sparkle baixa novamente apos confirmar;
+  resolver esse contrato antes de integrar. NetSparkle reportou cancelamento como
+  corrupcao; helper nao confere exit code do Inno antes de relancar. Tratar ambos.
+  Integracao completa de parametros/interface e publicacao depende dessas provas;
+  nao substituir a instalacao em uso. Encerramento atual com prazo de cinco segundos
+  nao garante drenagem para atualizacao: implementar coordenacao antes de habilitar
+  instalacao no app. DS 1.0.1, CMP-001/002/003/005, MOT-001 e A11Y-001. Dependencias:
+  empacotamento MT-007; Apple Developer pago fora do escopo (MT-009).
+  · `[atualizacao]` · G · importante
 - **MT-037** **Fixar navegacao e ampliar janela inicial** — usuario esclareceu que
   Aparencia caia na linha seguinte das abas e nao parecia menu; rolagem herdada era
   hipotese anterior, nao causa confirmada. Escopo: navegacao principal fora da

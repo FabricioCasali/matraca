@@ -1,0 +1,22 @@
+{
+  "version": 1,
+  "dependencies": {
+    "net8.0": {
+      "NetSparkleUpdater.SparkleUpdater": {
+        "type": "Direct",
+        "requested": "[3.1.0, 3.1.0]",
+        "resolved": "3.1.0",
+        "contentHash": "ohFNB4q1zDBBoi+j2SBy41NgIJCuXSDRuUY/2ZjQwAgjyZIK4uQkcJDsx0tu00wHCcpRdQijdtcaRG164haAEQ==",
+        "dependencies": {
+          "NetSparkleUpdater.Chaos.NaCl": "0.9.4"
+        }
+      },
+      "NetSparkleUpdater.Chaos.NaCl": {
+        "type": "Transitive",
+        "resolved": "0.9.4",
+        "contentHash": "bGUdkGMW/CvKFm6AMsufYJB9XpoK0TlRfIJ5yANZKhFUTSJe2gf6EO32ZgF9rT+S4h2ETdWHN/33weOnVFjWDQ=="
+      }
+    },
+    "net8.0/win-x64": {}
+  }
+}

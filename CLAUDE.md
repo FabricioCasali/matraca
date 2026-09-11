@@ -11,18 +11,27 @@ escrito aqui.
 
 ## As leis
 
-**1. O áudio nunca sai da máquina.** Nunca é gravado em disco, nunca é transmitido. A
-única coisa que sai é *texto*, e só pelo pós-processamento de IA configurado pelo
-usuário — que é opcional, desligado por padrão, e quando falha devolve a transcrição
+**1. O áudio nunca sai da máquina.** Nunca é gravado em disco, nunca é transmitido. Do
+conteúdo ditado, a única coisa que sai é *texto*, e só pelo pós-processamento de IA
+configurado pelo usuário — que é opcional, desligado por padrão, e quando falha devolve a transcrição
 original em vez de perder o ditado.
 
-**2. Zero telemetria.** Sem analytics, sem verificação de atualização, sem ping de
-inicialização. O app não conta para ninguém que existe.
+**2. Zero telemetria.** Sem analytics, identificador de rastreamento, envio automático
+de relatórios ou ping de inicialização. Exceção aprovada no MT-039: consultar e baixar
+atualizações oficiais pelo GitHub, sem enviar áudio, ditados ou configurações pessoais.
+A preferência é marcada por padrão, explicada no primeiro uso e nos parâmetros;
+instalações existentes recebem a apresentação da novidade antes da primeira consulta.
+Desligá-la cancela consultas/downloads automáticos; a consulta manual permanece possível.
+O provedor recebe as requisições normais de rede, o que deve ser explicado na interface.
+Instalar e reiniciar exige confirmação e ausência de gravação ou entrega pendente.
+Provas isoladas precedem habilitar o recurso no aplicativo (MT-039).
 
 **3. Config aplica a quente.** Pedir para reiniciar é falha de design — ninguém tem
 paciência de reiniciar entre duas tentativas de ajuste. Exceção única e conhecida: a
 troca GPU↔CPU, porque o runtime nativo é fixado por processo; só nesse caso o app
-pergunta.
+pergunta ao aplicar configuração. Instalar uma nova versão é operação distinta:
+reinício confirmado conforme a lei 2, nunca consequência de editar a preferência
+de atualização.
 
 **4. Nada rouba foco enquanto o usuário dita.** HUD, moldura de foco e avisos são
 não-ativáveis e ignoram clique. Uma janela nossa que recebe foco no meio de um ditado

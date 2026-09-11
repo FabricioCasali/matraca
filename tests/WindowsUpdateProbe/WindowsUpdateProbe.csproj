@@ -1,0 +1,19 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net8.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <Version>1.0.0</Version>
+    <IncludeSourceRevisionInInformationalVersion>false</IncludeSourceRevisionInInformationalVersion>
+    <Company>Matraca.Isolated.Tests</Company>
+    <Product>MT038 Windows Update Probe</Product>
+    <RestorePackagesWithLockFile>true</RestorePackagesWithLockFile>
+    <RestorePackagesPath>$(MSBuildThisFileDirectory).packages</RestorePackagesPath>
+  </PropertyGroup>
+  <ItemGroup>
+    <FrameworkReference Include="Microsoft.AspNetCore.App" />
+    <PackageReference Include="NetSparkleUpdater.SparkleUpdater" Version="[3.1.0]" />
+    <Compile Remove="Payload/**/*.cs;artifacts/**/*.cs" />
+  </ItemGroup>
+</Project>

@@ -1,0 +1,18 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <TargetFramework>net8.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <AssemblyName>MT038.Isolated.Payload</AssemblyName>
+    <Version>1.0.0</Version>
+    <IncludeSourceRevisionInInformationalVersion>false</IncludeSourceRevisionInInformationalVersion>
+    <Company>Matraca.Isolated.Tests</Company>
+    <Product>MT038 Isolated Payload</Product>
+    <RestorePackagesWithLockFile>true</RestorePackagesWithLockFile>
+    <RestorePackagesPath>$(MSBuildThisFileDirectory)..\.packages</RestorePackagesPath>
+  </PropertyGroup>
+  <ItemGroup>
+    <PackageReference Include="NetSparkleUpdater.SparkleUpdater" Version="[3.1.0]" />
+  </ItemGroup>
+</Project>
