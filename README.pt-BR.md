@@ -15,15 +15,15 @@ O áudio permanece na memória da máquina e nunca é enviado ou gravado em disc
 | Canal | Plataforma | Estado |
 |---|---|---|
 | [Última release](https://github.com/FabricioCasali/matraca/releases/latest) | Windows x64 | Instalador self-contained publicado pelo GitHub Actions. |
-| [preview macOS](https://github.com/FabricioCasali/matraca/releases/tag/v2.0.1-macos-preview.1) | macOS Apple Silicon | Preview público de desenvolvimento. Assinado com a identidade local `Matraca Dev`; não é notarizado pela Apple. |
-| `main` / 2.0.1 | Windows x64 e macOS Apple Silicon | Interface compartilhada com Design System 1.0.1. Outras provas nativas continuam pendentes. |
+| [pacote macOS](https://github.com/FabricioCasali/matraca/releases/tag/v2.0.2) | macOS Apple Silicon | Pacote público. Assinado com a identidade local `Matraca Dev`; não é notarizado pela Apple. Atualização automática continua pendente. |
+| `main` / 2.0.2 | Windows x64 e macOS Apple Silicon | Interface compartilhada com Design System 1.0.1. Outras provas nativas continuam pendentes. |
 
 Para instalar a versão pública no Windows, baixe
 [o instalador da última release](https://github.com/FabricioCasali/matraca/releases/latest).
 Confira o estado da assinatura nas notas da release. Instaladores sem assinatura podem gerar
 um aviso do Windows.
 
-As seções abaixo descrevem a linha de código 2.0.1. O preview macOS é um ZIP para Apple Silicon,
+As seções abaixo descrevem a linha de código 2.0.2. O pacote macOS é um ZIP para Apple Silicon,
 não um `.dmg` notarizado.
 
 ## O que existe na 2.0
@@ -204,7 +204,7 @@ Para gerar o instalador self-contained x64, instale também o
 
 ```powershell
 .\installer\build-installer.ps1
-# usa a versão do projeto Windows; saída: installer\output\matraca-setup-2.0.1.exe
+# usa a versão do projeto Windows; saída: installer\output\matraca-setup-2.0.2.exe
 # versão explícita de CI: .\installer\build-installer.ps1 -Version 0.0.0
 ```
 
@@ -215,7 +215,7 @@ assinar o executável instalado.
 ### Publicar uma versão
 
 Depois dos testes e do push autorizado para `main`, crie a tag `v<versão>` no commit desejado
-e envie somente essa tag, por exemplo `git push origin v2.0.1`. O workflow `build` verifica o
+e envie somente essa tag, por exemplo `git push origin v2.0.2`. O workflow `build` verifica o
 código, publica as duas variantes de manifest Windows, gera o instalador Inno Setup, assina
 quando configurado e cria a release no GitHub. Push normal na `main` gera artefato de CI, não
 release pública. Confirme o run do Actions e o instalador anexado antes de anunciar publicação.

@@ -15,14 +15,14 @@ Audio stays in memory on your computer. It is never uploaded or written to disk.
 | Channel | Platform | Status |
 |---|---|---|
 | [Latest release](https://github.com/FabricioCasali/matraca/releases/latest) | Windows x64 | Self-contained installer published by GitHub Actions. |
-| [macOS preview](https://github.com/FabricioCasali/matraca/releases/tag/v2.0.1-macos-preview.1) | Apple Silicon macOS | Public development preview. Signed with the local `Matraca Dev` identity; not Apple-notarized. |
-| `main` / 2.0.1 | Windows x64 and Apple Silicon macOS | Shared interface with Design System 1.0.1. Further native checks remain pending. |
+| [macOS package](https://github.com/FabricioCasali/matraca/releases/tag/v2.0.2) | Apple Silicon macOS | Public package. Signed with the local `Matraca Dev` identity; not Apple-notarized. Automatic updates remain pending. |
+| `main` / 2.0.2 | Windows x64 and Apple Silicon macOS | Shared interface with Design System 1.0.1. Further native checks remain pending. |
 
 To install the public Windows release, download
 [the installer from the latest release](https://github.com/FabricioCasali/matraca/releases/latest).
 Check the release notes for signing status. Unsigned installers may trigger a Windows warning.
 
-The sections below describe the 2.0.1 code line. The macOS preview is a ZIP for Apple Silicon,
+The sections below describe the 2.0.2 code line. The macOS package is a ZIP for Apple Silicon,
 not a notarized `.dmg`.
 
 ## What is in 2.0
@@ -202,7 +202,7 @@ installer:
 
 ```powershell
 .\installer\build-installer.ps1
-# defaults to the Windows project version; output: installer\output\matraca-setup-2.0.1.exe
+# defaults to the Windows project version; output: installer\output\matraca-setup-2.0.2.exe
 # explicit CI version: .\installer\build-installer.ps1 -Version 0.0.0
 ```
 
@@ -213,7 +213,7 @@ executable.
 ### Release process
 
 After tests and an authorized push to `main`, tag the intended commit with `v<version>` and push
-that tag explicitly, for example `git push origin v2.0.1`. The `build` workflow runs checks,
+that tag explicitly, for example `git push origin v2.0.2`. The `build` workflow runs checks,
 publishes both Windows manifest variants, builds the Inno Setup installer, optionally signs it,
 and creates the GitHub Release. A normal `main` push creates a CI artifact, not a public release.
 Confirm the Actions run and attached installer before reporting publication. There is no automatic

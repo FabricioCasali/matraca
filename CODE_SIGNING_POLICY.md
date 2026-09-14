@@ -9,8 +9,8 @@ selected application.
 
 - Source: <https://github.com/FabricioCasali/matraca>
 - License: [MIT](LICENSE)
-- Public release: Windows x64 [v2.0.1](https://github.com/FabricioCasali/matraca/releases/tag/v2.0.1)
-- macOS status: public Apple Silicon preview [v2.0.1-macos-preview.1](https://github.com/FabricioCasali/matraca/releases/tag/v2.0.1-macos-preview.1), not Apple-signed for distribution or notarized
+- Public release: Windows x64 and Apple Silicon macOS [v2.0.2](https://github.com/FabricioCasali/matraca/releases/tag/v2.0.2)
+- macOS status: public Apple Silicon package, signed with the local `Matraca Dev` identity, not Apple-signed for distribution or notarized; automatic updates remain pending
 
 ## Team roles
 
@@ -51,7 +51,7 @@ Windows allows global hotkeys while an elevated application has focus.
 
 ## macOS signing
 
-`Matraca.Mac/pack.sh` produces a self-contained Apple Silicon `.app` for development. It signs the
+`Matraca.Mac/pack.sh` produces a self-contained Apple Silicon `.app` and ZIP package. It signs the
 bundle with a local identity named `Matraca Dev`, or the identity selected through
 `MATRACA_SIGN_IDENTITY`, so macOS can associate Microphone and Accessibility permissions with a
 stable application identity.
