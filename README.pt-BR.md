@@ -15,15 +15,16 @@ O áudio permanece na memória da máquina e nunca é enviado ou gravado em disc
 | Canal | Plataforma | Estado |
 |---|---|---|
 | [Última release](https://github.com/FabricioCasali/matraca/releases/latest) | Windows x64 | Instalador self-contained publicado pelo GitHub Actions. |
-| `main` / 2.0.1 | Windows x64 e macOS Apple Silicon | Interface compartilhada com Design System 1.0.1. Distribuição macOS e outras provas nativas continuam pendentes. |
+| [preview macOS](https://github.com/FabricioCasali/matraca/releases/tag/v2.0.1-macos-preview.1) | macOS Apple Silicon | Preview público de desenvolvimento. Assinado com a identidade local `Matraca Dev`; não é notarizado pela Apple. |
+| `main` / 2.0.1 | Windows x64 e macOS Apple Silicon | Interface compartilhada com Design System 1.0.1. Outras provas nativas continuam pendentes. |
 
 Para instalar a versão pública no Windows, baixe
 [o instalador da última release](https://github.com/FabricioCasali/matraca/releases/latest).
 Confira o estado da assinatura nas notas da release. Instaladores sem assinatura podem gerar
 um aviso do Windows.
 
-As seções abaixo descrevem a linha de código 2.0.1. Não há `.dmg` nem
-release pública para macOS ainda.
+As seções abaixo descrevem a linha de código 2.0.1. O preview macOS é um ZIP para Apple Silicon,
+não um `.dmg` notarizado.
 
 ## O que existe na 2.0
 
@@ -231,7 +232,8 @@ bash Matraca.Mac/pack.sh
 # saída: Matraca.Mac/bin/Matraca.app
 ```
 
-Esse pacote é para desenvolvimento. Ele não é notarizado e ainda não existe `.dmg` público.
+O preview público é para desenvolvimento. Ele é assinado com a identidade local `Matraca Dev`,
+não é notarizado pela Apple e é distribuído como ZIP, não como `.dmg`.
 
 ## Arquitetura
 

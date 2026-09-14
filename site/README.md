@@ -2,7 +2,7 @@
 
 Pagina de entrada: https://fabriciocasali.github.io/matraca/
 
-`index.html` serve portugues e `en/index.html` serve ingles, ambos com marca 03A e demonstracao sem captura de audio. `favicon.svg` deriva do mesmo asset oficial. Sem build de frontend, fontes externas ou analytics. O design aprovado foi trazido do OpenDesign; este diretorio e a fonte versionada para futuras publicacoes.
+`index.html` serve portugues e `en/index.html` serve ingles, ambos com marca 03A e demonstracao sem captura de audio. `favicon.svg` deriva do mesmo asset oficial. O site nao faz requisicoes em tempo de execucao, nao usa fontes externas nem analytics. O design aprovado foi trazido do OpenDesign; este diretorio e a fonte versionada para futuras publicacoes.
 
 ## Publicacao
 
@@ -10,7 +10,7 @@ O workflow `.github/workflows/pages.yml` roda os testes antes de publicar. Push 
 
 Settings > Pages deve usar **GitHub Actions** (`build_type: workflow`). O ambiente de deploy e `github-pages`, sem dominio customizado.
 
-`index.html`, `en/index.html`, `favicon.svg` e `.nojekyll` entram no artefato publico. Testes, este README, gerador e arquivos de design nao sao publicados. A publicacao do site nao cria uma nova release nem instala o aplicativo. O CI geral do repositorio tambem pode rodar em pushes de main, conforme sua configuracao existente.
+`index.html`, `en/index.html`, `favicon.svg` e `.nojekyll` entram no artefato publico. Durante o workflow, `build-site.cjs` consulta a API do GitHub, em tempo de build, para resolver a ultima release estavel do Windows e o preview macOS mais recente; os links sao gravados no HTML estatico. Testes, este README, gerador e arquivos de design nao sao publicados. A publicacao do site nao cria uma nova release nem instala o aplicativo. O CI geral do repositorio tambem pode rodar em pushes de main, conforme sua configuracao existente.
 
 ## Testar localmente
 
@@ -29,9 +29,9 @@ As duas paginas possuem metadados, canonical e `hreflang` estaticos. Crawlers se
 
 ## Releases e disponibilidade
 
-Na verificacao de publicacao, a ultima release publica era `v2.0.0`, com apenas `matraca-setup-2.0.0.exe` para Windows x64. O instalador nao esta assinado. Como o pacote Mac ainda nao apareceu nas releases, o site informa que esta em preparacao e aponta para a pagina de releases, sem inventar um DMG.
+O site nao fixa uma versao no codigo publicado. Em cada push na `main` e em cada release publicada, o workflow resolve a release estavel do Windows e o preview macOS existente. O preview macOS pode ser assinado apenas com a identidade local de desenvolvimento e nao deve ser apresentado como notarizado pela Apple.
 
-Quando o pacote Mac estiver publico, atualizar os textos PT/EN e o link em conjunto. Ao mudar a versao Windows, revisar URL, assinatura e avisos nos dois idiomas. Nao reutilizar um nome de asset sem conferir sua existencia.
+Quando o pacote Mac mudar de preview para distribuicao, revisar os textos PT/EN e o link em conjunto. Ao mudar a versao Windows, revisar URL, assinatura e avisos nos dois idiomas. Nao reutilizar um nome de asset sem conferir sua existencia.
 
 ## Reverter
 

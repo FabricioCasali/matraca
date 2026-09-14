@@ -130,11 +130,11 @@ def package(version, root, sdk, public, identifier, port, env):
     with (app / "Contents" / "Info.plist").open("wb") as stream:
         plistlib.dump(plist_for(version, identifier, root, public, port), stream)
     run("plutil", "-lint", app / "Contents" / "Info.plist")
-    # Sign Mach-O files only, not managed PE assemblies / configuration JSON.
+    # Sign all published payload files before signing the bundle. codesign's deep
+    # verification treats managed assemblies as nested code on this macOS setup.
     for path in sorted(macos.rglob("*")):
         if path.is_file() and not path.is_symlink() and path.name != "MacUpdateProbe":
-            if "Mach-O" in run("file", "-b", path, capture=True).stdout:
-                sign(path)
+            sign(path)
     # Official Sparkle nested-signing order; no --deep signing.
     for relative in ("Versions/B/XPCServices/Installer.xpc",
                      "Versions/B/XPCServices/Downloader.xpc",

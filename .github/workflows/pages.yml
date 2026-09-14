@@ -6,6 +6,8 @@ on:
     paths:
       - 'site/**'
       - '.github/workflows/pages.yml'
+  release:
+    types: [published]
   pull_request:
     paths:
       - 'site/**'
@@ -28,28 +30,43 @@ jobs:
       pages: read
     steps:
       - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event_name == 'release' && 'main' || github.ref }}
       - uses: actions/setup-node@v4
         with:
           node-version: '22'
       - name: Test Portuguese, English and demo
         run: node site/site.test.cjs
+      - name: Test release-aware site build
+        run: node site/build-site.test.cjs
+      - name: Resolve published releases
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          curl --fail --silent --show-error --retry 3 \
+            -H "Accept: application/vnd.github+json" \
+            -H "Authorization: Bearer $GH_TOKEN" \
+            "https://api.github.com/repos/${{ github.repository }}/releases?per_page=100" \
+            > "$RUNNER_TEMP/matraca-releases.json"
+          node site/generate-english.cjs
+          node site/build-site.cjs --release-json "$RUNNER_TEMP/matraca-releases.json" --output _site
       - name: Prepare public files only
         run: |
-          install -D site/index.html _site/index.html
-          install -D site/en/index.html _site/en/index.html
-          install -D site/favicon.svg _site/favicon.svg
-          touch _site/.nojekyll
+          test -f _site/index.html
+          test -f _site/en/index.html
+          test -f _site/favicon.svg
+          test -f _site/.nojekyll
       - name: Configure Pages
-        if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
+        if: github.event_name != 'pull_request'
         uses: actions/configure-pages@v5
       - name: Upload public website
-        if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
+        if: github.event_name != 'pull_request'
         uses: actions/upload-pages-artifact@v4
         with:
           path: _site
 
   deploy:
-    if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
+    if: github.event_name != 'pull_request'
     needs: validate-and-package
     runs-on: ubuntu-latest
     timeout-minutes: 10

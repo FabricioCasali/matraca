@@ -9,8 +9,8 @@ selected application.
 
 - Source: <https://github.com/FabricioCasali/matraca>
 - License: [MIT](LICENSE)
-- Public release: Windows x64 [v1.1.0](https://github.com/FabricioCasali/matraca/releases/tag/v1.1.0)
-- macOS status: development only; no public or notarized package is available
+- Public release: Windows x64 [v2.0.1](https://github.com/FabricioCasali/matraca/releases/tag/v2.0.1)
+- macOS status: public Apple Silicon preview [v2.0.1-macos-preview.1](https://github.com/FabricioCasali/matraca/releases/tag/v2.0.1-macos-preview.1), not Apple-signed for distribution or notarized
 
 ## Team roles
 

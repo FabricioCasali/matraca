@@ -17,7 +17,6 @@ for(const [page,label]of [[html,'Portuguese'],[english,'English']]){
  const stack=[],voids=new Set(['meta','link','br','input','hr','img']);
  for(const tag of page.matchAll(/<(\/?)([a-z][\w-]*)\b[^>]*>/g)){if(voids.has(tag[2])||tag[0].endsWith('/>'))continue;if(tag[1])assert.equal(stack.pop(),tag[2],label+' markup');else stack.push(tag[2]);}assert.equal(stack.length,0,label+' complete markup');
 }
-assert.ok(html.includes('releases/download/v2.0.0/matraca-setup-2.0.0.exe'));
 assert.ok(html.includes('não tem assinatura de código'));
 assert.ok(html.includes('Da ideia<br><em>direto ao texto.</em>'));
 assert.ok(html.includes('Seu raciocínio<br>não precisa parar.'));
@@ -26,7 +25,7 @@ assert.ok(html.includes('class="voice-demo-panel"'));
 assert.ok(!/class="demo-card"|class="demo-hud"/.test(html),'No fake window or overlapping HUD');
 assert.ok(html.includes('01 / SUA VOZ')&&html.includes('02 / SEU TEXTO'));
 assert.ok(html.includes('data-od-id="download-mac"'));
-assert.ok(html.includes('O pacote macOS Apple Silicon está em preparação'));
+assert.ok(html.includes('Um preview público para macOS Apple Silicon está disponível'));
 assert.ok(!/Há pacotes públicos para Windows x64 e macOS Apple Silicon|Menos teclado\./.test(html));
 assert.ok(html.includes('<link rel="canonical" href="https://fabriciocasali.github.io/matraca/">'));
 assert.ok(html.includes('<link rel="icon" type="image/svg+xml" href="favicon.svg">'));
@@ -41,8 +40,9 @@ const favicon=fs.readFileSync(path.join(__dirname,'favicon.svg'));
 assert.deepEqual(favicon,fs.readFileSync(path.join(__dirname,'../design/assets/brand/matraca-03a-app-olive-light.svg')));
 assert.ok(!/<script\b|\bhref\s*=|var\s*\(/i.test(favicon.toString('utf8')),'Standalone favicon');
 const workflow=fs.readFileSync(path.join(__dirname,'../.github/workflows/pages.yml'),'utf8');
-assert.ok(workflow.includes('site/en/index.html _site/en/index.html'));
-assert.ok(workflow.includes('site/favicon.svg _site/favicon.svg'));
+assert.ok(workflow.includes('node site/build-site.cjs'));
+assert.ok(workflow.includes('node site/generate-english.cjs'));
+assert.ok(workflow.includes('site/favicon.svg'));
 assert.ok(!/\{\{|lorem ipsum/i.test(html));
 const timers=new Map();let sequence=0;
 const media={matches:false,addEventListener(name,fn){this[name]=fn;}};
@@ -56,7 +56,7 @@ assert.equal(run('playing'),false,'No autoplay');run('playDemo()');assert.equal(
 run('playDemo()');run('playDemo()');drain();assert.equal(run('playing'),false);
 media.matches=true;run('playDemo()');assert.equal(run('playing'),false);assert.equal(el('demo-text').textContent,run('EXAMPLE'));assert.equal(timers.size,0);
 media.matches=false;run('playDemo()');document.hidden=true;document.visibilitychange();drain();assert.equal(run('playing'),false);
-console.log('PASS: complete HTML, local anchors, verified release URL, single primary CTA, no network code, demo playback/cancel/reduced motion/hidden page. Browser layout not exercised.');
+console.log('PASS: complete HTML, local anchors, single primary CTA, no network code, demo playback/cancel/reduced motion/hidden page. Browser layout not exercised.');
 const baseline=run('translations.map(x=>x.pt)');
 document.querySelector('[data-od-id="faq-price"]').setAttribute('open','');
 for(const locale of ['en','pt-BR']){
