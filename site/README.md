@@ -6,7 +6,7 @@ Pagina de entrada: https://fabriciocasali.github.io/matraca/
 
 ## Publicacao
 
-O workflow `.github/workflows/pages.yml` roda os testes antes de publicar. Push em `main` que altera `site/**` ou o workflow publica automaticamente; pull requests somente validam. Tambem e possivel disparar manualmente pelo GitHub Actions.
+O workflow `.github/workflows/pages.yml` roda os testes antes de publicar. Push em `main` que altera `site/**` ou o workflow publica automaticamente; pull requests somente validam. O `release.yml` tambem dispara `pages.yml` explicitamente depois de criar uma release por tag, porque eventos criados pelo `GITHUB_TOKEN` nao iniciam outro workflow automaticamente. Tambem e possivel disparar manualmente pelo GitHub Actions.
 
 Settings > Pages deve usar **GitHub Actions** (`build_type: workflow`). O ambiente de deploy e `github-pages`, sem dominio customizado.
 
@@ -31,7 +31,7 @@ As duas paginas possuem metadados, canonical e `hreflang` estaticos. Crawlers se
 
 O site nao fixa uma versao no codigo publicado. Em cada push na `main` e em cada release publicada, o workflow resolve a release estavel do Windows e o preview macOS existente. O preview macOS pode ser assinado apenas com a identidade local de desenvolvimento e nao deve ser apresentado como notarizado pela Apple.
 
-Quando o pacote Mac mudar de preview para distribuicao, revisar os textos PT/EN e o link em conjunto. Ao mudar a versao Windows, revisar URL, assinatura e avisos nos dois idiomas. Nao reutilizar um nome de asset sem conferir sua existencia.
+Quando o pacote Mac mudar de preview para distribuicao, revisar os textos PT/EN e o link em conjunto. Ao mudar a versao Windows, revisar URL, assinatura e avisos nos dois idiomas. Nao reutilizar um nome de asset sem conferir sua existencia. Para publicar uma versao Windows, basta criar e enviar a tag `vX.Y.Z`; o `release.yml` publica a release e dispara a atualizacao do Pages.
 
 ## Reverter
 

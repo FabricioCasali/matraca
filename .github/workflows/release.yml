@@ -19,6 +19,7 @@ on:
 
 permissions:
   contents: write # criar o release
+  actions: write  # disparar a publicação do Pages após criar o release
   id-token: write # exigido pelo SignPath p/ atestar a origem do build
 
 jobs:
@@ -135,3 +136,16 @@ jobs:
             [SignPath Foundation](https://signpath.org), and requires manual approval.
             Team roles, build process and privacy policy:
             [CODE_SIGNING_POLICY.md](https://github.com/FabricioCasali/matraca/blob/main/CODE_SIGNING_POLICY.md).
+
+      - name: Atualizar site no GitHub Pages
+        if: ${{ startsWith(github.ref, 'refs/tags/') }}
+        uses: actions/github-script@v7
+        with:
+          github-token: ${{ github.token }}
+          script: |
+            await github.rest.actions.createWorkflowDispatch({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              workflow_id: 'pages.yml',
+              ref: 'main'
+            });
