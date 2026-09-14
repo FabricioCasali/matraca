@@ -10,7 +10,7 @@ O workflow `.github/workflows/pages.yml` roda os testes antes de publicar. Push 
 
 Settings > Pages deve usar **GitHub Actions** (`build_type: workflow`). O ambiente de deploy e `github-pages`, sem dominio customizado.
 
-`index.html`, `en/index.html`, `favicon.svg` e `.nojekyll` entram no artefato publico. Durante o workflow, `build-site.cjs` consulta a API do GitHub, em tempo de build, para resolver a ultima release estavel do Windows e o preview macOS mais recente; os links sao gravados no HTML estatico. Testes, este README, gerador e arquivos de design nao sao publicados. A publicacao do site nao cria uma nova release nem instala o aplicativo. O CI geral do repositorio tambem pode rodar em pushes de main, conforme sua configuracao existente.
+`index.html`, `en/index.html`, `favicon.svg` e `.nojekyll` entram no artefato publico. Durante o workflow, `build-site.cjs` consulta a API do GitHub, em tempo de build, para resolver a ultima release estavel do Windows e o pacote macOS mais recente; o texto distingue release preview de release regular, e os links sao gravados no HTML estatico. Testes, este README, gerador e arquivos de design nao sao publicados. A publicacao do site nao cria uma nova release nem instala o aplicativo. O CI geral do repositorio tambem pode rodar em pushes de main, conforme sua configuracao existente.
 
 ## Testar localmente
 
@@ -29,7 +29,7 @@ As duas paginas possuem metadados, canonical e `hreflang` estaticos. Crawlers se
 
 ## Releases e disponibilidade
 
-O site nao fixa uma versao no codigo publicado. Em cada push na `main` e em cada release publicada, o workflow resolve a release estavel do Windows e o preview macOS existente. O preview macOS pode ser assinado apenas com a identidade local de desenvolvimento e nao deve ser apresentado como notarizado pela Apple.
+O site nao fixa uma versao no codigo publicado. Em cada push na `main` e em cada release publicada, o workflow resolve a release estavel do Windows e o pacote macOS existente. Um pacote regular ainda pode ser assinado apenas com a identidade local de desenvolvimento e nao deve ser apresentado como certificado ou notarizado pela Apple; atualizacao automatica tambem continua sendo uma etapa separada.
 
 Quando o pacote Mac mudar de preview para distribuicao, revisar os textos PT/EN e o link em conjunto. Ao mudar a versao Windows, revisar URL, assinatura e avisos nos dois idiomas. Nao reutilizar um nome de asset sem conferir sua existencia. Para publicar uma versao Windows, basta criar e enviar a tag `vX.Y.Z`; o `release.yml` publica a release e dispara a atualizacao do Pages.
 

@@ -225,12 +225,14 @@ The current project requires Apple Silicon, macOS 15 or later, Xcode Command Lin
 code-signing identity named `Matraca Dev`. Set `MATRACA_SIGN_IDENTITY` to use a different identity:
 
 ```bash
-bash Matraca.Mac/pack.sh
-# output: Matraca.Mac/bin/Matraca.app
+bash Matraca.Mac/pack.sh 2.0.2
+# output: Matraca.Mac/bin/Matraca.app and Matraca.Mac/bin/Matraca-2.0.2-macos-arm64.zip
 ```
 
-The public preview package is for development. It is signed with the local `Matraca Dev` identity,
-is not notarized by Apple, and is distributed as a ZIP rather than a `.dmg`.
+A macOS package built locally is signed with the local `Matraca Dev` identity, is not notarized by
+Apple, and is distributed as a ZIP rather than a `.dmg`. Publishing it as a regular GitHub release
+does not change those limitations; automatic updates remain unavailable until the Mac distribution
+and updater work is complete.
 
 ## Architecture
 
