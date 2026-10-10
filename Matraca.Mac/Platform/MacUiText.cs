@@ -16,6 +16,8 @@ internal sealed class MacUiText
 
     public string MenuStarting => _english ? "Starting..." : "Iniciando...";
     public string MenuOpen => _english ? "Open Matraca..." : "Abrir Matraca...";
+    public string MenuCopyLastTranscription => _english ? "Copy last transcription" : "Copiar última transcrição";
+    public string CopyFailed => _english ? "The text could not be copied." : "Não foi possível copiar o texto.";
     public string MenuQuit => _english ? "Quit Matraca" : "Sair do Matraca";
     public string AccessibilityLabel => _english ? "Matraca menu bar item" : "Item do Matraca na barra de menus";
     public string AccessibilityRequiredMessage => _english
