@@ -10,12 +10,16 @@ internal sealed class MacStatusItem : IDisposable
     private readonly IntPtr _button;
     private readonly IntPtr _stateItem;
     private readonly MacMenuActionTarget _openTarget;
+    private readonly MacMenuActionTarget _copyTarget;
     private IntPtr _openItem;
+    private IntPtr _copyItem;
     private IntPtr _quitItem;
     private MacUiText _ui;
     private IntPtr _statusItem;
 
     public event Action? OpenRequested;
+    public event Action? CopyLastTranscriptionRequested;
+    public Func<bool>? CanCopyLastTranscription { get; set; }
 
     public MacStatusItem(MacApplication application, string effectiveUiLanguage)
     {
@@ -54,6 +58,17 @@ internal sealed class MacStatusItem : IDisposable
         SetAccessibilityLabel(_openItem, _ui.MenuOpen);
         ObjC.SendVoid(menu, ObjCSelectors.AddItem, _openItem);
         ObjC.SendVoid(_openItem, ObjCSelectors.Release);
+        _copyTarget = new MacMenuActionTarget(
+            () => CopyLastTranscriptionRequested?.Invoke(),
+            () => CanCopyLastTranscription?.Invoke() == true);
+        _copyItem = CreateMenuItem(_ui.MenuCopyLastTranscription, ObjCSelectors.CopyLastTranscription, "");
+        if (_copyItem == IntPtr.Zero)
+            throw new InvalidOperationException("Failed to create the copy menu item.");
+        ObjC.SendVoid(_copyItem, ObjCSelectors.SetTarget, _copyTarget.Handle);
+        ObjC.SendVoidBool(_copyItem, ObjCSelectors.SetEnabled, false);
+        SetAccessibilityLabel(_copyItem, _ui.MenuCopyLastTranscription);
+        ObjC.SendVoid(menu, ObjCSelectors.AddItem, _copyItem);
+        ObjC.SendVoid(_copyItem, ObjCSelectors.Release);
         ObjC.SendVoid(menu, ObjCSelectors.AddItem,
             ObjC.Send(ObjCClasses.NSMenuItem, ObjCSelectors.SeparatorItem));
 
@@ -74,9 +89,11 @@ internal sealed class MacStatusItem : IDisposable
         _ui = new MacUiText(effectiveUiLanguage);
         ObjC.SendVoid(_stateItem, ObjCSelectors.SetTitle, NSStringRef.From(_ui.MenuStarting));
         ObjC.SendVoid(_openItem, ObjCSelectors.SetTitle, NSStringRef.From(_ui.MenuOpen));
+        ObjC.SendVoid(_copyItem, ObjCSelectors.SetTitle, NSStringRef.From(_ui.MenuCopyLastTranscription));
         ObjC.SendVoid(_quitItem, ObjCSelectors.SetTitle, NSStringRef.From(_ui.MenuQuit));
         SetAccessibilityLabel(_button, _ui.AccessibilityLabel);
         SetAccessibilityLabel(_openItem, _ui.MenuOpen);
+        SetAccessibilityLabel(_copyItem, _ui.MenuCopyLastTranscription);
         SetAccessibilityLabel(_quitItem, _ui.MenuQuit);
     }
 
@@ -102,8 +119,11 @@ internal sealed class MacStatusItem : IDisposable
     {
         if (_statusItem == IntPtr.Zero) return;
         OpenRequested = null;
+        CopyLastTranscriptionRequested = null;
+        CanCopyLastTranscription = null;
         ObjC.SendVoid(_statusBar, ObjCSelectors.RemoveStatusItem, _statusItem);
         _statusItem = IntPtr.Zero;
         _openTarget.Dispose();
+        _copyTarget.Dispose();
     }
 }

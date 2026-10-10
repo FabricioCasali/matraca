@@ -30,6 +30,8 @@ internal sealed class WindowsUiMessages
     public string TrayStarting => _english ? "Matraca - starting..." : "Matraca - iniciando...";
     public string SettingsMenu => _english ? "Settings..." : "Configurações...";
     public string HistoryMenu => _english ? "Dictation history..." : "Histórico de ditados...";
+    public string CopyLastTranscriptionMenu => _english ? "Copy last transcription" : "Copiar última transcrição";
+    public string CopyFailed => _english ? "The text could not be copied." : "Não foi possível copiar o texto.";
     public string LogMenu => _english ? "Open matraca.log" : "Abrir matraca.log";
     public string ConfigFolderMenu => _english ? "Open config folder" : "Abrir pasta de configuração";
     public string ExitMenu => _english ? "Exit" : "Sair";

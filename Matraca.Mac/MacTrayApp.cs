@@ -17,6 +17,7 @@ internal sealed class MacTrayApp : IDisposable
     private readonly DictationController _controller;
     private readonly SemaphoreSlim _configGate = new(1, 1);
     private readonly MacShell _shell;
+    private readonly MacStatusItem _statusItem;
     private readonly MacAudioCapture _audio;
     private readonly MacTargetWindow _targets;
     private readonly object _webTargetGate = new();
@@ -35,6 +36,7 @@ internal sealed class MacTrayApp : IDisposable
         _config = config ?? throw new ArgumentNullException(nameof(config));
         _runtimeGpu = config.Gpu;
         ArgumentNullException.ThrowIfNull(statusItem);
+        _statusItem = statusItem;
 
         _keyboard = new MacKeyboardHook(config);
         _audio = new MacAudioCapture();
@@ -54,6 +56,9 @@ internal sealed class MacTrayApp : IDisposable
                 : null,
             MainThread.Post,
             usageLedger: new AiUsageLedger(MacConfig.Paths));
+        _statusItem.CanCopyLastTranscription = () =>
+            Volatile.Read(ref _stopping) == 0 && CanOpenWebWindow && HistorySnapshot().Count > 0;
+        _statusItem.CopyLastTranscriptionRequested += CopyLastTranscription;
     }
 
     public void Start()
@@ -175,6 +180,25 @@ internal sealed class MacTrayApp : IDisposable
     internal void ClearHistory() => _controller.CurrentHistory?.Clear();
 
     internal bool CopyText(string text) => new MacPasteboard().WriteText(text);
+
+    private void CopyLastTranscription()
+    {
+        try
+        {
+            if (Volatile.Read(ref _stopping) != 0 || !CanOpenWebWindow) return;
+            List<DictationHistoryEntry> entries = HistorySnapshot();
+            if (entries.Count == 0) return;
+            if (CopyText(entries[0].Text)) return;
+            Logger.Warn("Falha ao copiar ultima transcricao pelo menu.");
+        }
+        catch (Exception exception)
+        {
+            Logger.Error("Falha ao copiar ultima transcricao pelo menu", exception);
+        }
+        MacUiText ui = new(_config.EffectiveUiLanguage);
+        try { _shell.ShowNotification(ui.InterfaceErrorTitle, ui.CopyFailed, ShellNotificationLevel.Error); }
+        catch (Exception exception) { Logger.Error("Falha ao avisar erro na copia pelo menu", exception); }
+    }
 
     internal void ShowWebError(string message)
         => MainThread.Post(() =>
@@ -417,6 +441,8 @@ internal sealed class MacTrayApp : IDisposable
     public async Task ShutdownAsync(CancellationToken cancellationToken = default)
     {
         if (Interlocked.Exchange(ref _stopping, 1) != 0) return;
+        _statusItem.CopyLastTranscriptionRequested -= CopyLastTranscription;
+        _statusItem.CanCopyLastTranscription = null;
         ReleaseWebTarget();
         _sleepWakeMonitor?.Dispose();
         _sleepWakeMonitor = null;

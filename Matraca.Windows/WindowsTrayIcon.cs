@@ -144,6 +144,19 @@ internal sealed class WindowsTrayIcon : IDisposable
         _menuLabels[commandId] = text;
     }
 
+    public void SetMenuItemEnabled(uint commandId, bool enabled)
+    {
+        VerifyNotDisposed();
+        _window.VerifyAccess();
+        if (!_menuActions.ContainsKey(commandId))
+            throw new ArgumentOutOfRangeException(nameof(commandId));
+        uint previous = WindowsNativeMethods.EnableMenuItem(
+            _menu, commandId, WindowsNativeMethods.MfByCommand |
+                (enabled ? WindowsNativeMethods.MfEnabled : WindowsNativeMethods.MfGrayed));
+        if (previous == uint.MaxValue)
+            throw new Win32Exception(Marshal.GetLastWin32Error(), "Falha ao habilitar item do menu da bandeja.");
+    }
+
     public void AddMenuSeparator()
     {
         VerifyNotDisposed();

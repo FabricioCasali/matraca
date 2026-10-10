@@ -39,6 +39,8 @@ internal static class ObjCSelectors
     public static readonly IntPtr SeparatorItem = Register("separatorItem");
     public static readonly IntPtr SetEnabled = Register("setEnabled:");
     public static readonly IntPtr OpenMatraca = Register("openMatraca:");
+    public static readonly IntPtr CopyLastTranscription = Register("copyLastTranscription:");
+    public static readonly IntPtr ValidateMenuItem = Register("validateMenuItem:");
     public static readonly IntPtr IsMainThread = Register("isMainThread");
     public static readonly IntPtr Screens = Register("screens");
     public static readonly IntPtr Count = Register("count");

@@ -68,6 +68,8 @@ internal static class WindowsNativeMethods
 
     internal const uint MfString = 0x00000000;
     internal const uint MfByCommand = 0x00000000;
+    internal const uint MfGrayed = 0x00000001;
+    internal const uint MfEnabled = 0x00000000;
     internal const uint MfSeparator = 0x00000800;
     internal const uint TpmRightButton = 0x0002;
     internal const uint TpmNonotify = 0x0080;
@@ -189,6 +191,9 @@ internal static class WindowsNativeMethods
         uint flags,
         nuint newItem,
         string newItemText);
+
+    [DllImport("user32.dll", SetLastError = true)]
+    internal static extern uint EnableMenuItem(nint menu, uint item, uint flags);
 
     [DllImport("user32.dll", EntryPoint = "MessageBoxW", CharSet = CharSet.Unicode, SetLastError = true)]
     internal static extern int MessageBox(nint owner, string text, string caption, uint type);

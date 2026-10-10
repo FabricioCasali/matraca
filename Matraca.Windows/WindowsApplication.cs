@@ -11,6 +11,7 @@ internal sealed class WindowsApplication : IWindowsWebBridgeApp, IDisposable
     private const uint LogCommand = 3;
     private const uint ConfigFolderCommand = 4;
     private const uint ExitCommand = 5;
+    private const uint CopyLastTranscriptionCommand = 6;
 
     private static readonly TimeSpan ShutdownGracePeriod = TimeSpan.FromSeconds(5);
 
@@ -343,6 +344,8 @@ internal sealed class WindowsApplication : IWindowsWebBridgeApp, IDisposable
     {
         _tray.AddMenuItem(SettingsCommand, _messages.SettingsMenu, () => OpenWebWindow("settings"));
         _tray.AddMenuItem(HistoryCommand, _messages.HistoryMenu, () => OpenWebWindow("history"));
+        _tray.AddMenuItem(CopyLastTranscriptionCommand, _messages.CopyLastTranscriptionMenu, CopyLastTranscription);
+        _tray.SetMenuItemEnabled(CopyLastTranscriptionCommand, false);
         _tray.AddMenuSeparator();
         _tray.AddMenuItem(LogCommand, _messages.LogMenu, OpenLog);
         _tray.AddMenuItem(ConfigFolderCommand, _messages.ConfigFolderMenu, OpenConfigFolder);
@@ -362,6 +365,25 @@ internal sealed class WindowsApplication : IWindowsWebBridgeApp, IDisposable
             return;
         }
         _webWindow.Open(route);
+    }
+
+    private void CopyLastTranscription()
+    {
+        try
+        {
+            if (Volatile.Read(ref _stopping) != 0 || _controller.IsSessionActive || _controller.IsBusy)
+                return;
+            List<DictationHistoryEntry> entries = HistorySnapshot();
+            if (entries.Count == 0) return;
+            if (CopyText(entries[0].Text)) return;
+            Logger.Warn("Falha ao copiar ultima transcricao pelo menu.");
+        }
+        catch (Exception exception)
+        {
+            Logger.Error("Falha ao copiar ultima transcricao pelo menu", exception);
+        }
+        try { _shell.ShowNotification(_messages.InterfaceErrorTitle, _messages.CopyFailed, ShellNotificationLevel.Error); }
+        catch (Exception exception) { Logger.Error("Falha ao avisar erro na copia pelo menu", exception); }
     }
 
     private static void OpenLog()
@@ -415,6 +437,7 @@ internal sealed class WindowsApplication : IWindowsWebBridgeApp, IDisposable
         try
         {
             _controller.SuspendAsync().GetAwaiter().GetResult();
+            _tray.SetMenuItemEnabled(CopyLastTranscriptionCommand, HistorySnapshot().Count > 0);
             return true;
         }
         catch (Exception exception)
@@ -558,6 +581,9 @@ internal sealed class WindowsApplication : IWindowsWebBridgeApp, IDisposable
         _messages = new WindowsUiMessages(config.EffectiveUiLanguage);
         _tray.UpdateMenuItem(SettingsCommand, _messages.SettingsMenu);
         _tray.UpdateMenuItem(HistoryCommand, _messages.HistoryMenu);
+        _tray.UpdateMenuItem(CopyLastTranscriptionCommand, _messages.CopyLastTranscriptionMenu);
+        _tray.SetMenuItemEnabled(CopyLastTranscriptionCommand,
+            !_controller.IsSessionActive && !_controller.IsBusy && HistorySnapshot().Count > 0);
         _tray.UpdateMenuItem(LogCommand, _messages.LogMenu);
         _tray.UpdateMenuItem(ConfigFolderCommand, _messages.ConfigFolderMenu);
         _tray.UpdateMenuItem(ExitCommand, _messages.ExitMenu);
