@@ -483,7 +483,13 @@ public sealed class DictationController : IDisposable
                     _models.Touch();
                     string text = await model.TranscribeAsync(segment, session.Cancellation.Token).ConfigureAwait(false);
                     _models.Touch();
-                    if (string.IsNullOrWhiteSpace(text)) continue;
+                    // Noise above the VAD threshold comes back from Whisper as "." or "...".
+                    if (!text.Any(char.IsLetterOrDigit))
+                    {
+                        if (!string.IsNullOrWhiteSpace(text))
+                            Logger.Info($"[live] segmento sem fala descartado: \"{text.Trim()}\"");
+                        continue;
+                    }
 
                     TextReviewResult review = await PostProcessAsync(session, text, session.ReviewContext)
                         .ConfigureAwait(false);

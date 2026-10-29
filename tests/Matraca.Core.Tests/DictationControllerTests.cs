@@ -425,6 +425,34 @@ public sealed class DictationControllerTests
     }
 
     [Fact]
+    public async Task StreamingDropsSegmentsWithoutLettersOrDigits()
+    {
+        var sent = new ConcurrentQueue<string>();
+        var setup = CreateController(
+            NewConfig("live"),
+            [".", "... ...", "texto 2"],
+            postProcessorFactory: _ => new TextPostProcessor(
+                (request, _) =>
+                {
+                    sent.Enqueue(request);
+                    return Task.FromResult<string?>("texto 2");
+                },
+                1000));
+        setup.Controller.Start();
+
+        await setup.Controller.HandleDictationKeyAsync(true);
+        EmitPhrase(setup.Audio);
+        EmitPhrase(setup.Audio);
+        EmitPhrase(setup.Audio);
+        await setup.Controller.HandleDictationKeyAsync(false);
+        await setup.Controller.HandleDictationKeyAsync(true);
+
+        Assert.Single(sent);
+        Assert.Equal("texto 2 ", Assert.Single(setup.Sink.Requests).Text);
+        await setup.Controller.ShutdownAsync();
+    }
+
+    [Fact]
     public async Task BufferedReviewReceivesPlainTranscription()
     {
         string? sent = null;
