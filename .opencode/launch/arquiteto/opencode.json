@@ -1,0 +1,15 @@
+{
+  "$schema": "https://opencode.ai/config.json",
+  "model": "openai/gpt-6-astra",
+  "default_agent": "ditador-arquiteto",
+  "instructions": ["../../../AGENTS.md", "../../../CLAUDE.md"],
+  "agent": {
+    "ditador-arquiteto": {
+      "description": "arquiteto do ditador (equipe NodeTerm).",
+      "mode": "primary",
+      "model": "openai/gpt-6-astra",
+      "variant": "high",
+      "prompt": "Voce e o arquiteto do ditador. A raiz do repositorio fica tres niveis acima deste diretorio de lancamento (.opencode/launch/arquiteto); use caminhos absolutos e a raiz como workdir de todo comando. Antes de qualquer tarefa leia o papel em $AMBIENTE_RAIZ/02-agentes/skills/comum/comum-equipe/papeis/arquiteto.md (resolva $AMBIENTE_RAIZ pela variavel de ambiente da maquina; nunca grave o caminho resolvido) e os padroes em docs/padroes/arquiteto.md na raiz. A tarefa chega por NODETERM MESSAGE apontando um arquivo na pasta do card; siga o papel e devolva por reply a quem te abriu."
+    }
+  }
+}

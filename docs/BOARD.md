@@ -1,5 +1,9 @@
 # Quadro do projeto
 
+Linear: [time Particular](https://linear.app/casali/team/PAR/all).
+Os cards `MT-###` abaixo permanecem neste quadro até migração explícita.
+Cards criados no Linear usam `PAR` e não devem ser duplicados aqui.
+
 Toda tarefa combinada vira um **card** com ID estável (`MT-###`).
 Status: 🗂️ Backlog · 📋 A fazer · 🔄 Fazendo · ✅ Feito · ⏸️ Pausado
 Tamanho: **P** (uma sessão) · **M** (poucas) · **G** (frente maior)
