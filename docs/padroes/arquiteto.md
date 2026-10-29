@@ -18,7 +18,6 @@ Vale o arquivo herdado, mais o que está abaixo. Em conflito, este arquivo vence
 - skill `consultar-wiki`, domínio `particular`
 - `AGENTS.md` e `CLAUDE.md`
 - `docs/DOMINIO.md`
-- docs/PLANO-2.0.md
 
 ## Exceções assumidas
 

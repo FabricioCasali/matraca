@@ -11,7 +11,6 @@ Classe: **importante** · **melhoria**
 Épico entre [colchetes].
 
 Cartão concluído **sai deste arquivo** — a prova de que foi feito está no diário do dia.
-O desenho da frente 2.0 está em [`PLANO-2.0.md`](PLANO-2.0.md).
 
 ## 🔄 Fazendo
 
@@ -75,8 +74,7 @@ O desenho da frente 2.0 está em [`PLANO-2.0.md`](PLANO-2.0.md).
   VS Code, com preservação do clipboard, e para a moldura entre janelas, Spaces e
   monitores sem roubar foco ou cliques. Restam o soak e o ciclo físico de sleep/wake;
   este último está aceito provisoriamente, sem prova, porque a máquina não pôde ser
-  suspensa durante a sessão. Contrato em
-  [`PLANO-2.0.md`](PLANO-2.0.md). · `[2.0]` · G · importante
+  suspensa durante a sessão. · `[2.0]` · G · importante
 - **MT-005** **Fase 3 — a UI unificada** — Spectrum Glass aprovado e extraído para o
   projeto compartilhado `Matraca.Web`. Primeira fatia técnica verde no Mac: casco
   `WKWebView` aberto apenas pelo menu, ponte versionada com placeholders, assets locais
@@ -96,8 +94,7 @@ O desenho da frente 2.0 está em [`PLANO-2.0.md`](PLANO-2.0.md).
   Restam os checkpoints físicos no
   Windows para painel, bandeja/overlays, áudio, hotkeys, ditado completo e sleep/wake.
   No painel, seguem arraste real, DPI entre monitores, Windows 10, alto contraste
-  e acessibilidade assistidos; limites do probe em `tests/WindowsResizeProbe/README.md`.
-  Contrato em [`PLANO-2.0.md`](PLANO-2.0.md). · `[2.0]` · G · importante
+  e acessibilidade assistidos; limites do probe em `tests/WindowsResizeProbe/README.md`. · `[2.0]` · G · importante
 - **MT-019** **Ditado grava, mas não entrega texto no Mac** — correção aplicada ao par
   Unicode `keyDown`/`keyUp`. Resta a prova assistida de entrega em aplicativos reais. ·
   `[2.0]` · P · importante

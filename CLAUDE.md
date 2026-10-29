@@ -7,7 +7,7 @@ Para estado, siga `docs/BOARD.md`, inclusive seu ponteiro para o Linear.
 App de bandeja que transcreve voz com Whisper **local** e entrega o texto na janela em
 foco. Nasceu para ditar prompts no Claude Code, e serve qualquer lugar com cursor de
 texto. Hoje roda no Windows; está virando 2.0, com macOS e uma UI só para os dois
-sistemas — o desenho está em [`docs/PLANO-2.0.md`](docs/PLANO-2.0.md), o estado em
+sistemas — o estado em
 [`docs/BOARD.md`](docs/BOARD.md).
 
 Este arquivo é **lei**: desvio se julga contra o que está escrito aqui.
