@@ -3,6 +3,7 @@ namespace Matraca.Core;
 public sealed class DictationController : IDisposable
 {
     private const int MaximumMuteWindowMilliseconds = 900;
+    private const int ReviewContextMaxChars = 400;
     private const int LifecycleActive = 0;
     private const int LifecycleSuspended = 1;
     private const int LifecycleResuming = 2;
@@ -484,8 +485,10 @@ public sealed class DictationController : IDisposable
                     _models.Touch();
                     if (string.IsNullOrWhiteSpace(text)) continue;
 
-                    TextReviewResult review = await PostProcessAsync(session, text).ConfigureAwait(false);
+                    TextReviewResult review = await PostProcessAsync(session, text, session.ReviewContext)
+                        .ConfigureAwait(false);
                     text = review.Text!;
+                    session.ReviewContext = ReviewContextTail(session.ReviewContext + " " + text.Trim());
                     string chunk = text.Trim() + " ";
                     if (await DeliverAsync(
                             session,
@@ -519,15 +522,31 @@ public sealed class DictationController : IDisposable
         }
     }
 
-    private async Task<TextReviewResult> PostProcessAsync(DictationSession session, string text)
+    private async Task<TextReviewResult> PostProcessAsync(
+        DictationSession session,
+        string text,
+        string? precedingText = null)
     {
         TextReviewResult result = session.PostProcessor == null
             ? new TextReviewResult(text, null)
-            : await session.PostProcessor
+            : precedingText == null
+            ? await session.PostProcessor
                 .CleanWithUsageAsync(text, session.Cancellation.Token)
+                .ConfigureAwait(false)
+            : await session.PostProcessor
+                .CleanFragmentWithUsageAsync(text, precedingText, session.Cancellation.Token)
                 .ConfigureAwait(false);
         if (result.Usage != null) _usageLedger?.Add(result.Usage);
         return result;
+    }
+
+    private static string ReviewContextTail(string text)
+    {
+        text = text.Trim();
+        if (text.Length <= ReviewContextMaxChars) return text;
+        string tail = text[^ReviewContextMaxChars..];
+        int wordStart = tail.IndexOf(' ');
+        return wordStart < 0 ? tail : tail[(wordStart + 1)..];
     }
 
     private async Task<TextDeliveryResult> DeliverAsync(

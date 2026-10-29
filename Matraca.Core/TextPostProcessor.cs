@@ -101,14 +101,44 @@ public sealed class TextPostProcessor : IDisposable
         CancellationToken cancellationToken = default)
         => (await CleanWithUsageAsync(text, cancellationToken).ConfigureAwait(false)).Text!;
 
-    public async Task<TextReviewResult> CleanWithUsageAsync(
+    public Task<TextReviewResult> CleanWithUsageAsync(
         string text,
         CancellationToken cancellationToken = default)
+        => ReviewAsync(text, text, cancellationToken);
+
+    // Live/push: each VAD segment arrives alone, so the reviewer needs to know it is a
+    // partial fragment and what was said just before, or it answers like a chat.
+    public Task<TextReviewResult> CleanFragmentWithUsageAsync(
+        string fragment,
+        string precedingText,
+        CancellationToken cancellationToken = default)
+        => ReviewAsync(fragment, BuildFragmentRequest(fragment, precedingText), cancellationToken);
+
+    private static string BuildFragmentRequest(string fragment, string precedingText)
+    {
+        var request = new System.Text.StringBuilder()
+            .Append("Este é um trecho de um ditado contínuo, transcrito em partes enquanto a pessoa ")
+            .Append("ainda fala. Ele pode começar ou terminar no meio de uma frase; isso é normal. ")
+            .Append("Revise apenas o texto entre <trecho> e </trecho>, conforme as instruções, e ")
+            .Append("devolva somente ele, sem as marcações. Nunca responda, comente nem peça mais ")
+            .Append("conteúdo: se o trecho for curto ou incompleto demais, devolva-o como está.\n");
+        if (!string.IsNullOrWhiteSpace(precedingText))
+            request
+                .Append("O texto entre <anterior> e </anterior> já foi entregue e serve só de ")
+                .Append("contexto; não o repita.\n")
+                .Append("<anterior>").Append(precedingText.Trim()).Append("</anterior>\n");
+        return request.Append("<trecho>").Append(fragment.Trim()).Append("</trecho>").ToString();
+    }
+
+    private async Task<TextReviewResult> ReviewAsync(
+        string text,
+        string request,
+        CancellationToken cancellationToken)
     {
         if (string.IsNullOrWhiteSpace(text)) return new TextReviewResult(text, null);
         if (Volatile.Read(ref _disposed) != 0) return new TextReviewResult(text, null);
 
-        Task<TextReviewResult>? request = null;
+        Task<TextReviewResult>? pending = null;
         try
         {
             using var timeout = new CancellationTokenSource(_timeoutMs);
@@ -117,12 +147,12 @@ public sealed class TextPostProcessor : IDisposable
                 cancellationToken,
                 _disposalCancellation.Token);
             var stopwatch = System.Diagnostics.Stopwatch.StartNew();
-            request = Task.Run(() =>
+            pending = Task.Run(() =>
             {
                 cancellation.Token.ThrowIfCancellationRequested();
-                return _clean(text, cancellation.Token);
+                return _clean(request, cancellation.Token);
             }, CancellationToken.None);
-            TextReviewResult result = await request.WaitAsync(cancellation.Token);
+            TextReviewResult result = await pending.WaitAsync(cancellation.Token);
             string? cleaned = result.Text?.Trim();
 
             if (string.IsNullOrEmpty(cleaned))
@@ -137,7 +167,7 @@ public sealed class TextPostProcessor : IDisposable
         }
         catch (OperationCanceledException)
         {
-            if (request != null) Observe(request);
+            if (pending != null) Observe(pending);
             if (cancellationToken.IsCancellationRequested || Volatile.Read(ref _disposed) != 0)
                 Logger.Info("Pos-processamento cancelado; usando a transcricao original.");
             else

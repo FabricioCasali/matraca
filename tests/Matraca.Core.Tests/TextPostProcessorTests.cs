@@ -108,6 +108,60 @@ public sealed class TextPostProcessorTests
     }
 
     [Fact]
+    public async Task FragmentRequestCarriesNoticeContextAndFragment()
+    {
+        string? sent = null;
+        using var processor = new TextPostProcessor(
+            (request, _) =>
+            {
+                sent = request;
+                return Task.FromResult<string?>("Revisado.");
+            },
+            1000);
+
+        TextReviewResult result = await processor.CleanFragmentWithUsageAsync(
+            " trecho novo ",
+            "o que veio antes");
+
+        Assert.Equal("Revisado.", result.Text);
+        Assert.Contains("ditado contínuo", sent);
+        Assert.Contains("<anterior>o que veio antes</anterior>", sent);
+        Assert.EndsWith("<trecho>trecho novo</trecho>", sent);
+    }
+
+    [Fact]
+    public async Task FirstFragmentHasNoticeWithoutContext()
+    {
+        string? sent = null;
+        using var processor = new TextPostProcessor(
+            (request, _) =>
+            {
+                sent = request;
+                return Task.FromResult<string?>("ok");
+            },
+            1000);
+
+        await processor.CleanFragmentWithUsageAsync("primeiro", "");
+
+        Assert.Contains("ditado contínuo", sent);
+        Assert.DoesNotContain("<anterior>", sent);
+    }
+
+    [Fact]
+    public async Task FailedFragmentReviewReturnsOnlyTheFragment()
+    {
+        using var processor = new TextPostProcessor(
+            (_, _) => throw new InvalidOperationException("boom"),
+            1000);
+
+        TextReviewResult result = await processor.CleanFragmentWithUsageAsync(
+            "trecho cru",
+            "contexto");
+
+        Assert.Equal("trecho cru", result.Text);
+    }
+
+    [Fact]
     public async Task TimeoutReturnsOriginalTextEvenWhenRequestIgnoresCancellation()
     {
         const string original = "  raw text\r\n";

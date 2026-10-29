@@ -388,6 +388,66 @@ public sealed class DictationControllerTests
     }
 
     [Fact]
+    public async Task StreamingReviewReceivesPreviousChunksAsContext()
+    {
+        var sent = new ConcurrentQueue<string>();
+        string longFirst = string.Join(' ', Enumerable.Repeat("palavra", 80));
+        var setup = CreateController(
+            NewConfig("push"),
+            [longFirst, "dois", "três"],
+            postProcessorFactory: _ => new TextPostProcessor(
+                (request, _) =>
+                {
+                    sent.Enqueue(request);
+                    string fragment = request[(request.LastIndexOf("<trecho>") + 8)..^9];
+                    return Task.FromResult<string?>(fragment.ToUpperInvariant());
+                },
+                1000));
+        setup.Controller.Start();
+
+        await setup.Controller.HandleDictationKeyAsync(true);
+        EmitPhrase(setup.Audio);
+        EmitPhrase(setup.Audio);
+        EmitPhrase(setup.Audio);
+        await setup.Controller.HandleDictationKeyAsync(false);
+
+        string[] requests = sent.ToArray();
+        Assert.Equal(3, requests.Length);
+        Assert.DoesNotContain("<anterior>", requests[0]);
+        string context = requests[2][(requests[2].LastIndexOf("<anterior>") + 10)..requests[2].LastIndexOf("</anterior>")];
+        Assert.True(context.Length <= 400);
+        Assert.StartsWith("PALAVRA", context);
+        Assert.EndsWith("PALAVRA DOIS", context);
+        Assert.Equal(
+            [longFirst.ToUpperInvariant() + " ", "DOIS ", "TRÊS "],
+            setup.Sink.Requests.Select(request => request.Text));
+        await setup.Controller.ShutdownAsync();
+    }
+
+    [Fact]
+    public async Task BufferedReviewReceivesPlainTranscription()
+    {
+        string? sent = null;
+        var setup = CreateController(
+            NewConfig("hold"),
+            ["texto inteiro"],
+            postProcessorFactory: _ => new TextPostProcessor(
+                (request, _) =>
+                {
+                    sent = request;
+                    return Task.FromResult<string?>(request);
+                },
+                1000));
+        setup.Controller.Start();
+
+        await setup.Controller.HandleDictationKeyAsync(true);
+        await setup.Controller.HandleDictationKeyAsync(false);
+
+        Assert.Equal("texto inteiro", sent);
+        await setup.Controller.ShutdownAsync();
+    }
+
+    [Fact]
     public async Task EmptyStreamingSessionNeverSendsEnter()
     {
         var (controller, _, audio, sink, _, _) = CreateController(
