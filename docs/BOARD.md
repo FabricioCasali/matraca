@@ -165,14 +165,6 @@ _(nada a fazer)_
   campo-a-campo já existe, é usar em vez de reescrever. · `[distribuição]` · M · melhoria
 - **MT-011** **Repositório sem description nem topics no GitHub** — custa minutos e é
   pré-requisito do MT-010. · `[distribuição]` · P · melhoria
-- **MT-012** **Decidir o destino de `.claude/agents/`** — o repositório é público. São só
-  prompts, sem segredo, mas é o processo dele à vista. Só importa na hora do
-  push. · `[processo]` · P · melhoria
-- **MT-014** **A cadeira `especialista-particular` não tem agente** —
-  `.claude/agents/especialista-particular.md` não existe, embora o `PLANO-2.0.md` a liste
-  como membro sob demanda e o `arquiteto.md` mande consultá-la. Sem o arquivo, quem
-  precisa da memória do projeto lê o vault na mão. Criar o agente ou tirar a cadeira das
-  duas referências. · `[processo]` · P · melhoria
 - **MT-018** **Configurar entrega para alvo em outro Space** — a política inicial no Mac
   é ir ao Space do alvo, confirmar, entregar e restaurar. Expor em configuração a quente
   as alternativas de recusar ou usar `nofocus` quando a capacidade estiver comprovada. ·
