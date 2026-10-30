@@ -24,6 +24,15 @@ public sealed class CopyLastTranscriptionContractTests
     }
 
     [Fact]
+    public void WindowsTrayOpensTheMenuOncePerRightClick()
+    {
+        string tray = ReadProjectFile("Matraca.Windows", "WindowsTrayIcon.cs");
+        Assert.Contains("_usesVersion4\n            ? WindowsNativeMethods.WmContextMenu\n            : WindowsNativeMethods.WmRButtonUp", tray.ReplaceLineEndings("\n"));
+        Assert.DoesNotContain("case WindowsNativeMethods.WmContextMenu:", tray);
+        Assert.DoesNotContain("case WindowsNativeMethods.WmRButtonUp:", tray);
+    }
+
+    [Fact]
     public void MacMenuHasTheLocalizedCopyAction()
     {
         string messages = ReadProjectFile("Matraca.Mac", "Platform", "MacUiText.cs");
