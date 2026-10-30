@@ -108,43 +108,63 @@ public sealed class TextPostProcessorTests
     }
 
     [Fact]
-    public async Task FragmentRequestCarriesNoticeContextAndFragment()
+    public async Task FragmentGoesBareWithNoticeAndContextAsInstructions()
     {
         string? sent = null;
+        string? instructions = null;
         using var processor = new TextPostProcessor(
-            (request, _) =>
+            (text, extra, _) =>
             {
-                sent = request;
+                sent = text;
+                instructions = extra;
                 return Task.FromResult<string?>("Revisado.");
             },
             1000);
 
         TextReviewResult result = await processor.CleanFragmentWithUsageAsync(
-            " trecho novo ",
+            "trecho novo",
             "o que veio antes");
 
         Assert.Equal("Revisado.", result.Text);
-        Assert.Contains("ditado contínuo", sent);
-        Assert.Contains("<anterior>o que veio antes</anterior>", sent);
-        Assert.EndsWith("<trecho>trecho novo</trecho>", sent);
+        Assert.Equal("trecho novo", sent);
+        Assert.Contains("ditado contínuo", instructions);
+        Assert.Contains("\"o que veio antes\"", instructions);
+        Assert.DoesNotContain("<", instructions);
     }
 
     [Fact]
     public async Task FirstFragmentHasNoticeWithoutContext()
     {
-        string? sent = null;
+        string? instructions = null;
         using var processor = new TextPostProcessor(
-            (request, _) =>
+            (_, extra, _) =>
             {
-                sent = request;
+                instructions = extra;
                 return Task.FromResult<string?>("ok");
             },
             1000);
 
         await processor.CleanFragmentWithUsageAsync("primeiro", "");
 
-        Assert.Contains("ditado contínuo", sent);
-        Assert.DoesNotContain("<anterior>", sent);
+        Assert.Contains("ditado contínuo", instructions);
+        Assert.DoesNotContain("Texto já entregue", instructions);
+    }
+
+    [Fact]
+    public async Task WholeTranscriptionHasNoExtraInstructions()
+    {
+        string? instructions = "unset";
+        using var processor = new TextPostProcessor(
+            (_, extra, _) =>
+            {
+                instructions = extra;
+                return Task.FromResult<string?>("ok");
+            },
+            1000);
+
+        await processor.CleanWithUsageAsync("texto inteiro");
+
+        Assert.Null(instructions);
     }
 
     [Fact]
