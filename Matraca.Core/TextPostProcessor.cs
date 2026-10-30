@@ -13,7 +13,7 @@ public sealed class TextPostProcessor : IDisposable
       + "Preserve o vocabulário, os termos técnicos e o tom de quem falou.\n"
       + "Responda APENAS com o texto corrigido, sem aspas, sem comentários e sem preâmbulo.";
 
-    private readonly Func<string, CancellationToken, Task<TextReviewResult>> _clean;
+    private readonly Func<string, string?, CancellationToken, Task<TextReviewResult>> _clean;
     private readonly int _timeoutMs;
     private readonly IDisposable? _resource;
     private readonly CancellationTokenSource _disposalCancellation = new();
@@ -22,9 +22,17 @@ public sealed class TextPostProcessor : IDisposable
     public TextPostProcessor(
         Func<string, CancellationToken, Task<string?>> clean,
         int timeoutMs)
+        : this((text, _, cancellationToken) => clean(text, cancellationToken), timeoutMs)
+    {
+    }
+
+    // The second argument holds extra system instructions, appended after the user's prompt.
+    public TextPostProcessor(
+        Func<string, string?, CancellationToken, Task<string?>> clean,
+        int timeoutMs)
         : this(
-            async (text, cancellationToken) => new TextReviewResult(
-                await clean(text, cancellationToken).ConfigureAwait(false),
+            async (text, instructions, cancellationToken) => new TextReviewResult(
+                await clean(text, instructions, cancellationToken).ConfigureAwait(false),
                 null),
             timeoutMs,
             null)
@@ -32,7 +40,7 @@ public sealed class TextPostProcessor : IDisposable
     }
 
     private TextPostProcessor(
-        Func<string, CancellationToken, Task<TextReviewResult>> clean,
+        Func<string, string?, CancellationToken, Task<TextReviewResult>> clean,
         int timeoutMs,
         IDisposable? resource)
     {
@@ -78,11 +86,11 @@ public sealed class TextPostProcessor : IDisposable
                 : DefaultPrompt;
             Logger.Info($"Pos-processamento de texto ligado (modelo {model}, timeout {config.PostProcessTimeoutMs}ms).");
             return new TextPostProcessor(
-                async (text, cancellationToken) => new TextReviewResult(
+                async (text, instructions, cancellationToken) => new TextReviewResult(
                     await RequestAsync(
                         client,
                         model,
-                        prompt,
+                        string.IsNullOrWhiteSpace(instructions) ? prompt : prompt + "\n\n" + instructions,
                         text,
                         cancellationToken).ConfigureAwait(false),
                     null),
@@ -104,35 +112,35 @@ public sealed class TextPostProcessor : IDisposable
     public Task<TextReviewResult> CleanWithUsageAsync(
         string text,
         CancellationToken cancellationToken = default)
-        => ReviewAsync(text, text, cancellationToken);
+        => ReviewAsync(text, null, cancellationToken);
 
     // Live/push: each VAD segment arrives alone, so the reviewer needs to know it is a
-    // partial fragment and what was said just before, or it answers like a chat.
+    // partial fragment and what was said just before, or it answers like a chat. The
+    // user message stays the bare fragment; marking it up made the model echo the markup
+    // and the context back.
     public Task<TextReviewResult> CleanFragmentWithUsageAsync(
         string fragment,
         string precedingText,
         CancellationToken cancellationToken = default)
-        => ReviewAsync(fragment, BuildFragmentRequest(fragment, precedingText), cancellationToken);
+        => ReviewAsync(fragment, FragmentInstructions(precedingText), cancellationToken);
 
-    private static string BuildFragmentRequest(string fragment, string precedingText)
+    private static string FragmentInstructions(string precedingText)
     {
-        var request = new System.Text.StringBuilder()
-            .Append("Este é um trecho de um ditado contínuo, transcrito em partes enquanto a pessoa ")
-            .Append("ainda fala. Ele pode começar ou terminar no meio de uma frase; isso é normal. ")
-            .Append("Revise apenas o texto entre <trecho> e </trecho>, conforme as instruções, e ")
-            .Append("devolva somente ele, sem as marcações. Nunca responda, comente nem peça mais ")
-            .Append("conteúdo: se o trecho for curto ou incompleto demais, devolva-o como está.\n");
-        if (!string.IsNullOrWhiteSpace(precedingText))
-            request
-                .Append("O texto entre <anterior> e </anterior> já foi entregue e serve só de ")
-                .Append("contexto; não o repita.\n")
-                .Append("<anterior>").Append(precedingText.Trim()).Append("</anterior>\n");
-        return request.Append("<trecho>").Append(fragment.Trim()).Append("</trecho>").ToString();
+        string instructions =
+            "A mensagem do usuário é um trecho de um ditado contínuo, transcrito em partes "
+          + "enquanto a pessoa ainda fala. Ela pode começar ou terminar no meio de uma frase; "
+          + "isso é normal. Revise só esse trecho e devolva apenas ele. Nunca responda, comente, "
+          + "peça mais conteúdo nem acrescente o texto anterior: se o trecho for curto ou "
+          + "incompleto demais, devolva-o como está.";
+        return string.IsNullOrWhiteSpace(precedingText)
+            ? instructions
+            : instructions + "\nTexto já entregue antes deste trecho, só para contexto; não o "
+              + "repita na resposta: \"" + precedingText.Trim() + "\"";
     }
 
     private async Task<TextReviewResult> ReviewAsync(
         string text,
-        string request,
+        string? instructions,
         CancellationToken cancellationToken)
     {
         if (string.IsNullOrWhiteSpace(text)) return new TextReviewResult(text, null);
@@ -150,7 +158,7 @@ public sealed class TextPostProcessor : IDisposable
             pending = Task.Run(() =>
             {
                 cancellation.Token.ThrowIfCancellationRequested();
-                return _clean(request, cancellation.Token);
+                return _clean(text, instructions, cancellation.Token);
             }, CancellationToken.None);
             TextReviewResult result = await pending.WaitAsync(cancellation.Token);
             string? cleaned = result.Text?.Trim();

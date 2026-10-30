@@ -44,6 +44,31 @@ public sealed class OpenAiCompatibleTextReviewerTests
         Assert.DoesNotContain("audio", body, StringComparison.OrdinalIgnoreCase);
     }
 
+    [Fact]
+    public async Task ExtraInstructionsFollowThePromptInTheSameSystemMessage()
+    {
+        string? body = null;
+        using var http = new HttpClient(new StubHttpMessageHandler((request, _) =>
+        {
+            body = request.Content!.ReadAsStringAsync().GetAwaiter().GetResult();
+            return JsonResponse("""{"choices":[{"message":{"content":"ok"}}]}""");
+        }));
+        using var reviewer = new OpenAiCompatibleTextReviewer(
+            http,
+            new Uri("https://review.example/v1/chat/completions"),
+            "secret",
+            "model-1",
+            "Revise sem reescrever.");
+
+        await reviewer.ReviewWithUsageAsync("trecho", "Trecho parcial.", CancellationToken.None);
+
+        using JsonDocument document = JsonDocument.Parse(body!);
+        JsonElement messages = document.RootElement.GetProperty("messages");
+        Assert.Equal(2, messages.GetArrayLength());
+        Assert.Equal("Revise sem reescrever.\n\nTrecho parcial.", messages[0].GetProperty("content").GetString());
+        Assert.Equal("trecho", messages[1].GetProperty("content").GetString());
+    }
+
     [Theory]
     [InlineData("{\"choices\":[]}")]
     [InlineData("{\"choices\":[{\"message\":{\"content\":null}}]}")]

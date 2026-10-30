@@ -390,17 +390,16 @@ public sealed class DictationControllerTests
     [Fact]
     public async Task StreamingReviewReceivesPreviousChunksAsContext()
     {
-        var sent = new ConcurrentQueue<string>();
+        var sent = new ConcurrentQueue<(string Text, string? Instructions)>();
         string longFirst = string.Join(' ', Enumerable.Repeat("palavra", 80));
         var setup = CreateController(
             NewConfig("push"),
             [longFirst, "dois", "três"],
             postProcessorFactory: _ => new TextPostProcessor(
-                (request, _) =>
+                (text, instructions, _) =>
                 {
-                    sent.Enqueue(request);
-                    string fragment = request[(request.LastIndexOf("<trecho>") + 8)..^9];
-                    return Task.FromResult<string?>(fragment.ToUpperInvariant());
+                    sent.Enqueue((text, instructions));
+                    return Task.FromResult<string?>(text.ToUpperInvariant());
                 },
                 1000));
         setup.Controller.Start();
@@ -411,10 +410,12 @@ public sealed class DictationControllerTests
         EmitPhrase(setup.Audio);
         await setup.Controller.HandleDictationKeyAsync(false);
 
-        string[] requests = sent.ToArray();
+        var requests = sent.ToArray();
         Assert.Equal(3, requests.Length);
-        Assert.DoesNotContain("<anterior>", requests[0]);
-        string context = requests[2][(requests[2].LastIndexOf("<anterior>") + 10)..requests[2].LastIndexOf("</anterior>")];
+        Assert.Equal(["palavra", "dois", "três"], requests.Select(request => request.Text.Split(' ')[0]));
+        Assert.DoesNotContain("Texto já entregue", requests[0].Instructions);
+        string third = requests[2].Instructions!;
+        string context = third[(third.IndexOf('"') + 1)..third.LastIndexOf('"')];
         Assert.True(context.Length <= 400);
         Assert.StartsWith("PALAVRA", context);
         Assert.EndsWith("PALAVRA DOIS", context);

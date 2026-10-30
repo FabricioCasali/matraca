@@ -49,16 +49,23 @@ public sealed class OpenAiCompatibleTextReviewer : IDisposable
     public async Task<string?> ReviewAsync(string text, CancellationToken cancellationToken)
         => (await ReviewWithUsageAsync(text, cancellationToken).ConfigureAwait(false)).Text;
 
-    public async Task<TextReviewResult> ReviewWithUsageAsync(
+    public Task<TextReviewResult> ReviewWithUsageAsync(
         string text,
         CancellationToken cancellationToken)
+        => ReviewWithUsageAsync(text, null, cancellationToken);
+
+    public async Task<TextReviewResult> ReviewWithUsageAsync(
+        string text,
+        string? instructions,
+        CancellationToken cancellationToken)
     {
+        string system = string.IsNullOrWhiteSpace(instructions) ? _prompt : _prompt + "\n\n" + instructions;
         var payloadValues = new Dictionary<string, object>
         {
             ["model"] = _model,
             ["messages"] = new[]
             {
-                new { role = "system", content = _prompt },
+                new { role = "system", content = system },
                 new { role = "user", content = text },
             },
         };
