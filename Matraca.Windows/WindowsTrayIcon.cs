@@ -186,12 +186,19 @@ internal sealed class WindowsTrayIcon : IDisposable
             ? unchecked((uint)lParam.ToInt64()) & 0xffff
             : unchecked((uint)lParam.ToInt64());
 
+        // Version 4 sends WM_RBUTTONUP and then WM_CONTEXTMENU for one right click; handling
+        // both reopens the menu at the cursor right after an item is chosen.
+        uint menuNotification = _usesVersion4
+            ? WindowsNativeMethods.WmContextMenu
+            : WindowsNativeMethods.WmRButtonUp;
+        if (notification == menuNotification)
+        {
+            ShowMenu();
+            return nint.Zero;
+        }
+
         switch (notification)
         {
-            case WindowsNativeMethods.WmContextMenu:
-            case WindowsNativeMethods.WmRButtonUp:
-                ShowMenu();
-                break;
             case WindowsNativeMethods.NinSelect:
             case WindowsNativeMethods.NinKeySelect:
             case WindowsNativeMethods.WmLButtonUp:

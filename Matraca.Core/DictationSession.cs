@@ -14,6 +14,7 @@ internal sealed class DictationSession
     public VoiceActivityDetector? Detector { get; set; }
     public BlockingCollection<float[]>? Segments { get; set; }
     public Task? Consumer { get; set; }
+    public string ReviewContext { get; set; } = "";
     public bool DeliveredSpeech { get; set; }
     public bool DeliveryFailed { get; set; }
 }
