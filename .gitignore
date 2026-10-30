@@ -17,3 +17,7 @@ installer/output/
 # spike do macOS: o .app montado e certificados locais
 spike/mac/Matraca.app/
 spike/mac/*.p12
+
+# estado local dos agentes
+.flowforge/
+.lh/

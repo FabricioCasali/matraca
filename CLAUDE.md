@@ -1,13 +1,16 @@
+@AGENTS.md
+
+Para estado, siga `docs/BOARD.md`, inclusive seu ponteiro para o Linear.
+
 # Matraca — as leis do projeto
 
 App de bandeja que transcreve voz com Whisper **local** e entrega o texto na janela em
 foco. Nasceu para ditar prompts no Claude Code, e serve qualquer lugar com cursor de
 texto. Hoje roda no Windows; está virando 2.0, com macOS e uma UI só para os dois
-sistemas — o desenho está em [`docs/PLANO-2.0.md`](docs/PLANO-2.0.md), o estado em
+sistemas — o estado em
 [`docs/BOARD.md`](docs/BOARD.md).
 
-Este arquivo é **lei**. Quem julga desvio é o `regente`, e ele julga contra o que está
-escrito aqui.
+Este arquivo é **lei**: desvio se julga contra o que está escrito aqui.
 
 ## As leis
 
@@ -59,8 +62,8 @@ contaria como fala, e o limiar é uma marca arrastável sobre ela.
 igual ao nome do tipo, organização por pasta/namespace. Nada de tipo pequeno pegando
 carona no arquivo de outro.
 
-**9. Nenhuma mudança é efetivada sem plano aprovado.** O `arquiteto` desenha, o
-`regente` leva ao Fabricio, e só então alguém escreve.
+**9. Nenhuma mudança é efetivada sem plano aprovado.** O Arquiteto condutor
+desenha e leva ao Fabricio, e só então alguém escreve.
 
 **10. `git push` só com pedido explícito.** Commit local a cada fatia verde, sem
 perguntar. Publicar é decisão dele — o repositório é público.
@@ -82,17 +85,3 @@ CI e do teste manual do Fabricio. Não finja cobertura que a mesa não tem.
 arquivo). **O que sobrevive ao projeto** vira proposta em
 `$AMBIENTE_RAIZ/05-conhecimento/_propostas/` — a equipe não escreve no vault direto.
 Fora disso, não escreve.
-
-## A equipe
-
-Definida em [`.claude/agents/`](.claude/agents/). O portão é garantido pela lista de
-ferramentas de cada papel, não pela boa vontade: quem desenha não tem como escrever.
-
-| papel | o que faz |
-|---|---|
-| `regente` | mantém a visão, julga se está pronto, é a única voz que fala com o Fabricio |
-| `arquiteto` | diz o que e como; dono do contrato entre as peças |
-| `desenvolvedor` | as mãos |
-| `provador` | prova que roda |
-| `estilista` | o padrão visual, no OpenDesign |
-| `escrivão` | registra o estado |

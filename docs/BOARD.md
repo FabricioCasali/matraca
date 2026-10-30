@@ -1,5 +1,9 @@
 # Quadro do projeto
 
+Linear: [time Particular](https://linear.app/casali/team/PAR/all).
+Os cards `MT-###` abaixo permanecem neste quadro até migração explícita.
+Cards criados no Linear usam `PAR` e não devem ser duplicados aqui.
+
 Toda tarefa combinada vira um **card** com ID estável (`MT-###`).
 Status: 🗂️ Backlog · 📋 A fazer · 🔄 Fazendo · ✅ Feito · ⏸️ Pausado
 Tamanho: **P** (uma sessão) · **M** (poucas) · **G** (frente maior)
@@ -7,7 +11,6 @@ Classe: **importante** · **melhoria**
 Épico entre [colchetes].
 
 Cartão concluído **sai deste arquivo** — a prova de que foi feito está no diário do dia.
-O desenho da frente 2.0 está em [`PLANO-2.0.md`](PLANO-2.0.md).
 
 ## 🔄 Fazendo
 
@@ -71,8 +74,7 @@ O desenho da frente 2.0 está em [`PLANO-2.0.md`](PLANO-2.0.md).
   VS Code, com preservação do clipboard, e para a moldura entre janelas, Spaces e
   monitores sem roubar foco ou cliques. Restam o soak e o ciclo físico de sleep/wake;
   este último está aceito provisoriamente, sem prova, porque a máquina não pôde ser
-  suspensa durante a sessão. Contrato em
-  [`PLANO-2.0.md`](PLANO-2.0.md). · `[2.0]` · G · importante
+  suspensa durante a sessão. · `[2.0]` · G · importante
 - **MT-005** **Fase 3 — a UI unificada** — Spectrum Glass aprovado e extraído para o
   projeto compartilhado `Matraca.Web`. Primeira fatia técnica verde no Mac: casco
   `WKWebView` aberto apenas pelo menu, ponte versionada com placeholders, assets locais
@@ -92,8 +94,7 @@ O desenho da frente 2.0 está em [`PLANO-2.0.md`](PLANO-2.0.md).
   Restam os checkpoints físicos no
   Windows para painel, bandeja/overlays, áudio, hotkeys, ditado completo e sleep/wake.
   No painel, seguem arraste real, DPI entre monitores, Windows 10, alto contraste
-  e acessibilidade assistidos; limites do probe em `tests/WindowsResizeProbe/README.md`.
-  Contrato em [`PLANO-2.0.md`](PLANO-2.0.md). · `[2.0]` · G · importante
+  e acessibilidade assistidos; limites do probe em `tests/WindowsResizeProbe/README.md`. · `[2.0]` · G · importante
 - **MT-019** **Ditado grava, mas não entrega texto no Mac** — correção aplicada ao par
   Unicode `keyDown`/`keyUp`. Resta a prova assistida de entrega em aplicativos reais. ·
   `[2.0]` · P · importante
@@ -161,14 +162,6 @@ _(nada a fazer)_
   campo-a-campo já existe, é usar em vez de reescrever. · `[distribuição]` · M · melhoria
 - **MT-011** **Repositório sem description nem topics no GitHub** — custa minutos e é
   pré-requisito do MT-010. · `[distribuição]` · P · melhoria
-- **MT-012** **Decidir o destino de `.claude/agents/`** — o repositório é público. São só
-  prompts, sem segredo, mas é o processo dele à vista. Só importa na hora do
-  push. · `[processo]` · P · melhoria
-- **MT-014** **A cadeira `especialista-particular` não tem agente** —
-  `.claude/agents/especialista-particular.md` não existe, embora o `PLANO-2.0.md` a liste
-  como membro sob demanda e o `arquiteto.md` mande consultá-la. Sem o arquivo, quem
-  precisa da memória do projeto lê o vault na mão. Criar o agente ou tirar a cadeira das
-  duas referências. · `[processo]` · P · melhoria
 - **MT-018** **Configurar entrega para alvo em outro Space** — a política inicial no Mac
   é ir ao Space do alvo, confirmar, entregar e restaurar. Expor em configuração a quente
   as alternativas de recusar ou usar `nofocus` quando a capacidade estiver comprovada. ·

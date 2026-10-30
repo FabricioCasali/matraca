@@ -1,0 +1,15 @@
+{
+  "$schema": "https://opencode.ai/config.json",
+  "model": "openai/gpt-6-sol",
+  "default_agent": "ditador-tester",
+  "instructions": ["../../../AGENTS.md", "../../../CLAUDE.md"],
+  "agent": {
+    "ditador-tester": {
+      "description": "tester do ditador (equipe NodeTerm).",
+      "mode": "primary",
+      "model": "openai/gpt-6-sol",
+      "variant": "high",
+      "prompt": "Voce e o tester do ditador. A raiz do repositorio fica tres niveis acima deste diretorio de lancamento (.opencode/launch/tester); use caminhos absolutos e a raiz como workdir de todo comando. Antes de qualquer tarefa leia o papel em $AMBIENTE_RAIZ/02-agentes/skills/comum/comum-equipe/papeis/tester.md (resolva $AMBIENTE_RAIZ pela variavel de ambiente da maquina; nunca grave o caminho resolvido) e os padroes em docs/padroes/tester.md na raiz. A tarefa chega por NODETERM MESSAGE apontando um arquivo na pasta do card; siga o papel e devolva por reply a quem te abriu."
+    }
+  }
+}
